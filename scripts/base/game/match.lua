@@ -23,6 +23,7 @@ local character_frames = constants.character_frames
 local record_kinds = constants.record_kinds
 local object_data = require("base/game/object_data")
 local background = require("base/game/background")
+local bg_modes = require("base/game/bg_modes")
 local item = require("base/game/item")
 local control = require("base/game/control")
 local physics = require("base/game/physics")
@@ -87,6 +88,11 @@ function match.create(options)
     if options.mode == mode_stage then state.stage_run = stage.create(options.stage_level) end
     if options.mode == mode_battle then state.battle_run = battle.create(options.battle) end
     state.stage = stage_description(options.backgrounds, row)
+    -- LF2 Darkfiren: the chosen background mode's respond (layers) and arest (opoints) pick what the background has;
+    -- without a chosen mode the background's first mode stands. state.stage.opoints is what that leaves for the round.
+    local filters = state.bg_mode and state.bg_mode.filters
+    if not filters and row ~= constants.background_rows.lee_on_road then filters = bg_modes.default_filters(row) end
+    state.stage = background.filtered(state.stage, filters)
     state.view = background.create_state(state.stage)
     local width = state.stage.width or constants.screen.width
     local near, far = state.stage.zboundary[1] or 0, state.stage.zboundary[2] or 0

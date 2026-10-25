@@ -33,7 +33,8 @@ public:
                 if (read_int(data_.perspective[0])) read_int(data_.perspective[1]);
             } else if (word_ == "shadow:") shadow();
             else if (word_ == "layer:") layer();
-            else if (word_ != "layer_end") note("ignored word `" + word_ + "`");
+            else if (word_ == "opoint:") opoint();
+            else if (word_ != "layer_end" && word_ != "opoint_end:") note("ignored word `" + word_ + "`");
         }
         return std::move(data_);
     }
@@ -86,7 +87,7 @@ private:
 
     void layer() {
         if (data_.layers.size() == max_layers) {
-            throw ParseFailure{ErrorCode::unsupported, "more than thirty background layers"};
+            throw ParseFailure{ErrorCode::unsupported, "more than 1000 background layers"};
         }
         auto& layer = data_.layers.emplace_back();
         if (!stream_.word(layer.path, 30)) unterminated();
@@ -106,8 +107,42 @@ private:
             else if (word_ == "cc:") read_int(layer.cc);
             else if (word_ == "c1:") read_int(layer.c1);
             else if (word_ == "c2:") read_int(layer.c2);
+            else if (word_ == "respond:") read_int(layer.respond);
             else note("ignored layer word `" + word_ + "`");
             next_word();
+        }
+    }
+
+    // LF2 Darkfiren: `key: value` words up to `opoint_end:`. The keys still count for the checksum (nothing reads a
+    // background's checksum), the values do not. Opoints beyond the fiftieth are read and dropped.
+    void opoint() {
+        Opoint item;
+        next_opoint_word();
+        while (word_ != "opoint_end:") {
+            scanning::add_token_checksum(data_.token_checksum, word_);
+            if (word_ == "oid:") read_int(item.oid);
+            else if (word_ == "action:") read_int(item.action);
+            else if (word_ == "x:") read_int(item.x);
+            else if (word_ == "y:") read_int(item.y);
+            else if (word_ == "z:") read_int(item.z);
+            else if (word_ == "dvx:") read_int(item.dvx);
+            else if (word_ == "dvy:") read_int(item.dvy);
+            else if (word_ == "dvz:") read_int(item.dvz);
+            else if (word_ == "facing:") read_int(item.facing);
+            else if (word_ == "team:") read_int(item.team);
+            else if (word_ == "hp:") read_int(item.hp);
+            else if (word_ == "mp:") read_int(item.mp);
+            else if (word_ == "effect:") read_int(item.effect);
+            else if (word_ == "arest:") read_int(item.arest);
+            else note("ignored opoint word `" + word_ + "`");
+            next_opoint_word();
+        }
+        if (data_.opoints.size() < max_opoints) data_.opoints.push_back(item);
+        else note("opoint beyond the fiftieth dropped");
+    }
+    void next_opoint_word() {
+        if (!stream_.word(word_, word_capacity)) {
+            throw ParseFailure{ErrorCode::format, "unterminated opoint: at end of file"};
         }
     }
 
@@ -169,7 +204,20 @@ ScriptValue to_script_value(const Background& background) {
                       {"x", integer(layer.x)}, {"y", integer(layer.y)},
                       {"height", integer(layer.height)}, {"color", integer(layer.color)},
                       {"loop", integer(layer.loop)}, {"cc", integer(layer.cc)},
-                      {"c1", integer(layer.c1)}, {"c2", integer(layer.c2)}}});
+                      {"c1", integer(layer.c1)}, {"c2", integer(layer.c2)},
+                      {"respond", integer(layer.respond)}}});
+    }
+    ScriptTable opoints;
+    for (std::size_t index = 0; index < background.opoints.size(); ++index) {
+        const auto& item = background.opoints[index];
+        ScriptTable entry{{"oid", integer(item.oid)}, {"action", integer(item.action)},
+                          {"x", integer(item.x)}, {"y", integer(item.y)}, {"z", integer(item.z)},
+                          {"dvx", integer(item.dvx)}, {"dvy", integer(item.dvy)}, {"dvz", integer(item.dvz)},
+                          {"facing", integer(item.facing)}, {"team", integer(item.team)},
+                          {"effect", integer(item.effect)}, {"arest", integer(item.arest)}};
+        if (item.hp) set_field(entry, "hp", integer(*item.hp));
+        if (item.mp) set_field(entry, "mp", integer(*item.mp));
+        set_field(opoints, static_cast<std::int32_t>(index + 1), ScriptValue{std::move(entry)});
     }
     ScriptTable diagnostics;
     for (std::size_t index = 0; index < background.diagnostics.size(); ++index) {
@@ -178,6 +226,7 @@ ScriptValue to_script_value(const Background& background) {
     ScriptTable result{{"perspective", ScriptValue{ScriptTable{{1, integer(background.perspective[0])},
                                                                {2, integer(background.perspective[1])}}}},
                        {"layers", ScriptValue{std::move(layers)}},
+                       {"opoints", ScriptValue{std::move(opoints)}},
                        {"token_checksum", integer(background.token_checksum)},
                        {"diagnostics", ScriptValue{std::move(diagnostics)}}};
     if (background.name) set_field(result, "name", ScriptValue{*background.name});

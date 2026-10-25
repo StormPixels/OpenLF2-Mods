@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- LF2 Darkfiren background modes: `respond` filters a background's layers and `arest` its opoints. A layer or opoint is used when the chosen mode lists its value (none given = 0); a mode without the key lets everything through. The background's first mode stands when no other is chosen (also for Random and Stage). `bg.dat` `opoint:` blocks are read (up to 50) and the ones the mode lets through are in `match.stage.opoints`; they are not put on the stage yet
+- Modes with `respond`/`arest` are choosable in the mode grid (`fall` and `wait` still are not)
+
+### Changed
+- The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
+
 ## [1.1.1] - 2026-10-18
 
 ### Added

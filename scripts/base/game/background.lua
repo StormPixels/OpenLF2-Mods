@@ -23,6 +23,30 @@ function background.load(path)
     end
     return data
 end
+-- A copy of a background that keeps the layers and opoints a background mode lets through (LF2 Darkfiren: a layer's
+-- respond and an opoint's arest must be listed by the mode; filters = {respond = set|nil, arest = set|nil}).
+-- Layers are copied one by one because drawing writes their grouping into them. Without a filter the very same
+-- data comes back.
+function background.filtered(data, filters)
+    if not filters or (filters.respond == nil and filters.arest == nil) or data == nil or data.layers == nil then return data end
+    local copy = {}
+    for key, value in pairs(data) do copy[key] = value end
+    copy.layers, copy.opoints = {}, {}
+    for _, layer in ipairs(data.layers) do
+        if filters.respond == nil or filters.respond[layer.respond or 0] == true then
+            local entry = {}
+            for key, value in pairs(layer) do
+                if key ~= "group" and key ~= "stands_still" then entry[key] = value end
+            end
+            copy.layers[#copy.layers + 1] = entry
+        end
+    end
+    for _, opoint in ipairs(data.opoints or {}) do
+        if filters.arest == nil or filters.arest[opoint.arest or 0] == true then copy.opoints[#copy.opoints + 1] = opoint end
+    end
+    copy.groups_ready = nil
+    return copy
+end
 -- Mutable per-view state: the original keeps one animation counter per layer slot.
 function background.create_state(data)
     local counters = {}

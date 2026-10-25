@@ -14,7 +14,9 @@
 #include <vector>
 
 namespace openlf2::background_data {
-inline constexpr std::size_t max_layers = 30;
+// LF2 Darkfiren raised the layer limit from 30 to 1000 and allows 50 opoints per background.
+inline constexpr std::size_t max_layers = 1000;
+inline constexpr std::size_t max_opoints = 50;
 
 struct Layer {
     std::string path;              // loaded for every layer, including filled ones
@@ -28,6 +30,26 @@ struct Layer {
     std::int32_t cc = 0;           // animation period; 0 = always visible
     std::int32_t c1 = 0;           // first visible counter value
     std::int32_t c2 = 0;           // last visible counter value
+    std::int32_t respond = 0;      // LF2 Darkfiren: drawn only when the background mode lists this value
+};
+
+// LF2 Darkfiren `opoint:` ... `opoint_end:` of a background: an object put on the stage when the round begins.
+// `arest` plays the part of a layer's `respond`: the background mode must list it for the opoint to be used.
+struct Opoint {
+    std::int32_t oid = 0;
+    std::int32_t action = 0;
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+    std::int32_t z = 0;
+    std::int32_t dvx = 0;
+    std::int32_t dvy = 0;
+    std::int32_t dvz = 0;
+    std::int32_t facing = 0;
+    std::int32_t team = 0;
+    std::optional<std::int32_t> hp;  // absent: the object's own value (500 by default)
+    std::optional<std::int32_t> mp;
+    std::int32_t effect = 0;         // blinking time; 0 = none
+    std::int32_t arest = 0;
 };
 
 // Values the original never resets are absent until the file sets them.
@@ -39,6 +61,7 @@ struct Background {
     std::optional<std::string> shadow;
     std::array<std::optional<std::int32_t>, 2> shadow_size;
     std::vector<Layer> layers;
+    std::vector<Opoint> opoints;
     std::int32_t token_checksum = 0;
     std::vector<std::string> diagnostics;
 };

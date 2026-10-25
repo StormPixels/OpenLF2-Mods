@@ -595,7 +595,10 @@ end
 -- 212x109 picture with its name 25 to the right and 110 below. Choosing a background that has modes opens it at once;
 -- leaving it keeps the first, plain mode. Of the tags a mode can carry, bound, weapon_drop, recmp, regen_hp and
 -- regen_mp work (the match reads them from state.bg_mode); a mode with any other effect is listed dimmed and cannot
--- be chosen yet. The layer filters (respond, arest, fall, wait) only count for the first mode, which they leave as is.
+-- be chosen yet. respond (background layers) and arest (opoints) work too, in every mode: they travel in the chosen
+-- mode's `filters` (game/bg_modes.lua), and the first mode's filters stand when no other mode is chosen. fall and
+-- wait (quests, team hp bars) are not done: the first mode keeps them as they are, any other mode with a value other
+-- than 0 is listed dimmed.
 local grid_mode = {panel_x = 1, panel_y = 1, panel_w = 790, panel_h = 547, x = 30, y = 10, w = 212, h = 109,
     step_x = 260, step_y = 135, columns = 3, lines = 4, name_x = 25, name_y = 110}
 local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp = true, regen_mp = true}
@@ -603,24 +606,18 @@ local mode_neutral = {name = true, hex = true, small = true, smallb = true, hidd
     bg_pause = true, cam_pause = true, id = true, oid = true, drop = true, etc_width = true, etc_mode = true,
     dicontrol = true}
 local mode_filters = {respond = true, arest = true, fall = true, wait = true}
+local mode_filters_done = {respond = true, arest = true}
+local bg_modes = require("base/game/bg_modes")
 local mode_cache = {}
 local function load_modes(row)
     if mode_cache[row] then return mode_cache[row] end
-    local modes = {}
     local ok, text = pcall(engine.read_resource, "game/bg_modes/" .. row)
-    for line in (ok and text or ""):gmatch("[^\n]+") do
-        local mode = {}
-        for pair in line:gmatch("[^\t]+") do
-            local key, value = pair:match("^([%w_]+)=(.*)$")
-            if key then mode[key] = value end
-        end
-        if mode.name then modes[#modes + 1] = mode end
-    end
+    local modes = bg_modes.parse(ok and text or "")
     for position, mode in ipairs(modes) do
         local supported = true
         for key, value in pairs(mode) do
             if mode_filters[key] then
-                if position > 1 then
+                if position > 1 and not mode_filters_done[key] then
                     for item in value:gmatch("[^,]+") do
                         if tonumber(item) ~= 0 then supported = false end
                     end
@@ -635,6 +632,12 @@ local function load_modes(row)
         for key in pairs(mode_effects) do
             local number = tonumber(mode[key])
             if number and number ~= 0 then effects[key] = number end
+        end
+        -- The first mode's filters are the default, so choosing it needs no filters of its own. Any other mode brings
+        -- its own when it has some, or when the first mode has (a mode without respond/arest lets everything
+        -- through, which must not fall back to the first mode's filters).
+        if position > 1 and (bg_modes.has_filters(mode) or bg_modes.has_filters(modes[1])) then
+            effects.filters = bg_modes.filters(mode)
         end
         mode.effects = next(effects) and effects or nil
     end
