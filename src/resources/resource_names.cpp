@@ -95,6 +95,95 @@ std::vector<int> block_ids(const ResourceSource& resources, std::string_view pat
     return ids;
 }
 
+std::string background_mode_lines(const ResourceSource& resources, int row) {
+    auto index = read_data_text(resources, "data/bg_mode.dat", 1024 * 1024);
+    if (!index) return {};
+    std::string file;
+    {
+        const std::string_view all(index->data(), index->size());
+        bool inside = false, found = false;
+        for (std::size_t start = 0; start < all.size();) {
+            auto end = all.find('\n', start);
+            if (end == std::string_view::npos) end = all.size();
+            const auto line = trim(all.substr(start, end - start));
+            start = end + 1;
+            if (line == "<bg_information>") { inside = true; found = false; continue; }
+            if (line == "<bg_information_end>") { inside = false; if (found && !file.empty()) break; file.clear(); continue; }
+            if (!inside) continue;
+            if (line.starts_with("bg:")) {
+                int number = 0;
+                const auto value = trim(line.substr(3));
+                std::size_t used = 0;
+                while (used < value.size() && value[used] >= '0' && value[used] <= '9' && used < 6) number = number * 10 + (value[used++] - '0');
+                found = used > 0 && number == row;
+            } else if (line.starts_with("file:")) {
+                file = std::string(trim(line.substr(5)));
+            }
+        }
+        if (!found || file.empty()) return {};
+    }
+    auto text = read_data_text(resources, file, 1024 * 1024);
+    if (!text) return {};
+    static constexpr std::string_view repeated[] = {"id", "oid", "drop", "respond", "arest", "fall", "wait"};
+    const std::string_view all(text->data(), text->size());
+    std::string result;
+    std::vector<std::pair<std::string, std::string>> mode;
+    int modes = 0;
+    // A mode block is a stream of `key:` words, each followed by its value words; several pairs may share a line.
+    const auto add = [&](const std::string& key, const std::string& value) {
+        bool joins = false;
+        for (const auto name : repeated) if (key == name) joins = true;
+        for (auto& entry : mode) {
+            if (entry.first != key) continue;
+            if (joins) entry.second += ',' + value;
+            return;
+        }
+        mode.emplace_back(key, value);
+    };
+    const auto flush = [&] {
+        if (!mode.empty() && modes < 100) {
+            ++modes;
+            for (std::size_t item = 0; item < mode.size(); ++item) {
+                if (item != 0) result += '\t';
+                result += mode[item].first + '=' + mode[item].second;
+            }
+            result += '\n';
+        }
+        mode.clear();
+    };
+    bool inside = false;
+    std::string key, value;
+    const auto close_pair = [&] {
+        if (!key.empty()) add(key, std::string(trim(value)));
+        key.clear();
+        value.clear();
+    };
+    for (std::size_t start = 0; start < all.size();) {
+        auto end = all.find('\n', start);
+        if (end == std::string_view::npos) end = all.size();
+        const auto line = trim(all.substr(start, end - start));
+        start = end + 1;
+        if (line == "<mode>") { inside = true; mode.clear(); key.clear(); value.clear(); continue; }
+        if (line == "<mode_end>") { if (inside) { close_pair(); flush(); } inside = false; continue; }
+        if (!inside) continue;
+        for (std::size_t position = 0; position < line.size();) {
+            while (position < line.size() && (line[position] == ' ' || line[position] == '\t')) ++position;
+            const auto word_start = position;
+            while (position < line.size() && line[position] != ' ' && line[position] != '\t') ++position;
+            if (word_start == position) break;
+            const auto word = line.substr(word_start, position - word_start);
+            if (word.size() > 1 && word.back() == ':' && word.front() != '<') {
+                close_pair();
+                key = lower(word.substr(0, word.size() - 1));
+            } else if (!key.empty()) {
+                if (!value.empty()) value += ' ';
+                value += word;
+            }
+        }
+    }
+    return result;
+}
+
 std::optional<int> system_number(const ResourceSource& resources, std::string_view key) {
     auto text = read_data_text(resources, "data/system.dat", 1024 * 1024);
     if (!text) return std::nullopt;

@@ -86,8 +86,10 @@ function flow.create(options)
 end
 local function with_recording(state, options)
     options.network = state.session ~= nil
+    -- A background mode changes the simulation, which neither a recording's header nor the other player knows.
+    if options.network then options.bg_mode = nil end
     local settings = controls.current()
-    if settings.record == 0 then return options end
+    if settings.record == 0 or options.bg_mode then return options end
     local names = {}
     for slot = 0, 7 do names[slot + 1] = controls.name(slot) end
     options.record = {names = names, version = state.options.recording_version or 0, time = engine.local_time(),

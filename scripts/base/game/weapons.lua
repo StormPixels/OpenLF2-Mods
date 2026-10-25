@@ -174,6 +174,8 @@ function weapons.check_holders(state)
 end
 
 function weapons.drop_background(state)
+    -- A background mode's `weapon_drop` (LF2 Darkfiren): 1 and 2 stop the random drops.
+    if state.bg_mode and (state.bg_mode.weapon_drop or 0) >= 1 then return end
     local count = 0
     for index = 0, constants.item_slots - 1 do
         local value = state.items[index]

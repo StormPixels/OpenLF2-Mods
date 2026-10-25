@@ -71,6 +71,7 @@ function match.create(options)
         round_counter = 0, winner = -1, elapsed = 0, finished = false,
         paused = false, pause_request = false, pause_next = false, cheat_lock = 0,
         heal_all = false, weapon_command = 0, function_counts = {[6] = 0, [7] = 0, [8] = 0, [9] = 0}}
+    state.bg_mode = options.bg_mode
     local row = options.background
     local count = #options.backgrounds
     if options.mode == mode_stage then
@@ -438,7 +439,9 @@ end
 
 local function regenerate(state, value)
     if value.record.kind ~= record_kinds.character then return end
-    if value.hp > 0 and value.hp < value.dark_hp and state.counter_12 == 0 then value.hp = value.hp + 1 end
+    -- A background mode's `regen_hp` and `regen_mp` (LF2 Darkfiren): 1 stops that recovery.
+    local mode = state.bg_mode
+    if value.hp > 0 and value.hp < value.dark_hp and state.counter_12 == 0 and not (mode and mode.regen_hp == 1) then value.hp = value.hp + 1 end
     -- Whirlwind victims lose 9 hp (900 / armor) every twelfth frame.
     if value.fall_damage < 0 and state.counter_12 == 0 then
         local loss = 9
@@ -449,7 +452,8 @@ local function regenerate(state, value)
         if value.dark_hp < 0 then value.dark_hp = 0 end
         value.hp_spent = value.hp_spent + 9
     end
-    if (value.follow == -1 or value.mp < 150) and value.mp < points_full and state.counter_3 == 0 and value.blink > -1 then
+    if (value.follow == -1 or value.mp < 150) and value.mp < points_full and state.counter_3 == 0 and value.blink > -1
+       and not (mode and mode.regen_mp == 1) then
         local hp = math.min(value.hp, points_full)
         if value.record.id == constants.fighter_ids.firzen or value.record.id == constants.fighter_ids.julian then hp = cdiv(hp, 2) end
         value.mp = value.mp + math.floor((points_full - hp) / 100) + 1
@@ -823,7 +827,7 @@ function match.step(state, held)
     end
     combat.apply_impulses(state)
     each_item(state, advance_item)
-    if state.weapon_command == 1 then fill_weapons(state) end
+    if state.weapon_command == 1 and not (state.bg_mode and state.bg_mode.weapon_drop == 2) then fill_weapons(state) end
     each_item(state, heal_item)
     state.heal_all, state.weapon_command = false, 0
     if state.resume_music then

@@ -13,6 +13,7 @@ local sounds = require("base/game/sounds")
 local controls = require("base/ui/controls")
 local music = require("base/game/music")
 local user_options = require("base/game/options")
+local unlock = require("base/game/unlock")
 local selection = {}
 local idle_countdown = 150
 local computer_phase, computer_team_phase, computer_done = slot_phases.computer_fighter, slot_phases.computer_team, slot_phases.computer_ready
@@ -589,11 +590,92 @@ local function open_grid(state)
     state.grid = {cells = cells, cursor = cursor, top = 0}
     grid_follow(state.grid)
 end
+-- LF2 Darkfiren's background modes (data/bg/*.dat, found through data/bg_mode.dat) and <grid_bg_mode> (mode4.dat):
+-- a panel at (1, 1) with the chosen background's modes, three to a line from (30, 10) every 260 by 135 pixels, each a
+-- 212x109 picture with its name 25 to the right and 110 below. Choosing a background that has modes opens it at once;
+-- leaving it keeps the first, plain mode. Of the tags a mode can carry, bound, weapon_drop, recmp, regen_hp and
+-- regen_mp work (the match reads them from state.bg_mode); a mode with any other effect is listed dimmed and cannot
+-- be chosen yet. The layer filters (respond, arest, fall, wait) only count for the first mode, which they leave as is.
+local grid_mode = {panel_x = 1, panel_y = 1, panel_w = 790, panel_h = 547, x = 30, y = 10, w = 212, h = 109,
+    step_x = 260, step_y = 135, columns = 3, lines = 4, name_x = 25, name_y = 110}
+local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp = true, regen_mp = true}
+local mode_neutral = {name = true, hex = true, small = true, smallb = true, hidden = true, spark = true,
+    bg_pause = true, cam_pause = true, id = true, oid = true, drop = true, etc_width = true, etc_mode = true,
+    dicontrol = true}
+local mode_filters = {respond = true, arest = true, fall = true, wait = true}
+local mode_cache = {}
+local function load_modes(row)
+    if mode_cache[row] then return mode_cache[row] end
+    local modes = {}
+    local ok, text = pcall(engine.read_resource, "game/bg_modes/" .. row)
+    for line in (ok and text or ""):gmatch("[^\n]+") do
+        local mode = {}
+        for pair in line:gmatch("[^\t]+") do
+            local key, value = pair:match("^([%w_]+)=(.*)$")
+            if key then mode[key] = value end
+        end
+        if mode.name then modes[#modes + 1] = mode end
+    end
+    for position, mode in ipairs(modes) do
+        local supported = true
+        for key, value in pairs(mode) do
+            if mode_filters[key] then
+                if position > 1 then
+                    for item in value:gmatch("[^,]+") do
+                        if tonumber(item) ~= 0 then supported = false end
+                    end
+                end
+            elseif not mode_effects[key] and not mode_neutral[key] then
+                supported = false
+            end
+        end
+        mode.supported = supported
+        mode.title = (mode.name:gsub("<boss>", ""):gsub("_", " "):gsub("^%s+", ""):gsub("%s+$", ""))
+        local effects = {}
+        for key in pairs(mode_effects) do
+            local number = tonumber(mode[key])
+            if number and number ~= 0 then effects[key] = number end
+        end
+        mode.effects = next(effects) and effects or nil
+    end
+    mode_cache[row] = modes
+    return modes
+end
+-- The modes the player may see: those with hidden 1 to 3 once the cheat is in, hidden 4 never; the first always.
+local function visible_modes(row)
+    local list = {}
+    for position, mode in ipairs(load_modes(row)) do
+        local hidden = tonumber(mode.hidden) or 0
+        if position == 1 or hidden == 0 or (hidden <= 3 and unlock.flags.characters == 1) then list[#list + 1] = mode end
+    end
+    return list
+end
+local function mode_follow(grid)
+    local line = math.floor((grid.cursor - 1) / grid_mode.columns)
+    if line < grid.top then grid.top = line
+    elseif line >= grid.top + grid_mode.lines then grid.top = line - grid_mode.lines + 1 end
+end
+local function open_mode_grid(state, row, modes)
+    state.mode_grid = {row = row, cells = modes, cursor = 1, top = 0}
+end
+local function mode_choose(state, mode)
+    if not mode.supported then return false end
+    state.options.bg_mode = mode.effects
+    sounds.direct(state, "ok")
+    state.mode_grid = nil
+    return true
+end
 local function grid_choose(state, row)
     state.options.random_background = row == constants.background_rows.random
     state.options.background = row
+    state.options.bg_mode = nil
     sounds.direct(state, "ok")
     state.grid = nil
+    -- A background of the catalog may have modes to choose from; Random and Lee On Road have none.
+    if row >= 0 and row < constants.background_rows.lee_on_road then
+        local modes = visible_modes(row)
+        if #modes > 1 then open_mode_grid(state, row, modes) end
+    end
 end
 local function grid_popup(state, previous_menu)
     local grid, held = state.grid, state.held
@@ -664,6 +746,73 @@ local function grid_popup(state, previous_menu)
     end
 end
 
+local function mode_popup(state, previous_menu)
+    local grid, held = state.mode_grid, state.held
+    local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
+    if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
+        local px, py = held.pointer_x, held.pointer_y
+        local hit
+        for line = 0, grid_mode.lines - 1 do
+            for column = 0, grid_mode.columns - 1 do
+                local position = (grid.top + line) * grid_mode.columns + column + 1
+                local x, y = grid_mode.x + column * grid_mode.step_x, grid_mode.y + line * grid_mode.step_y
+                if grid.cells[position] and inside(px, py, x, y, grid_mode.w, grid_mode.name_y + 16) then hit = position end
+            end
+        end
+        if hit then
+            grid.cursor = hit
+            if mode_choose(state, grid.cells[hit]) then return end
+        elseif not inside(px, py, grid_mode.panel_x, grid_mode.panel_y, grid_mode.panel_w, grid_mode.panel_h) then
+            state.mode_grid = nil
+            return
+        end
+    end
+    local keys = {}
+    local accept = previous_menu == menus.options
+    for index = 0, 7 do
+        local slot = state.slots[index]
+        if slot.ready then
+            local keys_held = state.held[index] or ""
+            local key
+            for _, candidate in ipairs({"u", "d", "l", "r", "c", "b"}) do
+                if pressed(keys_held, candidate) then key = candidate; break end
+            end
+            if key then keys[key] = trigger(slot, accept) or keys[key]
+            else slot.latched = false end
+        end
+    end
+    local count = #grid.cells
+    if keys.u then grid.cursor = math.max(1, grid.cursor - grid_mode.columns) end
+    if keys.d then grid.cursor = math.min(count, grid.cursor + grid_mode.columns) end
+    if keys.l then grid.cursor = math.max(1, grid.cursor - 1) end
+    if keys.r then grid.cursor = math.min(count, grid.cursor + 1) end
+    mode_follow(grid)
+    if keys.b then state.mode_grid = nil; return end
+    if keys.c and mode_choose(state, grid.cells[grid.cursor]) then return end
+    image(state, "sprite/ui/grid/box_bgmode.bmp", grid_mode.panel_x, grid_mode.panel_y)
+    local chosen = state.options.bg_mode
+    for line = 0, grid_mode.lines - 1 do
+        for column = 0, grid_mode.columns - 1 do
+            local position = (grid.top + line) * grid_mode.columns + column + 1
+            local mode = grid.cells[position]
+            if mode then
+                local x, y = grid_mode.x + column * grid_mode.step_x, grid_mode.y + line * grid_mode.step_y
+                local picture = (mode.smallb or ""):gsub("\\", "/")
+                if grid_has(picture) then image(state, picture, x, y) end
+                local gray = ((chosen == mode.effects and (chosen ~= nil or position == 1)) and 255)
+                    or (position == grid.cursor and 140 or nil)
+                if gray then
+                    fill(state, x - 2, y - 2, grid_mode.w + 4, 2, gray)
+                    fill(state, x - 2, y + grid_mode.h, grid_mode.w + 4, 2, gray)
+                    fill(state, x - 2, y - 2, 2, grid_mode.h + 4, gray)
+                    fill(state, x + grid_mode.w, y - 2, 2, grid_mode.h + 4, gray)
+                end
+                text(state, mode.title, x + grid_mode.name_x, y + grid_mode.name_y, mode.supported and white or 0x808098)
+            end
+        end
+    end
+end
+
 local function options_menu(state, previous_menu, context)
     local options = state.options
     sprite(state, options_sheet, {348, 0, 304, 156}, 3, 3, false)
@@ -683,6 +832,7 @@ local function options_menu(state, previous_menu, context)
     end
     text(state, difficulties[options.difficulty] or "", 174, 115, option_blue)
     if state.grid then return grid_popup(state, previous_menu) end
+    if state.mode_grid then return mode_popup(state, previous_menu) end
 
     local keys = {}
     local accept = previous_menu == menus.options
@@ -791,6 +941,7 @@ function selection.match_options(state)
     end
     return {mode = state.mode, difficulty = state.options.difficulty, background = state.options.background,
         stage_level = state.options.stage_level,
+        bg_mode = state.mode ~= constants.modes.stage and not state.options.random_background and state.options.bg_mode or nil,
         fighters = state.fighters, backgrounds = state.backgrounds, slots = slots}
 end
 

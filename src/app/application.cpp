@@ -555,6 +555,16 @@ public:
                 ? std::to_string(*width) + " " + std::to_string(*height) : std::string();
             return Bytes(text.begin(), text.end());
         }
+        if (normalized->starts_with("game/bg_modes/")) {
+            // LF2 Darkfiren: the modes of one background, see background_mode_lines.
+            int row = 0;
+            for (const char digit : normalized->substr(14)) {
+                if (digit < '0' || digit > '9' || row > 99999) { row = -1; break; }
+                row = row * 10 + (digit - '0');
+            }
+            const std::string text = row >= 0 ? background_mode_lines(archive_, row) : std::string();
+            return Bytes(text.begin(), text.end());
+        }
         if (*normalized == "game/random_pool") {
             // LF2 Darkfiren: the <random> block of mode4.dat lists the fighters a random pick may give.
             std::string text;

@@ -24,6 +24,11 @@ std::vector<std::string> bitmap_candidates(std::string_view name, const Resource
 // The `id:` values of the block `<name>` ... `<name>_end` of a data file (LF2 Darkfiren's mode4.dat `<random>`),
 // at most 100; empty when the file or the block is missing.
 std::vector<int> block_ids(const ResourceSource& resources, std::string_view path, std::string_view block);
+// LF2 Darkfiren's background modes of the background at `row` of the catalog (the position in data.txt's list):
+// `data/bg_mode.dat` names the file (`bg: row`, `file: data\\bg\\lf.dat`), whose `<mode>` blocks become one line
+// each, as tab separated `key=value` pairs. Keys that may repeat (id, oid, drop, respond, arest, fall, wait) are
+// joined with commas; the first of any other key wins. Empty when the background has no modes.
+std::string background_mode_lines(const ResourceSource& resources, int row);
 // A numeric scalar of `data/system.dat` such as `spark_w: 99` (LF2 Darkfiren), if present.
 std::optional<int> system_number(const ResourceSource& resources, std::string_view key);
 // The recording version and key digits of `lf2_exe/recording.txt` (line 1: version, line 2: digits).
