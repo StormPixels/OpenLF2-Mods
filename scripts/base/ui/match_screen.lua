@@ -340,7 +340,7 @@ local function draw_status(context, state)
                     bar(40, math.floor(value.hp * 31 / 125), 16)
                 end
                 bar(10, 124, 36)
-                bar(0, math.floor(value.mp * 31 / 125), 36)
+                bar(0, math.floor(math.min(value.mp, constants.points.full) * 31 / 125), 36)
             end
             glyphs(context, label_font(value.team), string.char(254), column + 5, row, 8)
         end

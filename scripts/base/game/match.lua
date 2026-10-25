@@ -147,6 +147,8 @@ function match.create(options)
             end
         end
     end
+    -- LF2 Darkfiren: the objects the background's opoints put on the stage (state.stage.opoints, filtered above).
+    if state.stage.opoints then objects.spawn_stage(state, state.stage.opoints) end
     -- Network peers may have different local recording preferences. Both must perform the
     -- original game-start sequence reset, even when only one records to disk.
     if options.network then engine.reset_random_sequence() end

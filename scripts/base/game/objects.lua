@@ -249,6 +249,34 @@ function objects.spawn_from_frame(state, index, parent)
     return true
 end
 
+-- LF2 Darkfiren: the opoints of a background (bg.dat `opoint:`, already filtered by the mode's arest) put their
+-- object on the stage when the round begins. Position is x/y/z (y is up when negative), `action` the first frame,
+-- `facing` 0 right / 1 left; the point's dvx/dvy/dvz are not used. hp and mp default to a full 500 (a weapon
+-- keeps its own hit points), `effect` is a blinking time (none when absent). Points whose object the game does
+-- not know, or that find no free slot, are skipped. join/reserve of the original are not done.
+function objects.spawn_stage(state, opoints)
+    local created = 0
+    for _, point in ipairs(opoints or {}) do
+        local slot = objects.free_slot(state)
+        if slot == -1 then break end
+        local record = point.oid > 0 and objects.record(state, point.oid) or nil
+        if record then
+            local value = new_item(record)
+            value.x_int, value.y_int, value.z_int = point.x, point.y, point.z
+            value.x, value.y, value.z = point.x, point.y, point.z
+            if record.frames[point.action] then value.frame = point.action end
+            value.facing = point.facing == 1 and facing_left or facing_right
+            value.team = point.team
+            if point.hp then value.hp, value.dark_hp, value.max_hp = point.hp, point.hp, point.hp end
+            if point.mp then value.mp = point.mp end
+            if point.effect > 0 then value.blink = point.effect end
+            activate(state, slot, value)
+            created = created + 1
+        end
+    end
+    return created
+end
+
 function objects.state_effects(state, index, value)
     local previous = value.record.frame(value.state_frame).state
     local current = value.record.frame(value.frame).state

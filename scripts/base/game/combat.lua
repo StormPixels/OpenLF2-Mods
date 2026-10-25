@@ -45,6 +45,7 @@ local collision = require("base/game/collision")
 local objects = require("base/game/objects")
 local sounds = require("base/game/sounds")
 local battle = require("base/game/battle")
+local bg_modes = require("base/game/bg_modes")
 local merge = require("base/game/merge")
 local rumble = require("base/game/rumble")
 local combat = {}
@@ -98,6 +99,18 @@ local function is_weapon(kind)
         or kind == record_kinds.baseball or kind == record_kinds.drink
 end
 
+-- LF2 Darkfiren background modes (game/bg_modes.lua): `hurtable` friendly fire / no damage, `gain_mp_a/v`.
+-- With no damage the summary box still counts the damage a hit would have done.
+local function dealt(state, damage)
+    return bg_modes.no_damage(state.bg_mode) and 0 or damage
+end
+local function mp_gain(state, attacker, victim, injury)
+    local gain_a, gain_v = bg_modes.mp_gain(state.bg_mode, attacker.record.kind == record_kinds.character,
+        victim.record.kind == record_kinds.character, injury)
+    attacker.mp = attacker.mp + gain_a
+    victim.mp = victim.mp + gain_v
+end
+
 local function recent_state(value) return value.record.frame(value.state_frame).state end
 
 local function eligible(state, a_entry, b_entry, itr)
@@ -121,11 +134,12 @@ local function eligible(state, a_entry, b_entry, itr)
     if defender.blink ~= 0 and attack_kind ~= attack_kinds.heal and attack_kind ~= attack_kinds.obstacle then return false end
     -- Frozen or caught victims can be hit by their own team; so can a ball met head-on.
     local defender_state = b_entry.frame.state
+    local friendly_fire = bg_modes.friendly_fire(state.bg_mode)
     local team_rule = attack_kind <= attack_kinds.catch or attack_kind == attack_kinds.super_window
         or (attack_kind == attack_kinds.reflect_ball and defender_kind == record_kinds.character)
         or attack_kind == attack_kinds.whirlwind or attack_kind == attack_kinds.conditional_whirlwind
         or attack_kind == attack_kinds.pulling_whirlwind or attack_kind == attack_kinds.freezing_whirlwind
-    if team_rule and defender_state ~= state_frozen and defender_state ~= constants.frame_states.caught
+    if team_rule and not friendly_fire and defender_state ~= state_frozen and defender_state ~= constants.frame_states.caught
        and (defender.record.id ~= object_freeze_column
             or (attacker.record.id == object_freeze_column and (defender.frame % 10 ~= 5 or attacker.frame % 10 ~= 0)))
        and attacker.team == defender.team and attacker.team ~= team_independent
@@ -135,7 +149,7 @@ local function eligible(state, a_entry, b_entry, itr)
        and not is_weapon(defender_kind) then
         return false
     end
-    if attack_kind == attack_kinds.held_item then
+    if attack_kind == attack_kinds.held_item and not friendly_fire then
         -- A held weapon spares its holder's team (record 212 has an exception).
         local holder = objects.lookup(state, attacker.holder)
         local team = holder and holder.team or team_independent
@@ -331,6 +345,8 @@ local function release_collision(count)
     end
 end
 
+combat.eligible = eligible -- exported for the tests
+
 function combat.detect(state)
     local count = prepare_collision(state)
     age_cooldowns(count)
@@ -469,15 +485,17 @@ local function plain_hit(state, p, v, attacker, victim, itr)
         local damage = itr.injury
         if victim.armor > 0 then damage = cdiv(damage * 100, victim.armor) end
         local counted = victim_kind == record_kinds.character and victim.follow == -1
-        if victim.hp > 0 and damage >= victim.hp and counted then
+        local applied = dealt(state, damage)
+        if victim.hp > 0 and applied >= victim.hp and counted then
             local owner = state.items[attacker.owner]
             if owner then owner.kills = owner.kills + 1 end
             battle.count_kill(state, victim)
         end
-        victim.hp = victim.hp - damage
-        victim.dark_hp = victim.dark_hp + cdiv(damage, -damage_dark_hp_divisor)
-        victim.hp_spent = victim.hp_spent + damage
+        victim.hp = victim.hp - applied
+        victim.dark_hp = victim.dark_hp + cdiv(applied, -damage_dark_hp_divisor)
+        victim.hp_spent = victim.hp_spent + applied
         battle.count_damage(state, victim, damage)
+        mp_gain(state, attacker, victim, itr.injury)
         if counted then
             local owner = state.items[attacker.owner]
             if owner then owner.damage_dealt = owner.damage_dealt + damage end
@@ -662,14 +680,15 @@ local function defended_hit(state, p, attacker, victim, itr)
     local base = itr.injury
     if victim.armor > 0 then base = cdiv(base * 100, victim.armor) end
     local damage = cdiv(base, 10)
-    if victim.hp > 0 and damage >= victim.hp and victim.follow == -1 then
+    local applied = dealt(state, damage)
+    if victim.hp > 0 and applied >= victim.hp and victim.follow == -1 then
         local owner = state.items[attacker.owner]
         if owner then owner.kills = owner.kills + 1 end
         battle.count_kill(state, victim)
     end
-    victim.hp = victim.hp - damage
-    victim.dark_hp = victim.dark_hp + cdiv(damage, -damage_dark_hp_divisor)
-    victim.hp_spent = victim.hp_spent + damage
+    victim.hp = victim.hp - applied
+    victim.dark_hp = victim.dark_hp + cdiv(applied, -damage_dark_hp_divisor)
+    victim.hp_spent = victim.hp_spent + applied
     battle.count_damage(state, victim, damage)
     if victim.follow == -1 then
         local owner = state.items[attacker.owner]
@@ -929,15 +948,17 @@ local function freeze_hit(state, p, v, attacker, victim, itr)
     local damage = itr.injury
     if victim.armor > 0 then damage = cdiv(damage * 100, victim.armor) end
     local owner = state.items[attacker.owner]
-    if victim.hp > 0 and damage >= victim.hp and victim.follow == -1 then
+    local applied = dealt(state, damage)
+    if victim.hp > 0 and applied >= victim.hp and victim.follow == -1 then
         if owner then owner.kills = owner.kills + 1 end
         battle.count_kill(state, victim)
     end
-    victim.hp = victim.hp - damage
-    victim.dark_hp = victim.dark_hp + cdiv(damage, -damage_dark_hp_divisor)
-    victim.hp_spent = victim.hp_spent + damage
+    victim.hp = victim.hp - applied
+    victim.dark_hp = victim.dark_hp + cdiv(applied, -damage_dark_hp_divisor)
+    victim.hp_spent = victim.hp_spent + applied
     if victim.follow == -1 and owner then owner.damage_dealt = owner.damage_dealt + damage end
     battle.count_damage(state, victim, damage)
+    mp_gain(state, attacker, victim, itr.injury)
     victim.frame = character_frames.ice
     victim.wait_counter = 0
     sounds.effect(state, victim.x_int, 14)

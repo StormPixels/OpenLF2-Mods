@@ -19,6 +19,7 @@ module=ui/character_select|ui/character_select.lua
 module=game/catalog|game/catalog.lua
 module=game/object_data|game/object_data.lua
 module=game/background|game/background.lua
+module=game/bg_modes|game/bg_modes.lua
 module=ui/background_preview|ui/background_preview.lua
 module=game/item|game/item.lua
 module=game/animation|game/animation.lua

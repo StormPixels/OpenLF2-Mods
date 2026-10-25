@@ -593,15 +593,16 @@ end
 -- LF2 Darkfiren's background modes (data/bg/*.dat, found through data/bg_mode.dat) and <grid_bg_mode> (mode4.dat):
 -- a panel at (1, 1) with the chosen background's modes, three to a line from (30, 10) every 260 by 135 pixels, each a
 -- 212x109 picture with its name 25 to the right and 110 below. Choosing a background that has modes opens it at once;
--- leaving it keeps the first, plain mode. Of the tags a mode can carry, bound, weapon_drop, recmp, regen_hp and
--- regen_mp work (the match reads them from state.bg_mode); a mode with any other effect is listed dimmed and cannot
+-- leaving it keeps the first, plain mode. Of the tags a mode can carry, bound, weapon_drop, recmp, regen_hp,
+-- regen_mp, hurtable, gain_mp_a and gain_mp_v work (the match reads them from state.bg_mode); a mode with any other effect is listed dimmed and cannot
 -- be chosen yet. respond (background layers) and arest (opoints) work too, in every mode: they travel in the chosen
 -- mode's `filters` (game/bg_modes.lua), and the first mode's filters stand when no other mode is chosen. fall and
 -- wait (quests, team hp bars) are not done: the first mode keeps them as they are, any other mode with a value other
 -- than 0 is listed dimmed.
 local grid_mode = {panel_x = 1, panel_y = 1, panel_w = 790, panel_h = 547, x = 30, y = 10, w = 212, h = 109,
     step_x = 260, step_y = 135, columns = 3, lines = 4, name_x = 25, name_y = 110}
-local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp = true, regen_mp = true}
+local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp = true, regen_mp = true,
+    hurtable = true, gain_mp_a = true, gain_mp_v = true}
 local mode_neutral = {name = true, hex = true, small = true, smallb = true, hidden = true, spark = true,
     bg_pause = true, cam_pause = true, id = true, oid = true, drop = true, etc_width = true, etc_mode = true,
     dicontrol = true}

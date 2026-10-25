@@ -59,4 +59,17 @@ function bg_modes.default_filters(row)
     return first and bg_modes.filters(first) or nil
 end
 
+-- `hurtable` (mode tag): 1 lets a team hit its own members, 2 makes every hit do no damage, 3 is both.
+function bg_modes.friendly_fire(mode) return mode ~= nil and (mode.hurtable or 0) % 2 == 1 end
+function bg_modes.no_damage(mode) return mode ~= nil and (mode.hurtable or 0) >= 2 end
+
+-- `gain_mp_a` / `gain_mp_v`: the percent of a hit's injury that becomes MP for the attacker and for the victim
+-- (characters only, the MP may pass 500). Returns the two amounts, rounded down.
+function bg_modes.mp_gain(mode, attacker_is_character, victim_is_character, injury)
+    if not mode or injury <= 0 then return 0, 0 end
+    local attacker_gain = attacker_is_character and mode.gain_mp_a and math.floor(injury * mode.gain_mp_a / 100) or 0
+    local victim_gain = victim_is_character and mode.gain_mp_v and math.floor(injury * mode.gain_mp_v / 100) or 0
+    return attacker_gain, victim_gain
+end
+
 return bg_modes

@@ -5,8 +5,9 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
-- LF2 Darkfiren background modes: `respond` filters a background's layers and `arest` its opoints. A layer or opoint is used when the chosen mode lists its value (none given = 0); a mode without the key lets everything through. The background's first mode stands when no other is chosen (also for Random and Stage). `bg.dat` `opoint:` blocks are read (up to 50) and the ones the mode lets through are in `match.stage.opoints`; they are not put on the stage yet
+- LF2 Darkfiren background modes: `respond` filters a background's layers and `arest` its opoints. A layer or opoint is used when the chosen mode lists its value (none given = 0); a mode without the key lets everything through. The background's first mode stands when no other is chosen (also for Random and Stage). `bg.dat` `opoint:` blocks are read (up to 50); the ones the mode lets through put their object on the stage when the round begins (position, first frame, facing, team, hp, mp, blink time; join/reserve not done)
 - Modes with `respond`/`arest` are choosable in the mode grid (`fall` and `wait` still are not)
+- LF2 Darkfiren background modes: `hurtable` (1 friendly fire, 2 no damage with the summary box still counting it, 3 both) and `gain_mp_a`/`gain_mp_v` (percent of a hit's injury given as MP to the attacker and the victim, characters only, MP may pass 500; the MP bar is drawn clamped to its frame)
 
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
