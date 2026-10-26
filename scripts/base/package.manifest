@@ -41,6 +41,7 @@ module=game/rumble|game/rumble.lua
 module=game/unlock|game/unlock.lua
 module=game/merge|game/merge.lua
 module=game/options|game/options.lua
+module=game/onscreen|game/onscreen.lua
 module=game/stage|game/stage.lua
 module=game/battle|game/battle.lua
 module=ui/battle_setup|ui/battle_setup.lua
