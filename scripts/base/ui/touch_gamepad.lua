@@ -220,6 +220,17 @@ function gamepad.update(state, input, mode)
     return table.concat(letters), pause_held, fast_held
 end
 
+-- Whether a finger belongs to the gamepad: it presses a button (also the pause and fast-forward ones, within the
+-- same tolerance as `update`), or it is the one steering the stick (the digipad's cross included). The page
+-- behind the gamepad must not take such a finger as its pointer. Valid after `update` on the same frame.
+function gamepad.claims(state, touch)
+    if not state.visible then return false end
+    if target_at(state, touch, state.mode or "full") then return true end
+    if state.mode == "pause" then return false end
+    if state.finger ~= nil and touch.id == state.finger then return true end
+    return state.stick.fixed == true and inside_zone(state.stick.zone, touch.x, touch.y)
+end
+
 -- A circle approximated by horizontal strips (no rounded primitive exists),
 -- matching the game's chunky pixel look.
 local circle_rows = {0.34, 0.63, 0.83, 0.96, 1, 1, 0.96, 0.83, 0.63, 0.34}

@@ -414,8 +414,26 @@ function flow.update(state, raw, context)
         end
     end
     local joining_cli = state.network_cli and state.active == "network"
-    if input.pointer_x and input.pointer_x >= 0 and input.pointer_y >= 0 then
-        state.pointer_x, state.pointer_y = input.pointer_x, input.pointer_y
+    -- A finger (or the mouse standing in for it) on the on-screen gamepad belongs to the gamepad: the page
+    -- behind it neither gets the click nor sees the pointer move there, also after the finger lifts.
+    local pointer_x, pointer_y = input.pointer_x, input.pointer_y
+    local on_gamepad = false
+    if active_screen and pointer_x and pointer_x >= 0 and pointer_y >= 0 then
+        if input.button then
+            for _, touch in ipairs(gamepad_input.touches or {}) do
+                if touch.x == pointer_x and touch.y == pointer_y and touch_gamepad.claims(state.touch_gamepad, touch) then
+                    on_gamepad, state.gamepad_pointer_x, state.gamepad_pointer_y = true, pointer_x, pointer_y
+                    break
+                end
+            end
+        elseif pointer_x == state.gamepad_pointer_x and pointer_y == state.gamepad_pointer_y then
+            on_gamepad = true
+        end
+        if not on_gamepad then state.gamepad_pointer_x, state.gamepad_pointer_y = nil, nil end
+    end
+    if on_gamepad then input.button = false end
+    if not on_gamepad and pointer_x and pointer_x >= 0 and pointer_y >= 0 then
+        state.pointer_x, state.pointer_y = pointer_x, pointer_y
     end
     input.pointer_x, input.pointer_y = state.pointer_x, state.pointer_y
     -- Renderer capability flags are kept for frames that don't repeat them.
