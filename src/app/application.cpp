@@ -26,6 +26,7 @@
 #include "openlf2/resources/stage_data.hpp"
 #include "openlf2/resources/bitmap.hpp"
 #include "openlf2/resources/installer.hpp"
+#include "openlf2/resources/data_file.hpp"
 #include "openlf2/resources/resource_names.hpp"
 #include "openlf2/resources/object_data.hpp"
 #include <algorithm>
@@ -564,6 +565,13 @@ public:
             }
             const std::string text = row >= 0 ? background_mode_lines(archive_, row) : std::string();
             return Bytes(text.begin(), text.end());
+        }
+        if (*normalized == "game/mode_file") {
+            // LF2 Darkfiren: the (decrypted) text of the 8P super widescreen mode file, whose blocks give the
+            // positions of the character menu. Empty when the game has none.
+            auto text = read_data_text(archive_, "data/mode/mode4.dat", 1024 * 1024);
+            if (!text) return Bytes();
+            return Bytes(text->begin(), text->end());
         }
         if (*normalized == "game/random_pool") {
             // LF2 Darkfiren: the <random> block of mode4.dat lists the fighters a random pick may give.

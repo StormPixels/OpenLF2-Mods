@@ -20,19 +20,26 @@ local computer_phase, computer_team_phase, computer_done = slot_phases.computer_
 
 -- LF2 Darkfiren's 8P super widescreen (mode4.dat): the eight slots stand in one row on CHARMENU3 (start_x 10,
 -- 30 left of the classic 40) and every offset inside a slot stays as in the classic two rows of four.
-local per_row, shift = 4, 0
+-- The numbers below are what mode4.dat gives; selection.create takes the file's own (game/mode_layout.lua), so
+-- these only stand when the file is missing or has no such tag.
+local mode_layout = require("base/game/mode_layout")
+local layout_targets = {}
+local per_row, shift, step_x, step_y = 4, 0, 153, 212
+local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212}
+layout_targets.menu = menu
 local function origin(slot)
-    return (slot % per_row) * 153 + shift, math.floor(slot / per_row) * 212
+    return (slot % per_row) * step_x + shift, math.floor(slot / per_row) * step_y
 end
-local wide_picture, wide_known = "sprite/ui/charmenu3.bmp"
+local wide_known = {}
 -- The wide menu needs the wide battlefield layout and a game that has the picture (LF2 Darkfiren).
 local function wide_wanted()
     if user_options.current().battlefield_layout ~= user_options.wide_layout then return false end
-    if wide_known == nil then wide_known = pcall(engine.read_resource, wide_picture) end
-    return wide_known
+    if wide_known[menu.pic] == nil then wide_known[menu.pic] = pcall(engine.read_resource, menu.pic) end
+    return wide_known[menu.pic]
 end
 local function use_layout(state)
-    if state.wide then per_row, shift = 8, -30 else per_row, shift = 4, 0 end
+    if state.wide then per_row, shift, step_x, step_y = menu.row, menu.x - 40, menu.step_x, menu.step_y
+    else per_row, shift, step_x, step_y = 4, 0, 153, 212 end
 end
 local function pressed(keys, key) return keys:find(key, 1, true) ~= nil end
 local function image(state, path, x, y) state.display[#state.display + 1] = {"image", path, x, y} end
@@ -69,6 +76,21 @@ local function load_random_pool()
     for id in (ok and text or ""):gmatch("%d+") do pool[tonumber(id)] = true; count = count + 1 end
     return count > 0 and pool or nil
 end
+local layout_defaults
+local function reset_layout()
+    if not layout_defaults then
+        layout_defaults = {}
+        for name, target in pairs(layout_targets) do
+            local copy = {}
+            for key, value in pairs(target) do copy[key] = value end
+            layout_defaults[name] = copy
+        end
+        return
+    end
+    for name, copy in pairs(layout_defaults) do
+        for key, value in pairs(copy) do layout_targets[name][key] = value end
+    end
+end
 function selection.create(options)
     local previous = options.previous or {}
     local mode = assert(constants.modes[options.mode], "unknown character menu mode")
@@ -83,6 +105,13 @@ function selection.create(options)
     -- Option values are globals in the original and keep their values between visits.
     local options = previous.options or {row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
         difficulty = 0, music = 0, stage_level = 0}
+    -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
+    -- that lacks a tag (or is gone) leaves the built-in one.
+    reset_layout()
+    if user_options.current().battlefield_layout == user_options.wide_layout then
+        local ok, text = pcall(engine.read_resource, "game/mode_file")
+        if ok and text then mode_layout.apply(text, layout_targets) end
+    end
     local state = {mode = mode, fighters = catalog.load(), backgrounds = catalog.backgrounds(),
         slots = slots, menu = menus.human_slots, last_menu = menus.human_slots, options = options,
         countdown = idle_countdown, computers = previous.computers or -100,
@@ -557,14 +586,16 @@ end
 -- that background; the keys move a cursor (up, down), choose (attack) or leave (jump). It replaces the cycling of the
 -- Background row in the wide menu; Stage mode still cycles its stage there.
 local grid_bg = {panel_x = 180, panel_y = 3, panel_w = 500, panel_h = 542, x = 220, y = 15, w = 212, h = 109,
-    step = 135, rows = 4, name_x = 250, name_y = 40}
+    step = 135, rows = 4, name_x = 250, name_y = 40, panel_pic = "sprite/ui/grid/box_bg.bmp",
+    random_pic = "sprite/ui/grid/bg_grid_random.bmp"}
+layout_targets.grid_bg = grid_bg
 local grid_available = {}
 local function grid_has(path)
     if grid_available[path] == nil then grid_available[path] = pcall(engine.read_resource, path) end
     return grid_available[path]
 end
 local function grid_picture(state, row)
-    if row == constants.background_rows.random then return "sprite/ui/grid/bg_grid_random.bmp" end
+    if row == constants.background_rows.random then return grid_bg.random_pic end
     local folder = "lor"
     if row ~= constants.background_rows.lee_on_road then
         local entry = state.backgrounds[row + 1]
@@ -600,7 +631,9 @@ end
 -- wait (quests, team hp bars) are not done: the first mode keeps them as they are, any other mode with a value other
 -- than 0 is listed dimmed.
 local grid_mode = {panel_x = 1, panel_y = 1, panel_w = 790, panel_h = 547, x = 30, y = 10, w = 212, h = 109,
-    step_x = 260, step_y = 135, columns = 3, lines = 4, name_x = 25, name_y = 110}
+    step_x = 260, step_y = 135, columns = 3, lines = 4, name_x = 25, name_y = 110,
+    panel_pic = "sprite/ui/grid/box_bgmode.bmp"}
+layout_targets.grid_mode = grid_mode
 local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp = true, regen_mp = true,
     hurtable = true, gain_mp_a = true, gain_mp_v = true}
 local mode_neutral = {name = true, hex = true, small = true, smallb = true, hidden = true, spark = true,
@@ -725,7 +758,7 @@ local function grid_popup(state, previous_menu)
     grid_follow(grid)
     if keys.b then state.grid = nil; return end
     if keys.c then grid_choose(state, grid.cells[grid.cursor]); return end
-    image(state, "sprite/ui/grid/box_bg.bmp", grid_bg.panel_x, grid_bg.panel_y)
+    image(state, grid_bg.panel_pic, grid_bg.panel_x, grid_bg.panel_y)
     local chosen = state.options.random_background and constants.background_rows.random or state.options.background
     for line = 0, grid_bg.rows - 1 do
         local position = grid.top + line + 1
@@ -793,7 +826,7 @@ local function mode_popup(state, previous_menu)
     mode_follow(grid)
     if keys.b then state.mode_grid = nil; return end
     if keys.c and mode_choose(state, grid.cells[grid.cursor]) then return end
-    image(state, "sprite/ui/grid/box_bgmode.bmp", grid_mode.panel_x, grid_mode.panel_y)
+    image(state, grid_mode.panel_pic, grid_mode.panel_x, grid_mode.panel_y)
     local chosen = state.options.bg_mode
     for line = 0, grid_mode.lines - 1 do
         for column = 0, grid_mode.columns - 1 do
@@ -952,7 +985,10 @@ end
 -- The roster of the wide menu (mode4.dat's <grid_char>): every selectable fighter as a 40x45 face, 21 to a row from
 -- (45, 320) every 60 by 66 pixels, under a panel at (22, 294). A tap on a face gives it to the first slot that is
 -- choosing a fighter; a fighter a slot has chosen is framed and labelled with who has it.
-local roster = {x = 45, y = 320, columns = 21, step_x = 60, step_y = 66, width = 40, height = 45, label = 46}
+local roster = {x = 45, y = 320, columns = 21, step_x = 60, step_y = 66, width = 40, height = 45,
+    human_x = 12, human_y = 46, com_x = 7, com_y = 46, panel_x = 22, panel_y = 294,
+    panel_pic = "sprite/ui/grid/box_char2.bmp", small_pic = "sprite/ui/grid/rface_small.bmp"}
+layout_targets.roster = roster
 local function roster_cell(position)
     return roster.x + (position % roster.columns) * roster.step_x,
         roster.y + math.floor(position / roster.columns) * roster.step_y
@@ -965,7 +1001,7 @@ local function roster_fighters(state)
     return cells
 end
 local function roster_panel(state)
-    image(state, "sprite/ui/grid/box_char2.bmp", 22, 294)
+    image(state, roster.panel_pic, roster.panel_x, roster.panel_y)
 end
 local function roster_pass(state, held)
     local cells = roster_fighters(state)
@@ -992,14 +1028,14 @@ local function roster_pass(state, held)
         local slot = state.slots[index]
         if slot.phase >= slot_phases.choosing_fighter then
             local computer = slot.phase >= computer_phase
-            owners[slot.fighter] = {label = computer and "COM" or ("P" .. (index + 1)),
+            owners[slot.fighter] = {computer = computer, label = computer and "COM" or ("P" .. (index + 1)),
                 color = computer and computer_red or white, gray = computer and 160 or 255}
         end
     end
     for position, fighter_index in ipairs(cells) do
         local x, y = roster_cell(position - 1)
         local fighter = state.fighters[fighter_index]
-        local face = fighter and fighter.small or "sprite/ui/grid/rface_small.bmp"
+        local face = fighter and fighter.small or roster.small_pic
         image(state, face, x, y)
         local owner = owners[fighter_index]
         if owner then
@@ -1007,9 +1043,10 @@ local function roster_pass(state, held)
             fill(state, x - 1, y + roster.height, roster.width + 2, 1, owner.gray)
             fill(state, x - 1, y - 1, 1, roster.height + 2, owner.gray)
             fill(state, x + roster.width, y - 1, 1, roster.height + 2, owner.gray)
-            text(state, owner.label, x + 12, y + roster.label, owner.color)
+            text(state, owner.label, x + (owner.computer and roster.com_x or roster.human_x),
+                y + (owner.computer and roster.com_y or roster.human_y), owner.color)
         else
-            text(state, fighter and fighter.name or "Random", x, y + roster.label, option_blue)
+            text(state, fighter and fighter.name or "Random", x, y + roster.human_y, option_blue)
         end
     end
 end
@@ -1024,7 +1061,7 @@ function selection.update(state, held, context)
     fill(state, 0, 0, state.wide and constants.screen.wide_width or constants.screen.width, constants.screen.height, 0)
     if state.wide then
         roster_panel(state)
-        image(state, wide_picture, 10, 33)
+        image(state, menu.pic, menu.x, menu.y)
     else
         image(state, "pe/charmenu", 40, 33)
     end

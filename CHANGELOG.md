@@ -9,6 +9,8 @@ All notable changes to this project are documented in this file.
 - Modes with `respond`/`arest` are choosable in the mode grid (`fall` and `wait` still are not)
 - LF2 Darkfiren background modes: `hurtable` (1 friendly fire, 2 no damage with the summary box still counting it, 3 both) and `gain_mp_a`/`gain_mp_v` (percent of a hit's injury given as MP to the attacker and the victim, characters only, MP may pass 500; the MP bar is drawn clamped to its frame)
 
+- LF2 Darkfiren's `data/mode/mode4.dat` now sets the positions of the wide character menu: the menu picture and slot grid (`<menu_control>`), the fighter roster (`<grid_char>`), the background grid (`<grid_bg>`) and the background mode grid (`<grid_bg_mode>`). A value the file lacks keeps the built-in one; the COM label on the roster follows the file's `com_x` (7) instead of the human's 12
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
