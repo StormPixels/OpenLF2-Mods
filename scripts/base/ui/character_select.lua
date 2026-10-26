@@ -23,6 +23,7 @@ local computer_phase, computer_team_phase, computer_done = slot_phases.computer_
 -- The numbers below are what mode4.dat gives; selection.create takes the file's own (game/mode_layout.lua), so
 -- these only stand when the file is missing or has no such tag.
 local mode_layout = require("base/game/mode_layout")
+local stage_levels = require("base/game/stage_levels")
 local layout_targets = {}
 local per_row, shift, step_x, step_y = 4, 0, 153, 212
 local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212}
@@ -850,6 +851,100 @@ local function mode_popup(state, previous_menu)
     end
 end
 
+-- LF2 Darkfiren's stage list (data/stage.dat) and <grid_stage> (mode4.dat): a panel at (1, 140) with the levels in one
+-- row, three at a time, from (25, 180) every 260 pixels, each a 212x109 picture (the level's `small`) with its name below.
+-- A tap on a level chooses it; left and right move, attack chooses, jump leaves. Hidden levels follow the cheat code.
+local grid_stage = {panel_x = 1, panel_y = 140, panel_w = 790, panel_h = 185, x = 25, y = 180, w = 212, h = 109,
+    step_x = 260, columns = 3, name_x = 25, name_y = 110, panel_pic = "sprite/ui/grid/box_stage.bmp"}
+layout_targets.grid_stage = grid_stage
+local stage_data_cache
+local function stage_data()
+    if stage_data_cache == nil then
+        local ok, data = pcall(engine.read_stage_data, "data/stage.dat")
+        stage_data_cache = ok and data or false
+    end
+    return stage_data_cache or nil
+end
+-- The level list replaces the original's group counter only when the game has one and this is Stage mode.
+local function levels_wanted(state)
+    return state.mode == constants.modes.stage and stage_levels.active(stage_data())
+end
+local function stage_cells()
+    return stage_levels.visible(stage_data(), unlock.flags.characters == 1)
+end
+local function open_stage_grid(state)
+    local cells = stage_cells()
+    local cursor = 1
+    for position, info in ipairs(cells) do
+        if info.id == math.floor(state.options.stage_level / 10) then cursor = position end
+    end
+    if #cells == 0 then return end
+    state.stage_grid = {cells = cells, cursor = cursor}
+end
+local function stage_choose(state, info)
+    state.options.stage_level = info.id * 10
+    sounds.direct(state, "ok")
+    state.stage_grid = nil
+end
+local function stage_popup(state, previous_menu)
+    local grid, held = state.stage_grid, state.held
+    local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
+    local first = math.floor((grid.cursor - 1) / grid_stage.columns) * grid_stage.columns
+    if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
+        local px, py = held.pointer_x, held.pointer_y
+        for column = 0, grid_stage.columns - 1 do
+            local info = grid.cells[first + column + 1]
+            local x = grid_stage.x + column * grid_stage.step_x
+            if info and inside(px, py, x, grid_stage.y, grid_stage.w, grid_stage.name_y + 16) then
+                stage_choose(state, info)
+                return
+            end
+        end
+        if not inside(px, py, grid_stage.panel_x, grid_stage.panel_y, grid_stage.panel_w, grid_stage.panel_h) then
+            state.stage_grid = nil
+            return
+        end
+    end
+    local keys = {}
+    local accept = previous_menu == menus.options
+    for index = 0, 7 do
+        local slot = state.slots[index]
+        if slot.ready then
+            local keys_held = state.held[index] or ""
+            local key
+            for _, candidate in ipairs({"l", "r", "c", "b"}) do
+                if pressed(keys_held, candidate) then key = candidate; break end
+            end
+            if key then keys[key] = trigger(slot, accept) or keys[key]
+            else slot.latched = false end
+        end
+    end
+    if keys.l then grid.cursor = math.max(1, grid.cursor - 1) end
+    if keys.r then grid.cursor = math.min(#grid.cells, grid.cursor + 1) end
+    first = math.floor((grid.cursor - 1) / grid_stage.columns) * grid_stage.columns
+    if keys.b then state.stage_grid = nil; return end
+    if keys.c then stage_choose(state, grid.cells[grid.cursor]); return end
+    image(state, grid_stage.panel_pic, grid_stage.panel_x, grid_stage.panel_y)
+    local chosen = math.floor(state.options.stage_level / 10)
+    for column = 0, grid_stage.columns - 1 do
+        local position = first + column + 1
+        local info = grid.cells[position]
+        if info then
+            local x, y = grid_stage.x + column * grid_stage.step_x, grid_stage.y
+            local picture = (info.small or ""):gsub("\\", "/"):lower()
+            if picture ~= "" and grid_has(picture) then image(state, picture, x, y) end
+            local gray = info.id == chosen and 255 or (position == grid.cursor and 140 or nil)
+            if gray then
+                fill(state, x - 2, y - 2, grid_stage.w + 4, 2, gray)
+                fill(state, x - 2, y + grid_stage.h, grid_stage.w + 4, 2, gray)
+                fill(state, x - 2, y - 2, 2, grid_stage.h + 4, gray)
+                fill(state, x + grid_stage.w, y - 2, 2, grid_stage.h + 4, gray)
+            end
+            text(state, info.name, x + grid_stage.name_x, y + grid_stage.name_y, info.boss == 1 and computer_red or white)
+        end
+    end
+end
+
 local function options_menu(state, previous_menu, context)
     local options = state.options
     sprite(state, options_sheet, {348, 0, 304, 156}, 3, 3, false)
@@ -862,7 +957,10 @@ local function options_menu(state, previous_menu, context)
         sprite(state, options_sheet, {330, 363, 279, 22}, 15, 87, false)
         if options.row == option_rows.background then sprite(state, options_sheet, {330, 332, 279, 22}, 15, 87, false) end
         local level = math.floor(options.stage_level / 10)
-        if level < 5 then text(state, tostring(level + 1), 194, 91, option_blue)
+        if levels_wanted(state) then
+            local info = stage_levels.level(stage_data(), level)
+            text(state, info and info.name or tostring(level), 174, 91, option_blue)
+        elseif level < 5 then text(state, tostring(level + 1), 194, 91, option_blue)
         else text(state, "Survival", 174, 91, option_blue) end
     else
         text(state, background_name(state, options.background), 174, 91, option_blue)
@@ -870,6 +968,7 @@ local function options_menu(state, previous_menu, context)
     text(state, difficulties[options.difficulty] or "", 174, 115, option_blue)
     if state.grid then return grid_popup(state, previous_menu) end
     if state.mode_grid then return mode_popup(state, previous_menu) end
+    if state.stage_grid then return stage_popup(state, previous_menu) end
 
     local keys = {}
     local accept = previous_menu == menus.options
@@ -920,7 +1019,9 @@ local function options_menu(state, previous_menu, context)
         state.countdown = idle_countdown
         state.menu = menus.human_slots
     elseif options.row == option_rows.background then
-        if state.mode == constants.modes.stage then
+        if levels_wanted(state) then
+            open_stage_grid(state)
+        elseif state.mode == constants.modes.stage then
             options.stage_level = (options.stage_level + 10) % 60
         elseif state.wide then
             open_grid(state)

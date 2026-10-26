@@ -20,6 +20,7 @@ module=game/catalog|game/catalog.lua
 module=game/object_data|game/object_data.lua
 module=game/background|game/background.lua
 module=game/bg_modes|game/bg_modes.lua
+module=game/stage_levels|game/stage_levels.lua
 module=game/mode_layout|game/mode_layout.lua
 module=ui/background_preview|ui/background_preview.lua
 module=game/item|game/item.lua

@@ -77,7 +77,7 @@ function match.create(options)
     local count = #options.backgrounds
     if options.mode == mode_stage then
         -- Stage mode: levels 0, 10 ... 50 use background rows 1 to 6; encounters are pending.
-        row = math.floor(options.stage_level / 10) + 1
+        row = stage.background_row(options.stage_level, math.floor(options.stage_level / 10) + 1)
     elseif row == constants.background_rows.random then
         -- Random background: the last two rows are excluded and the third-last means row 99.
         row = engine.random(count - 2)

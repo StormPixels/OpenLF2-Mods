@@ -11,6 +11,8 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren's `data/mode/mode4.dat` now sets the positions of the wide character menu: the menu picture and slot grid (`<menu_control>`), the fighter roster (`<grid_char>`), the background grid (`<grid_bg>`) and the background mode grid (`<grid_bg_mode>`). A value the file lacks keeps the built-in one; the COM label on the roster follows the file's `com_x` (7) instead of the human's 12
 
+- LF2 Darkfiren Stage mode: `data/stage.dat` as a level list (`<stage_information>`), each level's file read as stages numbered level id * 10 + stage id (up to 200 stages). A stage plays on its own `bg:`; `when_clear_goto_stage` jumps to another stage, `end: 1` shows the credits, `end: 2` returns to the menu, and without `end:` the next visible level follows. The Background row of the menu opens a level grid (`<grid_stage>` of mode4.dat) with the levels' `small` pictures. Read but not used yet: `team:`, `pic:`, `z:`, `fx:`, `mp:`, phase `time:`, `type:`/`ptype:`/`next:`/`mode:`/`respond:`/`hex:`, `command:`, the lock values of `hidden:`
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

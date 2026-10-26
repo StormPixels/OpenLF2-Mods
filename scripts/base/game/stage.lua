@@ -9,6 +9,7 @@ local objects = require("base/game/objects")
 local sounds = require("base/game/sounds")
 local speed = require("base/game/speed")
 local music = require("base/game/music")
+local stage_levels = require("base/game/stage_levels")
 local stage = {}
 
 local function cdiv(a, b)
@@ -46,10 +47,25 @@ function stage.set_random_list(fighters, index)
     random_index = index
 end
 
-local list
+local list, whole
 local function stage_list()
-    if not list then list = engine.read_stage_data("data/stage.dat").stages end
+    if not list then whole = engine.read_stage_data("data/stage.dat"); list = whole.stages end
     return list
+end
+-- LF2 Darkfiren's level list (stage_levels.lua): stage numbers, background, ending and survival follow the data.
+local function darkfiren()
+    stage_list()
+    return stage_levels.active(whole)
+end
+local function legacy_survival(group) return group == constants.stage_groups.survival and not darkfiren() end
+-- The data the menus need: levels and stages of data/stage.dat.
+function stage.data()
+    stage_list()
+    return whole
+end
+function stage.background_row(level, legacy_row)
+    stage_list()
+    return stage_levels.background_row(whole, level, legacy_row)
 end
 
 local empty_phase = {bound = -1, music = "", when_clear_goto_phase = -1, entry_count = 0, entries = {}}
@@ -137,7 +153,8 @@ local function spawn(state, run, entry, runtime, slot)
 end
 
 local function next_stage(state, run)
-    run.id = run.id + 1
+    run.id = (run.plan and run.plan.action == "stage") and run.plan.id or run.id + 1
+    run.plan = nil
     run.go, run.result, run.last_phase, run.phase, run.survival = 70, 0, 0, -1, -1
     run.runtime = {}
     state.camera_step, state.camera = 0, 0
@@ -186,14 +203,14 @@ local function start_phase(state, run)
     local group = cdiv(run.id, 10)
     run.phase_done, run.boss_alive, run.last_phase = 0, 0, 0
     run.survival = run.survival + 1
-    if group == constants.stage_groups.survival then run.survival_blink = 1 end
+    if legacy_survival(group) then run.survival_blink = 1 end
     local goto_phase = phase >= 0 and phase_data(run, phase).when_clear_goto_phase or -1
     if phase < 0 or goto_phase == -1 then run.phase = phase + 1 else run.phase = goto_phase end
     local data = phase_data(run, run.phase)
     if data.music ~= "" then music.play(data.music) end
     state.camera_limit = data.bound - constants.screen.width
     state.stage_bound = data.bound
-    if group == constants.stage_groups.survival then
+    if legacy_survival(group) then
         for index = 0, constants.first_spawned_slot - 1 do
             local value = state.items[index]
             if value and value.hp <= 0 then
@@ -242,7 +259,14 @@ function stage.update(state, run)
                 else display[#display + 1] = {"fill", 0, 109, constants.screen.width, 440} end
                 run.shutter = run.shutter + 1
                 if run.shutter == 21 then
-                    if group == constants.stage_groups.final_story then
+                    if darkfiren() then
+                        local plan = run.plan or stage_levels.plan(whole, run.id, -1)
+                        if plan.action == "ending" then run.ending = true
+                        elseif plan.action ~= "menu" then
+                            run.id = plan.id
+                            run.next_group = true
+                        end
+                    elseif group == constants.stage_groups.final_story then
                         -- After the last group the original shows the ending (state 300).
                         run.ending = true
                     else
@@ -330,7 +354,10 @@ function stage.update(state, run)
         end
     else
         if run.go > 0 and run.go < 100 then
-            if group < constants.stage_groups.survival then
+            if darkfiren() then
+                local data = stage_list()[run.id]
+                display[#display + 1] = {"text", stage_levels.title(data, run.id), 330, 299, data and data.boss == 1 and 0xff5050 or 0xc8c8c8}
+            elseif group < constants.stage_groups.survival then
                 display[#display + 1] = {"sprite", menu_sheet, frames[25], 265, 299}
                 display[#display + 1] = {"sprite", menu_sheet, frames[36], 490, 299}
                 display[#display + 1] = {"sprite", menu_sheet, frames[group + 27], 460, 299}
@@ -366,8 +393,15 @@ function stage.update(state, run)
         if run.shutter ~= 0 then
             target = "shutter_out"
         else
-            local next_exists = stage_list()[run.id + 1] ~= nil
-            if run.id % 10 ~= 9 and next_exists then
+            local continues
+            if darkfiren() then
+                local plan = stage_levels.plan(whole, run.id, phase_data(run, run.phase).when_clear_goto_stage)
+                run.plan = plan
+                continues = plan.action == "stage"
+            else
+                continues = run.id % 10 ~= 9 and stage_list()[run.id + 1] ~= nil
+            end
+            if continues then
                 local bound = phase_data(run, run.phase).bound
                 local all_done = true
                 for index = 0, constants.first_spawned_slot - 1 do
@@ -441,7 +475,13 @@ function stage.status(state, run, display)
             end
         end
     end
-    if run.id < constants.stage_levels.survival_start then
+    if darkfiren() then
+        local data = stage_list()[run.id]
+        if data then
+            display[#display + 1] = {"text", stage_levels.title(data, run.id), data.xpos or 360, 110,
+                data.boss == 1 and 0xff5050 or 0xc8c8c8}
+        end
+    elseif run.id < constants.stage_levels.survival_start then
         display[#display + 1] = {"text", string.format("%s %d-%d", i18n.tr("STAGE"), cdiv(run.id, 10) + 1, run.id % 10 + 1),
             360, 110, 0xc8c8c8}
     elseif run.survival >= 0 then
