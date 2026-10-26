@@ -130,6 +130,7 @@ function screen.snapshot(state, snapshot)
         order[position] = entry
     end
     snapshot.camera, snapshot.shake = state.camera, state.shake
+    snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or nil
     snapshot.paused, snapshot.stage = nil, nil
     return snapshot
 end
@@ -554,6 +555,12 @@ function screen.draw(state, context, window_bounds)
         end
     end
     draw_status(context, current)
+    if view.time_left then
+        -- The time limit's clock: the time left, in the middle under the HP frames.
+        local seconds = math.ceil(view.time_left / 30)
+        local clock_text = string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
+        bold_text(context, clock_text, 0x18d + wide_center() - math.floor(font.width(clock_text) / 2), 0x6e)
+    end
     if view.paused then
         context.image("pe/pause", 360 + wide_center(), 288, true)
         return

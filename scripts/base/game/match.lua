@@ -73,6 +73,10 @@ function match.create(options)
         paused = false, pause_request = false, pause_next = false, cheat_lock = 0,
         heal_all = false, weapon_command = 0, function_counts = {[6] = 0, [7] = 0, [8] = 0, [9] = 0}}
     state.bg_mode = options.bg_mode
+    -- LF2 Darkfiren's time limit (seconds, 30 ticks each): when it runs out the round ends and the fighters lose
+    -- control; time_type says who wins (1 highest hp, 2 highest dhp, 3 most damage, 4 most kills).
+    state.time_limit = options.time_limit and options.time_limit > 0 and options.time_limit or nil
+    state.time_type = options.time_type or 1
     local row = options.background
     local count = #options.backgrounds
     if options.mode == mode_stage then
@@ -375,6 +379,25 @@ local function read_input(state, held)
     end
 end
 
+local function time_winner(state)
+    local best, best_team, tied
+    for index = 0, item_slots - 1 do
+        local value = state.items[index]
+        if value and value.record.kind == record_kinds.character and value.team > team_independent
+           and value.team < team_active_end_exclusive and value.team ~= team_enemies then
+            local score
+            if state.time_type == 2 then score = value.dark_hp
+            elseif state.time_type == 3 then score = value.damage_dealt
+            elseif state.time_type == 4 then score = value.kills
+            else score = value.hp end
+            score = score or 0
+            if best == nil or score > best then best, best_team, tied = score, value.team, false
+            elseif score == best and value.team ~= best_team then tied = true end
+        end
+    end
+    return (best == nil or tied) and -1 or best_team
+end
+
 local function versus_counter(state)
     local alive, teams = {}, 0
     for index = 0, item_slots - 1 do
@@ -392,6 +415,8 @@ local function versus_counter(state)
             teams = teams + 1
         end
     end
+    -- Time is up: the round ends now, with the winner the time limit picked (or none on a tie).
+    if state.time_up then teams, state.winner = 1, state.time_winner end
     if teams < 2 and not state.finished and (state.mode ~= mode_battle or (state.battle_run and state.battle_run.over)) then
         if teams == 0 then state.winner = -1 end
         state.round_counter = state.round_counter + 1
@@ -407,7 +432,13 @@ local function versus_counter(state)
     end
 end
 
+match.time_winner, match.versus_counter = time_winner, versus_counter -- exported for the tests
+
 local function round_end(state)
+    if state.time_limit and not state.time_up and state.mode ~= mode_stage and state.round_counter == 0
+       and state.elapsed >= state.time_limit * 30 then
+        state.time_up, state.time_winner = true, time_winner(state)
+    end
     if state.mode == mode_stage then
         stage.round_counter(state, state.stage_run)
     else

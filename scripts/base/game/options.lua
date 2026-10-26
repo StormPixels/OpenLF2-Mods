@@ -4,6 +4,7 @@
 -- OpenLF2's own settings, which the original game does not have. They
 -- live in config.json's "options" member, next to the original's controls and recording values.
 local unlock = require("base/game/unlock")
+local onscreen = require("base/game/onscreen")
 local i18n = require("base/i18n/i18n")
 local options = {}
 
@@ -63,7 +64,7 @@ local gamepad_defaults = {
     dj = {right = 72, bottom = 165, radius = 26},
     daj = {right = 72, bottom = 80, radius = 26},
 }
-local defaults = {battlefield_layout = "classic", gamepad = gamepad_defaults, unlock_characters = false, upscaling_filter = "linear", fullscreen = false, digipad = true, show_fps = false,
+local defaults = {battlefield_layout = "classic", gamepad = gamepad_defaults, onscreen = onscreen.defaults(), unlock_characters = false, upscaling_filter = "linear", fullscreen = false, digipad = true, show_fps = false,
     rumble = false, show_gamepad = false, language = "default", font_antialiasing = true,
     character_shading = false, projected_shadows = false,
     light_azimuth = -50, light_elevation = 70, shadow_blur = 2, shadow_opacity = 0.275}
@@ -95,7 +96,7 @@ local function angle(value, default, low, high)
 end
 local function copy(values)
     return {battlefield_layout = valid_layout(values.battlefield_layout) and values.battlefield_layout or defaults.battlefield_layout,
-        gamepad = copy_gamepad(values.gamepad),unlock_characters = values.unlock_characters,
+        gamepad = copy_gamepad(values.gamepad), onscreen = onscreen.normalize(values.onscreen), unlock_characters = values.unlock_characters,
         upscaling_filter = valid_filter(values.upscaling_filter) and values.upscaling_filter or defaults.upscaling_filter,
         fullscreen = values.fullscreen, digipad = values.digipad, show_fps = values.show_fps, rumble = values.rumble,
         show_gamepad = values.show_gamepad, font_antialiasing = values.font_antialiasing,
@@ -149,6 +150,7 @@ function options.load()
         values.language = saved.language
     end
     if type(saved) == "table" then values.gamepad = copy_gamepad(saved.gamepad) end
+    if type(saved) == "table" then values.onscreen = onscreen.normalize(saved.onscreen) end
     if type(saved) == "table" and valid_layout(saved.battlefield_layout) then
         values.battlefield_layout = saved.battlefield_layout
     end

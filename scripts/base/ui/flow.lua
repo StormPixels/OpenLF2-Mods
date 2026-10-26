@@ -61,7 +61,7 @@ function flow.create(options)
     local state = {active = "launch", title = title.create(options), options = options,
         launch = require("base/ui/launch").create({menu_seed = options.menu_seed, problem = settings.problem}),
         pointer_x = 0, pointer_y = 0, previous_button = false, volume_frames = 0,
-        touch_gamepad = touch_gamepad.create(user_options.current().gamepad, user_options.current().digipad), mouse_touch = false,
+        touch_gamepad = touch_gamepad.create(user_options.current().onscreen), mouse_touch = false,
         -- Optional mouse input can stand in for touch while testing the on-screen gamepad.
         mouse_touch_enabled = options.mouse_touch == true}
     music.play("bgm/main.wma")
@@ -87,9 +87,9 @@ end
 local function with_recording(state, options)
     options.network = state.session ~= nil
     -- A background mode changes the simulation, which neither a recording's header nor the other player knows.
-    if options.network then options.bg_mode = nil end
+    if options.network then options.bg_mode, options.time_limit = nil, nil end
     local settings = controls.current()
-    if settings.record == 0 or options.bg_mode then return options end
+    if settings.record == 0 or options.bg_mode or options.time_limit then return options end
     local names = {}
     for slot = 0, 7 do names[slot + 1] = controls.name(slot) end
     options.record = {names = names, version = state.options.recording_version or 0, time = engine.local_time(),
@@ -295,7 +295,6 @@ function flow.draw(state, context)
     -- The on-screen gamepad draws on top of every screen it drives; hidden while paused (it
     -- would sit under the PAUSE picture).
     if gamepad_mode(state) then
-        state.touch_gamepad.fast_on = speed.fast
         touch_gamepad.draw(state.touch_gamepad, context)
     end
     local status = recording.status_text()
@@ -380,23 +379,30 @@ function flow.update(state, raw, context)
         gamepad_input = {touch_active = true, screen = input.screen,
             touches = input.button and {{id = 0, x = input.pointer_x, y = input.pointer_y}} or {}}
     end
-    -- Chord buttons are enabled by what player 1's fighter can do right now.
-    local fighter = state.active == "match" and state.match and state.match.match and state.match.match.items[0] or nil
-    local available = {}
-    for _, chord in ipairs({"da", "dj", "daj"}) do available[chord] = control.chord_available(fighter, chord) end
-    touch_gamepad.set_available(state.touch_gamepad, available)
-    local touched, pause_held, fast_held = touch_gamepad.update(state.touch_gamepad,
+    local touched, touch_functions, touch_keys = touch_gamepad.update(state.touch_gamepad,
         active_screen and gamepad_input or {touch_active = false, screen = input.screen}, mode)
-    -- The pause button is F1; the match toggles on its press.
-    if pause_held and state.active == "match" and not input.functions:find("1", 1, true) then
-        input.functions = input.functions .. "1"
+    -- The F grid presses F1-F9 (F1 pauses, F5 fast-forwards ...), as the keyboard's F-keys do.
+    for digit in touch_functions:gmatch("%d") do
+        if not input.functions:find(digit, 1, true) then input.functions = input.functions .. digit end
     end
-    -- The fast-forward button is F5.
-    if fast_held and state.active == "match" and not input.functions:find("5", 1, true) then
-        input.functions = input.functions .. "5"
+    -- Buttons set to a key press that key: menus see it, and the key sets of the controls settings turn it
+    -- into the letters of whichever player owns it.
+    local previous_keys, pressed_key = state.touch_keys or {}, false
+    for code in pairs(touch_keys) do
+        input.keys[code], pressed_key = true, true
+        if input.presses and not previous_keys[code] then input.presses[#input.presses + 1] = code end
     end
+    state.touch_keys = touch_keys
+    if pressed_key then controls.map_held_keys(controls.current(), input) end
     for _, letter in ipairs({"u", "d", "l", "r", "c", "b", "f"}) do
         if touched:find(letter, 1, true) and not input[0]:find(letter, 1, true) then input[0] = input[0] .. letter end
+    end
+    -- Moved, resized or re-keyed buttons are saved with the other options.
+    local changed = touch_gamepad.take_changes(state.touch_gamepad)
+    if changed then
+        local values = user_options.current()
+        values.onscreen = changed
+        user_options.save(values)
     end
     local local_keys = input.keys
     if state.session then

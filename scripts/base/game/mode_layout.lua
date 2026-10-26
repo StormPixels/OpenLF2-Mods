@@ -68,4 +68,22 @@ function mode_layout.apply(text, targets)
     return taken
 end
 
+-- The <time> block (LF2 Darkfiren, time limit): `type:` says who wins when the time is up (1 highest hp, 2 highest
+-- dhp, 3 most damage, 4 most kills) and each `time:` is a choice in seconds, up to 100. Returns type, list.
+function mode_layout.time_limits(text)
+    local kind, list, inside = 1, {}, false
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag == "time" then inside = true
+        elseif tag == "time_end" then break
+        elseif inside then
+            local key, value = line:match("^%s*([%w_]+)%s*:%s*(%-?%d+)")
+            value = tonumber(value)
+            if key == "type" and value and value >= 1 and value <= 4 then kind = value
+            elseif key == "time" and value and value > 0 and #list < 100 then list[#list + 1] = value end
+        end
+    end
+    return kind, list
+end
+
 return mode_layout

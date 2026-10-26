@@ -416,6 +416,10 @@ local press_order = {"right", "left", "up", "down", "defend", "jump", "attack"}
 local key_codes = constants.key_history_codes
 
 function control.step(match, value)
+    -- LF2 Darkfiren's time limit: when the time is up the fighters stand without control.
+    if match.time_up and value.record.kind == record_kinds.character then
+        for key in pairs(value.keys) do value.keys[key] = false end
+    end
     -- A background mode's `bound` (LF2 Darkfiren): 1 takes the jump key away from fighters, 2 their combination
     -- moves, 3 both.
     local bound = match.bg_mode and match.bg_mode.bound or 0

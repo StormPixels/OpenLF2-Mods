@@ -211,6 +211,10 @@ local function map_keys(settings, input)
     end
 end
 
+-- Adds the letters and F-keys of keys held after `read` (the on-screen buttons set to a key), as a keyboard
+-- would have; safe to run again on an input that was already mapped.
+function controls.map_held_keys(settings, input) map_keys(settings, input) end
+
 -- Parses the frame's raw input: live host frames ("k" + key/mouse/touch/controller state) or
 -- shorthand traces ('/' per player slot, "@x_y", "#n", "%x", "^x", "&n_x_y"). Returns per-slot
 -- held letters (u d l r c b f), functions, keys, pointer_x/y, button, gamepad, pads, touches,

@@ -1,344 +1,410 @@
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2026 OpenLF2 contributors
 
--- OpenLF2 extension: on-screen touch gamepad for player 1 during a live match. Shows only
--- when the last input was touch-driven; other pages already handle direct taps.
+-- OpenLF2 extension: on-screen controls, shown only when the last input was touch-driven (other pages
+-- already handle direct taps). Seven round buttons (up, down, left, right, attack, jump, defend), an "F"
+-- button that opens a 3x3 grid of F1-F9, a round button at the top centre that shows or hides the buttons,
+-- and "SET" at the top right: drag the buttons, resize them, give each a key, set the opacity of each
+-- group. The settings are saved (base/game/onscreen, config.json).
 --
--- C++ only reports held fingers in viewport coordinates, plus the window's edges (letterbox
--- bars lie beyond the 794x550 picture); this module owns all hit-testing and draws as an
--- overlay so it can sit in the bars.
+-- C++ only reports held fingers in viewport coordinates, plus the window's edges (letterbox bars lie
+-- beyond the 794x550 picture); this module owns all hit-testing and draws as an overlay so it can sit in
+-- the bars. Sizes are in units of u = a ninth of the window's height.
+--
+-- Every finger gets a zone the first frame it is seen and keeps it until it lifts: "buttons" (holds every
+-- button under it, so one finger can slide between two, or press two overlapping ones for a diagonal),
+-- "functions" (the F grid), "drag" (moves a button in edit mode), a one-shot "toggle"/"widget", "blocked"
+-- (edit mode swallows the rest) or "mouse": a finger on empty screen stays the page's pointer. Fingers of
+-- the other zones never reach the page behind (`claims`).
 local constants = require("base/game/constants")
 local font = require("base/ui/font")
+local onscreen = require("base/game/onscreen")
 local gamepad = {}
 
--- Left floating joystick: a finger down in the zone recenters the base; direction comes from
--- the knob's offset past a dead zone (8-way, diagonals set two). Keeps following that finger
--- outside the zone.
--- `run_distance`: running needs a double-tap, not a hold; past this distance the stick fakes
--- that double-tap itself (run_pulse), since a held stick never releases.
--- Position and size come from the configured layout (options.gamepad), measured from the
--- window's edges (`screen`: their viewport coordinates, beyond 0..794 / 0..550 in letterbox
--- bars); distances below are authored for radius 56 and scale with it.
-local function build_stick(config, screen, digipad)
-    local x, y = screen.left + math.floor(config.left), screen.bottom - math.floor(config.bottom)
-    local radius = math.floor(config.radius)
-    local scale = radius / 56
-    if digipad then
-        -- A fixed cross: a finger within a margin of it steers, with 8 directions as on the stick, and
-        -- running is the player's own double tap, so there is no run pulse.
-        return {zone = {left = x - radius * 1.4, top = y - radius * 1.4, right = x + radius * 1.4, bottom = y + radius * 1.4},
-            default_x = x, default_y = y, radius = radius, travel = radius, deadzone = 14 * scale, threshold = 0.4,
-            run_distance = math.huge, run_rearm_distance = 0, knob = 0, knob_inner = 0, fixed = true}
-    end
-    return {zone = {left = screen.left, top = y - 150 * scale, right = x + 205 * scale, bottom = y + 80 * scale},
-        default_x = x, default_y = y, radius = radius, travel = 60 * scale,
-        deadzone = 14 * scale, threshold = 0.4, run_distance = 51 * scale, run_rearm_distance = 30 * scale,
-        knob = math.floor(24 * scale), knob_inner = math.floor(18 * scale)}
-end
--- Right action buttons: attack is primary/biggest (thumb rests there); jump/defend are reached
--- by rolling the thumb.
--- Chords: pressing several buttons at once. Each is enabled only while the fighter has a move
--- for it (see `gamepad.set_available`).
-local chords = {"da", "dj", "daj"}
-local chord_letters = {da = {"f", "c"}, dj = {"f", "b"}, daj = {"f", "b", "c"}}
-local chord_labels = {da = "D+A", dj = "D+J", daj = "D+J+A"}
-local chord_fill, chord_pressed = {70, 55, 95}, {130, 105, 190}
-local function build_buttons(layout, screen)
-    local function button(action, label, fill, pressed)
-        local config = layout[action]
-        local letters = chord_letters[action]
-        label = label or chord_labels[action]
-        return {action = action, letters = letters, label = label, x = screen.right - math.floor(config.right),
-            y = screen.bottom - math.floor(config.bottom), radius = math.floor(config.radius),
-            fill = fill, pressed = pressed}
-    end
-    local list = {button("c", "ATK", {90, 45, 40}, {170, 80, 65}), button("b", "JUMP", {40, 80, 50}, {80, 160, 100}),
-        button("f", "DEF", {40, 55, 90}, {75, 105, 175})}
-    for _, button_action in ipairs(chords) do list[#list + 1] = button(button_action, nil, chord_fill, chord_pressed) end
-    return list
-end
-local outline = {18, 18, 22}
-local disabled_fill = {34, 34, 38}
-
--- The run pulse: release/press/release/press, mimicking a human double-tap within the dash
--- window. Each step holds two frames since input is only re-read every other frame.
-local run_pulse_steps = {false, false, true, true, false, false, true, true}
-
+local floor, ceil, max, min, sqrt = math.floor, math.ceil, math.max, math.min, math.sqrt
 local default_screen = {left = 0, top = 0, right = constants.screen.width, bottom = constants.screen.height}
 
--- Rebuilds the stick and buttons when the window's edges moved (resize, fullscreen).
+local labels = {up = "UP", down = "DOWN", left = "LEFT", right = "RIGHT", attack = "ATTACK", jump = "JUMP", defend = "DEFEND"}
+local default_labels = {up = "^", down = "v", left = "<", right = ">", attack = "A", jump = "J", defend = "D"}
+local groups_of = {up = "pad", down = "pad", left = "pad", right = "pad", attack = "action", jump = "action", defend = "action"}
+local group_labels = {pad = "PAD", action = "ACT", functions = "F", menu = "MENU"}
+
+local function clamp(value, low, high) return max(low, min(high, value)) end
+local function contains(rect, x, y) return x >= rect.x and x <= rect.x + rect.w and y >= rect.y and y <= rect.y + rect.h end
+local function within(circle, x, y, factor) return sqrt((x - circle.x) ^ 2 + (y - circle.y) ^ 2) <= circle.r * factor end
+
+-- Computes the fixed places from the window's edges (again when they move: resize, fullscreen).
 local function fit(state, screen)
     local old = state.screen
-    if old and old.left == screen.left and old.top == screen.top and old.right == screen.right
+    if old and state.l and old.left == screen.left and old.top == screen.top and old.right == screen.right
        and old.bottom == screen.bottom then
         return
     end
     state.screen = screen
-    state.stick = build_stick(state.digipad and state.layout.dpad or state.layout.stick, screen, state.digipad)
-    local pause = state.layout.pause
-    state.tolerance = state.layout.touch.tolerance
-    state.pause = {x = screen.right - math.floor(pause.right), y = screen.top + math.floor(pause.top),
-        radius = math.floor(pause.radius)}
-    local fast = state.layout.fast
-    state.fast = {x = screen.left + math.floor(fast.left), y = screen.top + math.floor(fast.top),
-        radius = math.floor(fast.radius)}
-    state.buttons = build_buttons(state.layout, screen)
-    if not state.finger then
-        state.base_x, state.base_y = state.stick.default_x, state.stick.default_y
-        state.knob_x, state.knob_y = state.base_x, state.base_y
+    local width, height = screen.right - screen.left, screen.bottom - screen.top
+    local u = height / 9
+    local l = {left = screen.left, top = screen.top, w = width, h = height, u = u}
+    l.toggle = {x = screen.left + width / 2, y = screen.top + 0.6 * u, r = 0.4 * u}
+    l.ftoggle = {x = screen.left + 1.1 * u, y = screen.top + 1.1 * u, r = 0.5 * u}
+    l.gear = {x = screen.right - 1.1 * u, y = screen.top + 1.1 * u, r = 0.5 * u}
+    l.cells = {}
+    for number = 1, 9 do
+        local index = number - 1
+        l.cells[number] = {number = number, rect = {x = screen.left + 1.85 * u + (index % 3) * 0.9 * u,
+            y = screen.top + 0.6 * u + floor(index / 3) * 0.9 * u, w = 0.8 * u, h = 0.8 * u}}
     end
+    state.l = l
 end
 
-function gamepad.create(layout, digipad)
-    local state = {layout = layout, digipad = digipad == true, held = {}, available = {}, visible = false, run_pulse_step = 0}
+-- `config`: the saved settings (base/game/onscreen), checked here.
+function gamepad.create(config)
+    local state = {config = onscreen.normalize(config), zones = {}, held = {}, functions_held = {}, visible = false,
+        functions_open = false, editing = false, picking = false, dirty = false}
+    state.shown = state.config.show
     fit(state, default_screen)
     return state
 end
 
-local function clamp(value, low, high) return math.max(low, math.min(high, value)) end
-local function inside_zone(zone, x, y) return x >= zone.left and x <= zone.right and y >= zone.top and y <= zone.bottom end
+-- The chords of the old gamepad no longer exist; kept so callers need no change.
+function gamepad.set_available() end
 
--- Which chord buttons ("da", "dj", "daj") are enabled; the others cannot be pressed.
-function gamepad.set_available(state, available) state.available = available end
-
--- state: from `create`. input: the frame's input; pass touch_active=false to release the held
--- finger and hide (paused/replaying/other screens).
--- The button (or the pause button) a finger presses: the one whose edge is nearest, as long as
--- the finger is within `tolerance` pixels of it, so a slightly missed press still counts.
-local function target_at(state, touch, mode)
-    local best, best_gap
-    local function consider(target)
-        local gap = math.sqrt((touch.x - target.x) ^ 2 + (touch.y - target.y) ^ 2) - target.radius
-        if gap <= state.tolerance and (not best_gap or gap < best_gap) then best, best_gap = target, gap end
-    end
-    if mode ~= "full" then consider(state.pause); consider(state.fast) end
-    if mode ~= "pause" then
-        for _, button in ipairs(state.buttons) do consider(button) end
-    end
-    return best
+local function circle_of(state, name)
+    local spec, l = state.config.buttons[name], state.l
+    return {x = l.left + spec.x * l.w, y = l.top + spec.y * l.h, r = 0.85 * l.u * spec.size}
 end
 
--- `mode`: "full" (default: stick and buttons), "match" (the same plus the pause button) or
--- "pause" (only the pause button is live: the match is paused or replaying).
--- Returns held letters ("udlrcbf" subset), or "" while hidden, and whether the pause and the fast-forward
--- button are held; a run pulse briefly overrides l/r on its own.
+-- The edit panel (or the key grid while picking): its frame, its widgets (tappable rectangles) and its texts.
+local function panel(state)
+    local l = state.l
+    local u = l.u
+    local items, texts = {}, {}
+    if state.picking then
+        local cols, cell, gap = 11, 0.72 * u, 0.08 * u
+        local rows = ceil(#onscreen.keys / cols)
+        local grid_w, grid_h = cols * (cell + gap) - gap, rows * (cell + gap) - gap
+        local frame_w, frame_h = grid_w + 0.8 * u, grid_h + 1.5 * u
+        local frame_x, frame_y = l.left + (l.w - frame_w) / 2, l.top + (l.h - frame_h) / 2
+        texts[#texts + 1] = {"PICK A KEY", frame_x + 0.4 * u, frame_y + 0.55 * u, "left"}
+        for index, key in ipairs(onscreen.keys) do
+            local number = index - 1
+            items[#items + 1] = {widget = "pick:" .. key.name, label = key.label,
+                rect = {x = frame_x + 0.4 * u + (number % cols) * (cell + gap),
+                    y = frame_y + 1.0 * u + floor(number / cols) * (cell + gap), w = cell, h = cell}}
+        end
+        return {frame = {x = frame_x, y = frame_y, w = frame_w, h = frame_h}, items = items, texts = texts}
+    end
+    local frame_w, frame_h, row_h, button = 7.2 * u, 7.0 * u, 0.8 * u, 0.65 * u
+    local frame_x, frame_y = l.left + (l.w - frame_w) / 2, l.top + 1.2 * u
+    local function row_center(row) return frame_y + 0.3 * u + row * row_h + row_h / 2 end
+    local function stepper(row, widget, text)
+        local center = row_center(row)
+        items[#items + 1] = {widget = widget .. "-", label = "-", rect = {x = frame_x + 4.2 * u, y = center - button / 2, w = button, h = button}}
+        items[#items + 1] = {widget = widget .. "+", label = "+", rect = {x = frame_x + 6.2 * u, y = center - button / 2, w = button, h = button}}
+        texts[#texts + 1] = {text, frame_x + 5.7 * u, center - 8, "center"}
+    end
+    texts[#texts + 1] = {"SET", frame_x + 0.4 * u, row_center(0) - 8, "left"}
+    texts[#texts + 1] = {"DRAG A BUTTON TO MOVE IT", frame_x + 1.5 * u, row_center(0) - 8, "left"}
+    local selected = state.selected
+    if selected then
+        local spec = state.config.buttons[selected]
+        texts[#texts + 1] = {labels[selected], frame_x + 0.4 * u, row_center(1) - 8, "left"}
+        texts[#texts + 1] = {"SIZE", frame_x + 0.4 * u, row_center(2) - 8, "left"}
+        stepper(2, "size", string.format("%.1f", spec.size))
+        local key = onscreen.key(spec.key)
+        texts[#texts + 1] = {"KEY", frame_x + 0.4 * u, row_center(3) - 8, "left"}
+        items[#items + 1] = {widget = "key", label = spec.key == "auto" and default_labels[selected] or key.label,
+            rect = {x = frame_x + 4.2 * u, y = row_center(3) - button / 2, w = 2.65 * u, h = button}}
+    else
+        texts[#texts + 1] = {"TAP A BUTTON", frame_x + 0.4 * u, row_center(1) - 8, "left"}
+    end
+    for index, group in ipairs(onscreen.groups) do
+        texts[#texts + 1] = {group_labels[group], frame_x + 0.4 * u, row_center(3 + index) - 8, "left"}
+        stepper(3 + index, "op:" .. group .. ":", tostring(state.config.opacity[group]))
+    end
+    items[#items + 1] = {widget = "reset", label = "RESET", rect = {x = frame_x + 0.4 * u, y = frame_y + frame_h - 1.0 * u, w = 2.8 * u, h = 0.75 * u}}
+    items[#items + 1] = {widget = "done", label = "DONE", rect = {x = frame_x + frame_w - 3.2 * u, y = frame_y + frame_h - 1.0 * u, w = 2.8 * u, h = 0.75 * u}}
+    return {frame = {x = frame_x, y = frame_y, w = frame_w, h = frame_h}, items = items, texts = texts}
+end
+
+gamepad.panel = panel -- the edit panel's widgets and texts, for tests
+
+local function release(state)
+    for _, zone in pairs(state.zones) do
+        if zone.kind == "drag" then state.dirty = true end
+    end
+    state.zones, state.held, state.functions_held = {}, {}, {}
+end
+
+-- Does what a tapped widget says; edits are saved (state.dirty) by `take_changes`.
+local function perform(state, widget)
+    local config = state.config
+    local selected = state.selected and config.buttons[state.selected]
+    if widget == "done" then
+        state.editing, state.picking, state.selected = false, false, nil
+    elseif widget == "reset" then
+        local show = config.show
+        state.config = onscreen.defaults()
+        state.config.show = show
+    elseif widget == "key" then
+        if selected then state.picking = true end
+    elseif widget == "closepicker" then
+        state.picking = false
+    elseif widget == "size-" or widget == "size+" then
+        if selected then selected.size = clamp(floor((selected.size + (widget == "size+" and 0.1 or -0.1)) * 10 + 0.5) / 10, 0.5, 2.5) end
+    elseif widget:sub(1, 5) == "pick:" then
+        if selected and onscreen.key(widget:sub(6)) then selected.key = widget:sub(6) end
+        state.picking = false
+    else
+        local group, sign = widget:match("^op:(%a+):([%-+])$")
+        if group and config.opacity[group] then
+            config.opacity[group] = clamp(config.opacity[group] + (sign == "+" and 1 or -1), 1, 10)
+        end
+    end
+    state.dirty = true
+end
+
+-- The zone a finger starts in, or nil when it touches the empty screen.
+local function hit(state, x, y, mode)
+    local l = state.l
+    if within(l.gear, x, y, 1.5) then return {kind = "gear"} end
+    if state.editing then
+        local p = panel(state)
+        for _, item in ipairs(p.items) do
+            if contains(item.rect, x, y) then return {kind = "widget", widget = item.widget} end
+        end
+        if state.picking then return {kind = "widget", widget = "closepicker"} end
+        if contains(p.frame, x, y) then return {kind = "blocked"} end
+        if within(l.ftoggle, x, y, 1.5) then return {kind = "ftoggle"} end
+        for _, name in ipairs(onscreen.controls) do
+            if within(circle_of(state, name), x, y, 1.15) then return {kind = "drag", name = name} end
+        end
+        return {kind = "blocked"}
+    end
+    if within(l.toggle, x, y, 2) then return {kind = "toggle"} end
+    if within(l.ftoggle, x, y, 1.5) then return {kind = "ftoggle"} end
+    if state.functions_open then
+        local pad = 0.05 * l.u
+        for _, cell in ipairs(l.cells) do
+            local rect = cell.rect
+            if contains({x = rect.x - pad, y = rect.y - pad, w = rect.w + 2 * pad, h = rect.h + 2 * pad}, x, y) then
+                return {kind = "functions"}
+            end
+        end
+    end
+    if state.shown and mode ~= "pause" then
+        for _, name in ipairs(onscreen.controls) do
+            if within(circle_of(state, name), x, y, 1.15) then return {kind = "buttons"} end
+        end
+    end
+    return nil
+end
+
+local function begin(state, touch, mode, has_mouse)
+    local zone = hit(state, touch.x, touch.y, mode)
+    if not zone then return {kind = has_mouse and "ignored" or "mouse"} end
+    if zone.kind == "gear" then
+        state.editing = not state.editing
+        state.picking, state.selected = false, nil
+        state.dirty = true
+    elseif zone.kind == "toggle" then
+        state.shown = not state.shown
+    elseif zone.kind == "ftoggle" then
+        state.functions_open = not state.functions_open
+    elseif zone.kind == "widget" then
+        perform(state, zone.widget)
+    elseif zone.kind == "drag" then
+        state.selected = zone.name
+    end
+    return zone
+end
+
+-- state: from `create`. input: the frame's input; pass touch_active=false to release every finger and
+-- hide (other screens). `mode`: "full" (menus), "match" or "pause" (paused or replaying: the buttons are
+-- hidden, the F button and the menu buttons stay to resume).
+-- Returns the held letters of player 1 ("udlrcbf" subset, for buttons on their default key), the F-key
+-- digits held ("1"-"9") and the set of virtual keys held (buttons set to a key).
 function gamepad.update(state, input, mode)
     mode = mode or "full"
     fit(state, input.screen or default_screen)
-    local stick, buttons = state.stick, state.buttons
-    local screen = state.screen
+    state.mode = mode
     state.visible = input.touch_active == true
     if not state.visible then
-        state.finger, state.held = nil, {}
-        state.base_x, state.base_y = stick.default_x, stick.default_y
-        state.knob_x, state.knob_y = stick.default_x, stick.default_y
-        return "", false, false
+        release(state)
+        return "", "", {}
     end
     local touches = input.touches or {}
-    local pressed = {}
-    for _, touch in ipairs(touches) do
-        local target = target_at(state, touch, mode)
-        if target then pressed[target] = true end
-    end
-    local pause_held = pressed[state.pause] == true
-    local fast_held = pressed[state.fast] == true
-    state.pause_held, state.fast_held, state.mode = pause_held, fast_held, mode
-    if mode == "pause" then
-        state.finger, state.held = nil, {}
-        state.base_x, state.base_y = stick.default_x, stick.default_y
-        state.knob_x, state.knob_y = stick.default_x, stick.default_y
-        state.run_armed, state.run_pulse = nil, nil
-        return "", pause_held, fast_held
-    end
     local by_id = {}
     for _, touch in ipairs(touches) do by_id[touch.id] = touch end
-
-    local owner = state.finger and by_id[state.finger]
-    if not owner then
-        state.finger = nil
-        for _, touch in ipairs(touches) do
-            if inside_zone(stick.zone, touch.x, touch.y) then
-                state.finger, owner = touch.id, touch
-                break
-            end
-        end
-        if owner and not stick.fixed then
-            state.base_x = clamp(owner.x, screen.left + stick.radius, screen.right - stick.radius)
-            state.base_y = clamp(owner.y, screen.top + stick.radius, screen.bottom - stick.radius)
+    local has_mouse = false
+    for id, zone in pairs(state.zones) do
+        if not by_id[id] then
+            if zone.kind == "drag" then state.dirty = true end
+            state.zones[id] = nil
+        elseif zone.kind == "mouse" then
+            has_mouse = true
         end
     end
-    local held = {}
-    if owner then
-        local dx, dy = owner.x - state.base_x, owner.y - state.base_y
-        local distance = math.sqrt(dx * dx + dy * dy)
-        if distance > 0 then
-            local travel = math.min(distance, stick.travel)
-            state.knob_x, state.knob_y = state.base_x + dx / distance * travel, state.base_y + dy / distance * travel
-        else
-            state.knob_x, state.knob_y = state.base_x, state.base_y
+    for _, touch in ipairs(touches) do
+        if not state.zones[touch.id] then
+            local zone = begin(state, touch, mode, has_mouse)
+            state.zones[touch.id] = zone
+            if zone.kind == "mouse" then has_mouse = true end
         end
-        if distance >= stick.deadzone then
-            if dx / distance > stick.threshold then held.r = true end
-            if dx / distance < -stick.threshold then held.l = true end
-            if dy / distance > stick.threshold then held.d = true end
-            if dy / distance < -stick.threshold then held.u = true end
-        end
-        -- Crossing run_distance arms a run pulse for l/r; returning past run_rearm_distance
-        -- re-arms it (short of the edge, to avoid jitter).
-        local run_letter = held.r and "r" or (held.l and "l" or nil)
-        if run_letter and distance >= stick.run_distance then
-            if state.run_armed ~= run_letter then
-                state.run_armed, state.run_pulse, state.run_pulse_step = run_letter, run_pulse_steps, 1
-            end
-        elseif distance <= stick.run_rearm_distance then
-            state.run_armed = nil
-        end
-    else
-        state.base_x, state.base_y = stick.default_x, stick.default_y
-        state.knob_x, state.knob_y = stick.default_x, stick.default_y
-        state.run_armed, state.run_pulse = nil, nil
-    end
-    if state.run_pulse then
-        held[state.run_armed] = state.run_pulse[state.run_pulse_step]
-        state.run_pulse_step = state.run_pulse_step + 1
-        if state.run_pulse_step > #state.run_pulse then state.run_pulse = nil end
     end
 
-    -- Any finger on a button holds it; multiple fingers can hold multiple buttons plus the stick.
-    -- A disabled chord still catches fingers near it but does nothing.
-    for _, button in ipairs(buttons) do
-        if pressed[button] and (not button.letters or state.available[button.action]) then
-            held[button.action] = true
-            for _, letter in ipairs(button.letters or {}) do held[letter] = true end
+    local l = state.l
+    local held, functions_held = {}, {}
+    for _, touch in ipairs(touches) do
+        local zone = state.zones[touch.id]
+        if zone.kind == "drag" then
+            local spec = state.config.buttons[zone.name]
+            spec.x = clamp((touch.x - l.left) / l.w, 0.02, 0.98)
+            spec.y = clamp((touch.y - l.top) / l.h, 0.02, 0.98)
+        elseif zone.kind == "buttons" and not state.editing and state.shown and mode ~= "pause" then
+            for _, name in ipairs(onscreen.controls) do
+                if within(circle_of(state, name), touch.x, touch.y, 1.15) then held[name] = true end
+            end
+        elseif zone.kind == "functions" and state.functions_open and not state.editing then
+            for _, cell in ipairs(l.cells) do
+                if contains(cell.rect, touch.x, touch.y) then functions_held[cell.number] = true end
+            end
         end
     end
-    state.held = held
-    local letters = {}
+    state.held, state.functions_held = held, functions_held
+
+    local letters, keys = {}, {}
+    for _, name in ipairs(onscreen.controls) do
+        if held[name] then
+            local key = onscreen.key(state.config.buttons[name].key)
+            if key and key.code then keys[key.code] = true else letters[onscreen.letters[name]] = true end
+        end
+    end
+    local text = {}
     for _, letter in ipairs({"u", "d", "l", "r", "c", "b", "f"}) do
-        if held[letter] then letters[#letters + 1] = letter end
+        if letters[letter] then text[#text + 1] = letter end
     end
-    return table.concat(letters), pause_held, fast_held
+    local digits = {}
+    for number = 1, 9 do
+        if functions_held[number] then digits[#digits + 1] = tostring(number) end
+    end
+    return table.concat(text), table.concat(digits), keys
 end
 
--- Whether a finger belongs to the gamepad: it presses a button (also the pause and fast-forward ones, within the
--- same tolerance as `update`), or it is the one steering the stick (the digipad's cross included). The page
--- behind the gamepad must not take such a finger as its pointer. Valid after `update` on the same frame.
+-- Whether a finger belongs to the controls: it started on a button, the F grid, a menu button or in the edit
+-- panel. The page behind must not take such a finger as its pointer. Valid after `update` on the same frame.
 function gamepad.claims(state, touch)
     if not state.visible then return false end
-    if target_at(state, touch, state.mode or "full") then return true end
-    if state.mode == "pause" then return false end
-    if state.finger ~= nil and touch.id == state.finger then return true end
-    return state.stick.fixed == true and inside_zone(state.stick.zone, touch.x, touch.y)
+    local zone = state.zones[touch.id]
+    return zone ~= nil and zone.kind ~= "mouse" and zone.kind ~= "ignored"
 end
 
--- A circle approximated by horizontal strips (no rounded primitive exists),
--- matching the game's chunky pixel look.
-local circle_rows = {0.34, 0.63, 0.83, 0.96, 1, 1, 0.96, 0.83, 0.63, 0.34}
-local function disc(context, cx, cy, radius, red, green, blue)
-    -- Draw coordinates must be integers, so the finger-driven centre is rounded once here.
-    cx, cy = math.floor(cx + 0.5), math.floor(cy + 0.5)
-    local step = radius * 2 / #circle_rows
-    for index, half_fraction in ipairs(circle_rows) do
-        local top = math.floor(cy - radius + (index - 1) * step)
-        local bottom = math.floor(cy - radius + index * step)
-        local half = math.floor(half_fraction * radius)
-        if half > 0 then context.fill(cx - half, top, half * 2, bottom - top, red, green, blue) end
-    end
+-- The settings to save once something changed (a drag ended, a widget was tapped, edit mode toggled), else nil.
+function gamepad.take_changes(state)
+    if not state.dirty then return nil end
+    state.dirty = false
+    return state.config
 end
 
--- The small fast-forward button (two arrows) in the top left corner; lit while fast-forward is on.
-local function draw_fast(state, context)
-    local fast = state.fast
-    local color = state.fast_held and {120, 120, 130} or (state.fast_on and {50, 120, 70} or {60, 60, 68})
-    disc(context, fast.x, fast.y, fast.radius, outline[1], outline[2], outline[3])
-    disc(context, fast.x, fast.y, fast.radius - 3, color[1], color[2], color[3])
-    local half = math.max(3, math.floor(fast.radius * 0.45))
-    -- Two right-pointing triangles, side by side, one pixel row at a time.
-    for arrow = 0, 1 do
-        local left = fast.x - half - 1 + arrow * half
-        for row = -half, half do
-            local width = half - math.abs(row) + 1
-            context.fill(left, fast.y + row, width, 1, 235, 235, 240)
+-- A disc or a ring (`inner` > 0) in horizontal strips, drawn with alpha so overlapping controls blend once.
+local function disc(context, cx, cy, radius, inner, color, alpha)
+    if alpha <= 0 then return end
+    local step = max(1, floor(radius / 10))
+    for top = -floor(radius), floor(radius) - 1, step do
+        local mid = math.abs(top + step / 2)
+        if mid < radius then
+            local outer = sqrt(radius * radius - mid * mid)
+            if inner > 0 and mid < inner then
+                local hollow = sqrt(inner * inner - mid * mid)
+                local width = floor(outer - hollow + 0.5)
+                if width > 0 then
+                    context.fill(floor(cx - outer + 0.5), floor(cy + top), width, step, color[1], color[2], color[3], alpha)
+                    context.fill(floor(cx + hollow + 0.5), floor(cy + top), width, step, color[1], color[2], color[3], alpha)
+                end
+            else
+                context.fill(floor(cx - outer + 0.5), floor(cy + top), floor(outer * 2 + 0.5), step, color[1], color[2], color[3], alpha)
+            end
         end
     end
 end
 
--- The small pause button (two bars) in the top right corner.
-local function draw_pause(state, context)
-    local pause = state.pause
-    local color = state.pause_held and {120, 120, 130} or {60, 60, 68}
-    disc(context, pause.x, pause.y, pause.radius, outline[1], outline[2], outline[3])
-    disc(context, pause.x, pause.y, pause.radius - 3, color[1], color[2], color[3])
-    local bar = math.max(2, math.floor(pause.radius / 4))
-    local height = math.floor(pause.radius * 0.9)
-    local top = pause.y - math.floor(height / 2)
-    context.fill(pause.x - bar - 1, top, bar, height, 235, 235, 240)
-    context.fill(pause.x + 2, top, bar, height, 235, 235, 240)
+local function rect(context, x, y, width, height, color, alpha)
+    context.fill(floor(x), floor(y), ceil(width), ceil(height), color[1], color[2], color[3], alpha)
 end
 
--- The digipad: a cross whose held arms light up (two arms for a diagonal).
-local function draw_digipad(state, context, base_color, held_color)
-    local x, y, length = state.stick.default_x, state.stick.default_y, state.stick.radius
-    local half = math.floor(length * 0.3)
-    local function cross(grow, color)
-        context.fill(x - length - grow, y - half - grow, (length + grow) * 2, (half + grow) * 2, color[1], color[2], color[3])
-        context.fill(x - half - grow, y - length - grow, (half + grow) * 2, length - half, color[1], color[2], color[3])
-        context.fill(x - half - grow, y + half + grow, (half + grow) * 2, length - half, color[1], color[2], color[3])
+-- A triangle pointing `direction`.
+local function arrow(context, cx, cy, size, direction, color, alpha)
+    local step = max(1, floor(size / 8))
+    local count = ceil(size / step)
+    for index = 0, count - 1 do
+        local extent = (index + 1) / count * size
+        if direction == "up" then
+            rect(context, cx - extent / 2, cy - size / 2 + index * step, extent, step, color, alpha)
+        elseif direction == "down" then
+            rect(context, cx - extent / 2, cy + size / 2 - (index + 1) * step, extent, step, color, alpha)
+        elseif direction == "left" then
+            rect(context, cx - size / 2 + index * step, cy - extent / 2, step, extent, color, alpha)
+        else
+            rect(context, cx + size / 2 - (index + 1) * step, cy - extent / 2, step, extent, color, alpha)
+        end
     end
-    cross(3, outline)
-    cross(0, base_color)
-    local held = state.held
-    local function highlight(left, top, width, height)
-        context.fill(left, top, width, height, held_color[1], held_color[2], held_color[3])
-    end
-    -- Draw the outer arms and each centre quadrant separately so diagonal highlights
-    -- form one surface without blending their shared area twice.
-    if held.r then highlight(x + half, y - half, length - half, half * 2) end
-    if held.l then highlight(x - length, y - half, length - half, half * 2) end
-    if held.d then highlight(x - half, y + half, half * 2, length - half) end
-    if held.u then highlight(x - half, y - length, half * 2, length - half) end
-    if held.u or held.l then highlight(x - half, y - half, half, half) end
-    if held.u or held.r then highlight(x, y - half, half, half) end
-    if held.d or held.l then highlight(x - half, y, half, half) end
-    if held.d or held.r then highlight(x, y, half, half) end
 end
 
--- Call only while state.visible; the caller hides it while paused or off the match screen.
+local white, yellow, blue = {255, 255, 255}, {255, 217, 64}, {76, 141, 255}
+local face, dark, grey = {184, 196, 214}, {11, 15, 26}, {51, 66, 94}
+
+-- Call only while state.visible; the caller hides it on screens the controls do not drive.
 function gamepad.draw(state, context)
     if not state.visible then return end
-    local stick, buttons = state.stick, state.buttons
-    local button_context = {fill = function(x, y, width, height, red, green, blue)
-        context.fill(x, y, width, height, red, green, blue, 168)
-    end}
+    local l, config = state.l, state.config
+    local opacity = function(group) return config.opacity[group] / 10 end
+    local function alpha(group, strength) return floor(clamp(opacity(group) * strength * 255, 0, 255)) end
     context.overlay(true)
-    if state.mode ~= "full" then
-        draw_pause(state, button_context)
-        draw_fast(state, button_context)
+
+    local menu = alpha("menu", 0.6)
+    disc(context, l.toggle.x, l.toggle.y, l.toggle.r, l.toggle.r * 0.8, white, menu)
+    if state.shown then disc(context, l.toggle.x, l.toggle.y, l.toggle.r * 0.5, 0, white, alpha("menu", 0.4)) end
+    disc(context, l.gear.x, l.gear.y, l.gear.r, l.gear.r * 0.88, white, alpha("menu", 0.6))
+    if state.editing then disc(context, l.gear.x, l.gear.y, l.gear.r * 0.88, 0, yellow, alpha("menu", 0.5)) end
+    font.draw(context, "SET", l.gear.x, l.gear.y - 8, nil, nil, "center")
+    disc(context, l.ftoggle.x, l.ftoggle.y, l.ftoggle.r, l.ftoggle.r * 0.88, white, alpha("functions", 0.6))
+    if state.functions_open then disc(context, l.ftoggle.x, l.ftoggle.y, l.ftoggle.r * 0.88, 0, blue, alpha("functions", 0.5)) end
+    font.draw(context, "F", l.ftoggle.x, l.ftoggle.y - 8, nil, nil, "center")
+
+    if state.functions_open then
+        for _, cell in ipairs(l.cells) do
+            local box = cell.rect
+            local on = state.functions_held[cell.number]
+            rect(context, box.x, box.y, box.w, box.h, on and blue or dark, alpha("functions", on and 0.8 or 0.55))
+            font.draw(context, "F" .. cell.number, box.x + box.w / 2, box.y + box.h / 2 - 8, nil, nil, "center")
+        end
     end
-    if state.mode == "pause" then
-        context.overlay(false)
-        return
+
+    if (state.shown or state.editing) and state.mode ~= "pause" then
+        for _, name in ipairs(onscreen.controls) do
+            local circle, spec = circle_of(state, name), state.config.buttons[name]
+            local group = groups_of[name]
+            local on = state.held[name]
+            disc(context, circle.x, circle.y, circle.r, 0, on and white or face, alpha(group, on and 0.65 or 0.4))
+            disc(context, circle.x, circle.y, circle.r, circle.r * 0.92, state.selected == name and yellow or white, alpha(group, 0.55))
+            if spec.key == "auto" and group == "pad" then
+                arrow(context, circle.x, circle.y, circle.r * 0.7, name, white, alpha(group, 0.9))
+            else
+                local text = spec.key == "auto" and default_labels[name] or onscreen.key(spec.key).label
+                font.draw(context, text, circle.x, circle.y - 8, nil, nil, "center")
+            end
+        end
     end
-    local engaged = state.finger ~= nil
-    local base_color = engaged and {55, 90, 130} or {48, 48, 56}
-    local knob_color = engaged and {150, 190, 235} or {95, 95, 105}
-    local stick_context = {fill = function(x, y, width, height, red, green, blue)
-        context.fill(x, y, width, height, red, green, blue, 84)
-    end}
-    if stick.fixed then
-        draw_digipad(state, stick_context, base_color, knob_color)
-    else
-        disc(stick_context, state.base_x, state.base_y, stick.radius, outline[1], outline[2], outline[3])
-        disc(stick_context, state.base_x, state.base_y, stick.radius - 6, base_color[1], base_color[2], base_color[3])
-        disc(stick_context, state.knob_x, state.knob_y, stick.knob, outline[1], outline[2], outline[3])
-        disc(stick_context, state.knob_x, state.knob_y, stick.knob_inner, knob_color[1], knob_color[2], knob_color[3])
-    end
-    for _, button in ipairs(buttons) do
-        local disabled = button.letters and not state.available[button.action]
-        local color = disabled and disabled_fill or (state.held[button.action] and button.pressed) or button.fill
-        disc(button_context, button.x, button.y, button.radius, outline[1], outline[2], outline[3])
-        disc(button_context, button.x, button.y, button.radius - 6, color[1], color[2], color[3])
-        font.draw(context, button.label, button.x, button.y - 8, nil, disabled and 0x606060 or nil, "center")
+
+    if state.editing then
+        local p = panel(state)
+        rect(context, p.frame.x, p.frame.y, p.frame.w, p.frame.h, dark, 225)
+        for _, item in ipairs(p.items) do
+            local current = item.widget == "key" or (state.picking and state.selected
+                and item.widget == "pick:" .. state.config.buttons[state.selected].key)
+            rect(context, item.rect.x, item.rect.y, item.rect.w, item.rect.h, current and blue or grey, 240)
+            font.draw(context, item.label, item.rect.x + item.rect.w / 2, item.rect.y + item.rect.h / 2 - 8, nil, nil, "center")
+        end
+        for _, text in ipairs(p.texts) do font.draw(context, text[1], text[2], text[3], nil, nil, text[4]) end
     end
     context.overlay(false)
 end

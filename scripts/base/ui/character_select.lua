@@ -25,6 +25,8 @@ local computer_phase, computer_team_phase, computer_done = slot_phases.computer_
 local mode_layout = require("base/game/mode_layout")
 local stage_levels = require("base/game/stage_levels")
 local layout_targets = {}
+-- LF2 Darkfiren <time> of mode4.dat: the time limits (seconds) the wide options menu offers, and who wins.
+local time_list, time_type = {}, 1
 local per_row, shift, step_x, step_y = 4, 0, 153, 212
 local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212}
 layout_targets.menu = menu
@@ -104,14 +106,18 @@ function selection.create(options)
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
     end
     -- Option values are globals in the original and keep their values between visits.
-    local options = previous.options or {row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
+    local options = previous.options or {time_index = 0, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
         difficulty = 0, music = 0, stage_level = 0}
     -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
     -- that lacks a tag (or is gone) leaves the built-in one.
     reset_layout()
+    time_list, time_type = {}, 1
     if user_options.current().battlefield_layout == user_options.wide_layout then
         local ok, text = pcall(engine.read_resource, "game/mode_file")
-        if ok and text then mode_layout.apply(text, layout_targets) end
+        if ok and text then
+            mode_layout.apply(text, layout_targets)
+            time_type, time_list = mode_layout.time_limits(text)
+        end
     end
     local state = {mode = mode, fighters = catalog.load(), backgrounds = catalog.backgrounds(),
         slots = slots, menu = menus.human_slots, last_menu = menus.human_slots, options = options,
@@ -949,8 +955,18 @@ local function options_menu(state, previous_menu, context)
     local options = state.options
     sprite(state, options_sheet, {348, 0, 304, 156}, 3, 3, false)
     sprite(state, options_sheet, {348, 156, 304, 10}, 3, 159, true)
+    -- The time limit row exists only where mode4.dat offers time limits (not in Stage mode).
+    local has_time = state.wide and #time_list > 0 and state.mode ~= constants.modes.stage
+    local last_row = has_time and option_rows.exit + 1 or option_rows.exit
+    if options.row > last_row then options.row = option_rows.start end
+    options.time_index = math.min(options.time_index or 0, #time_list)
     local highlight = option_highlights[options.row]
-    sprite(state, options_sheet, highlight[1], highlight[2], highlight[3], false)
+    if highlight then sprite(state, options_sheet, highlight[1], highlight[2], highlight[3], false) end
+    if has_time then
+        local limit = options.time_index > 0 and string.format("%d:%02d", math.floor(time_list[options.time_index] / 60), time_list[options.time_index] % 60) or "Off"
+        text(state, "Time limit:", 15, 175, options.row == option_rows.exit + 1 and white or option_blue)
+        text(state, limit, 120, 175, options.row == option_rows.exit + 1 and white or option_blue)
+    end
     if options.random_background then options.background = constants.background_rows.random end
     if state.mode == constants.modes.stage then
         options.stage_level = options.stage_level - options.stage_level % 10
@@ -990,9 +1006,9 @@ local function options_menu(state, previous_menu, context)
     end
     if keys.u then
         options.row = options.row - 1
-        if options.row < 0 then options.row = option_rows.exit end
+        if options.row < 0 then options.row = last_row end
     end
-    if keys.d then options.row = (options.row + 1) % (option_rows.exit + 1) end
+    if keys.d then options.row = (options.row + 1) % (last_row + 1) end
     music_option(state, keys.l, keys.r)
     if not keys.c then return end
     sounds.direct(state, "ok")
@@ -1007,6 +1023,8 @@ local function options_menu(state, previous_menu, context)
            or options.difficulty < constants.difficulties.crazy then
             options.difficulty = constants.difficulties.easy
         end
+    elseif has_time and options.row == option_rows.exit + 1 then
+        options.time_index = (options.time_index + 1) % (#time_list + 1)
     elseif options.row == option_rows.exit then
         context.action("title")
     elseif options.row == option_rows.reselect then
@@ -1079,6 +1097,8 @@ function selection.match_options(state)
     end
     return {mode = state.mode, difficulty = state.options.difficulty, background = state.options.background,
         stage_level = state.options.stage_level,
+        time_limit = state.wide and state.mode ~= constants.modes.stage and (state.options.time_index or 0) > 0
+            and time_list[state.options.time_index] or nil, time_type = time_type,
         bg_mode = state.mode ~= constants.modes.stage and not state.options.random_background and state.options.bg_mode or nil,
         fighters = state.fighters, backgrounds = state.backgrounds, slots = slots}
 end

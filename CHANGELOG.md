@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren Stage mode: `data/stage.dat` as a level list (`<stage_information>`), each level's file read as stages numbered level id * 10 + stage id (up to 200 stages). A stage plays on its own `bg:`; `when_clear_goto_stage` jumps to another stage, `end: 1` shows the credits, `end: 2` returns to the menu, and without `end:` the next visible level follows. The Background row of the menu opens a level grid (`<grid_stage>` of mode4.dat) with the levels' `small` pictures. `team:` (-1 independent, 1 to 5; not for prisoners), `pic:` (skin offset), `mp:`, `z:` and `fx:` (fixed position, without the random draw) of a stage object work. Read but not used yet: phase `time:`, `type:`/`ptype:`/`next:`/`mode:`/`respond:`/`hex:`, `command:`, the lock values of `hidden:`
 
+- LF2 Darkfiren time limit (`<time>` of mode4.dat): the wide options menu gets a Time limit row (Off, then the listed times). When the time is up the round ends at once, the fighters lose control, and the winner follows the list's `type` (1 highest hp, 2 highest dhp, 3 most damage, 4 most kills; a tie has no winner). The time left is drawn under the HP frames. Not in Stage mode; a match with a time limit is not recorded and is not played over the network
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
