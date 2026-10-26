@@ -121,8 +121,11 @@ local function spawn(state, run, entry, runtime, slot)
     local value = objects.place(state, index, id)
     value.x, value.y, value.z = 350.0, 0.0, 300.0
     local near, far = state.stage.zboundary[1] or 0, state.stage.zboundary[2] or 0
-    value.z_int = random(far - near) + near
-    if entry.x ~= constants.stage_spawn.random_side_x then
+    -- LF2 Darkfiren: z: fixes the depth (no random), fx: fixes x (no random), else the original's draws.
+    if entry.z then value.z_int = entry.z else value.z_int = random(far - near) + near end
+    if entry.fx then
+        value.x_int = entry.fx
+    elseif entry.x ~= constants.stage_spawn.random_side_x then
         value.x_int = random(constants.stage_spawn.x_random_range) + entry.x
     elseif random(2) == 0 then
         value.x_int = random(constants.stage_spawn.x_random_range) + constants.stage_spawn.outside_margin + state.stage_bound
@@ -131,7 +134,8 @@ local function spawn(state, run, entry, runtime, slot)
     end
     value.lives, value.join_hp, value.join_lives = entry.reserve, entry.join, entry.join_reserve
     value.x, value.z = value.x_int, value.z_int
-    value.mp = constants.points.full
+    value.mp = (entry.mp and entry.mp > 0) and entry.mp or constants.points.full
+    if entry.pic and entry.pic ~= 0 then value.pic_offset = entry.pic end
     value.dark_hp, value.hp, value.max_hp = health, health, health
     value.owner = index
     local kind = value.record.kind
@@ -148,9 +152,16 @@ local function spawn(state, run, entry, runtime, slot)
         value.y = value.y_int
         value.vy = 0.0
     end
+    -- team: -1 is independent, 1 to 5 the team of that number; it works for every object but the prisoners (t5), who
+    -- join the team of whoever frees them.
+    if entry.team and kind ~= record_kinds.prisoner then
+        value.team = entry.team < 0 and constants.teams.independent or entry.team
+    end
     if value.record.id == constants.item_ids.milk then value.hp = constants.points.milk_hp end
     runtime.count = runtime.count + 1
 end
+
+stage.spawn_entry = spawn -- exported for the tests
 
 local function next_stage(state, run)
     run.id = (run.plan and run.plan.action == "stage") and run.plan.id or run.id + 1
