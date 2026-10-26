@@ -29,6 +29,10 @@ local default_labels = {up = "^", down = "v", left = "<", right = ">", attack = 
 local groups_of = {up = "pad", down = "pad", left = "pad", right = "pad", attack = "action", jump = "action", defend = "action"}
 local group_labels = {pad = "PAD", action = "ACT", functions = "F", menu = "MENU"}
 
+-- The host takes whole numbers only (a fraction is an invalid frame field), so text goes through here.
+local function label(context, text, x, y, align)
+    font.draw(context, text, floor(x + 0.5), floor(y + 0.5), nil, nil, align)
+end
 local function clamp(value, low, high) return max(low, min(high, value)) end
 local function contains(rect, x, y) return x >= rect.x and x <= rect.x + rect.w and y >= rect.y and y <= rect.y + rect.h end
 local function within(circle, x, y, factor) return sqrt((x - circle.x) ^ 2 + (y - circle.y) ^ 2) <= circle.r * factor end
@@ -308,7 +312,7 @@ end
 -- A disc or a ring (`inner` > 0) in horizontal strips, drawn with alpha so overlapping controls blend once.
 local function disc(context, cx, cy, radius, inner, color, alpha)
     if alpha <= 0 then return end
-    local step = max(1, floor(radius / 10))
+    local step = max(2, floor(radius / 6))
     for top = -floor(radius), floor(radius) - 1, step do
         local mid = math.abs(top + step / 2)
         if mid < radius then
@@ -365,17 +369,17 @@ function gamepad.draw(state, context)
     if state.shown then disc(context, l.toggle.x, l.toggle.y, l.toggle.r * 0.5, 0, white, alpha("menu", 0.4)) end
     disc(context, l.gear.x, l.gear.y, l.gear.r, l.gear.r * 0.88, white, alpha("menu", 0.6))
     if state.editing then disc(context, l.gear.x, l.gear.y, l.gear.r * 0.88, 0, yellow, alpha("menu", 0.5)) end
-    font.draw(context, "SET", l.gear.x, l.gear.y - 8, nil, nil, "center")
+    label(context, "SET", l.gear.x, l.gear.y - 8, "center")
     disc(context, l.ftoggle.x, l.ftoggle.y, l.ftoggle.r, l.ftoggle.r * 0.88, white, alpha("functions", 0.6))
     if state.functions_open then disc(context, l.ftoggle.x, l.ftoggle.y, l.ftoggle.r * 0.88, 0, blue, alpha("functions", 0.5)) end
-    font.draw(context, "F", l.ftoggle.x, l.ftoggle.y - 8, nil, nil, "center")
+    label(context, "F", l.ftoggle.x, l.ftoggle.y - 8, "center")
 
     if state.functions_open then
         for _, cell in ipairs(l.cells) do
             local box = cell.rect
             local on = state.functions_held[cell.number]
             rect(context, box.x, box.y, box.w, box.h, on and blue or dark, alpha("functions", on and 0.8 or 0.55))
-            font.draw(context, "F" .. cell.number, box.x + box.w / 2, box.y + box.h / 2 - 8, nil, nil, "center")
+            label(context, "F" .. cell.number, box.x + box.w / 2, box.y + box.h / 2 - 8, "center")
         end
     end
 
@@ -390,7 +394,7 @@ function gamepad.draw(state, context)
                 arrow(context, circle.x, circle.y, circle.r * 0.7, name, white, alpha(group, 0.9))
             else
                 local text = spec.key == "auto" and default_labels[name] or onscreen.key(spec.key).label
-                font.draw(context, text, circle.x, circle.y - 8, nil, nil, "center")
+                label(context, text, circle.x, circle.y - 8, "center")
             end
         end
     end
@@ -402,9 +406,9 @@ function gamepad.draw(state, context)
             local current = item.widget == "key" or (state.picking and state.selected
                 and item.widget == "pick:" .. state.config.buttons[state.selected].key)
             rect(context, item.rect.x, item.rect.y, item.rect.w, item.rect.h, current and blue or grey, 240)
-            font.draw(context, item.label, item.rect.x + item.rect.w / 2, item.rect.y + item.rect.h / 2 - 8, nil, nil, "center")
+            label(context, item.label, item.rect.x + item.rect.w / 2, item.rect.y + item.rect.h / 2 - 8, "center")
         end
-        for _, text in ipairs(p.texts) do font.draw(context, text[1], text[2], text[3], nil, nil, text[4]) end
+        for _, text in ipairs(p.texts) do label(context, text[1], text[2], text[3], text[4]) end
     end
     context.overlay(false)
 end
