@@ -107,7 +107,7 @@ local state = screen.create(runtime_settings or {menu_seed = 0})
 local FrameOpcode = {
     viewport = 1, sprite = 2, fill = 3, overlay = 4, render_area = 5,
     clip = 6, sound = 7, rumble = 8, music = 9, speed = 10,
-    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18,
+    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18, icon = 19,
 }
 local RumbleTarget = {gamepad = 0, phone = 1}
 local MusicKind = {play = 0, stop = 1, resume = 2, volume = 3}
@@ -153,6 +153,11 @@ local function render(input)
         command(FrameOpcode.world_sprite, resource, source[1], source[2], source[3], source[4], x, y,
             true, not not mirrored, false, 0xffffff, 1, 0,
             ground_y, azimuth, elevation, not not character, not not casts_shadow, shadow_blur or 2, shadow_opacity or 0.275)
+    end
+    -- A whole image stretched to w x h pixels, drawn with `alpha` (0-255) and a tint (0xRRGGBB, white = none),
+    -- smoothly scaled. Meant for the images under mods/ (32-bit with alpha), see the on-screen controls.
+    function context.icon(resource, x, y, w, h, alpha, tint)
+        command(FrameOpcode.icon, resource, x, y, w, h, alpha or 255, tint or 0xffffff)
     end
     function context.fill(x, y, w, h, r, g, b, alpha) command(FrameOpcode.fill, x, y, w, h, r, g, b, alpha or 255) end
     function context.overlay(active) command(FrameOpcode.overlay, active) end

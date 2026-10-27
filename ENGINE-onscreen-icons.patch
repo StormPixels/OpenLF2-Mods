@@ -1,0 +1,132 @@
+--- a/include/openlf2/ports/platform.hpp
++++ b/include/openlf2/ports/platform.hpp
+@@ -60,6 +60,11 @@
+     std::optional<Rectangle> clip = std::nullopt; // defaults to the original viewport
+     float scale_x = 1.0f; // horizontal transform; source sampling is unchanged
+     int translate_x = 0;
++    // An icon (FrameOpcode::icon): the whole image stretched to dest_width x dest_height (0 = natural size), drawn
++    // with `alpha` (0-255, 0 draws nothing) and smooth scaling. Images under mods/ keep their alpha channel.
++    int dest_width = 0;
++    int dest_height = 0;
++    int alpha = 255;
+     std::optional<SpriteLighting> lighting = std::nullopt;
+ };
+ // Solid rectangle in 8-bit RGBA channels.
+--- a/src/adapters/sdl/platform.cpp
++++ b/src/adapters/sdl/platform.cpp
+@@ -848,6 +848,7 @@
+                 continue;
+             }
+             const auto& sprite = std::get<SpriteCommand>(command);
++            if (sprite.alpha == 0) continue; // an invisible icon
+             if (!overlay && sprite.lighting && !shadows_drawn) {
+                 // All world sprites stand above the shared floor mask. Clip was applied
+                 // separately to every silhouette while composing it on the CPU.
+@@ -878,6 +879,8 @@
+                 std::unique_ptr<SDL_IOStream, CloseStream> stream(SDL_IOFromConstMem(bytes->data(), bytes->size()));
+                 if (!stream) return error();
+                 const bool png = sprite.resource.ends_with(".png");
++                // The images of mods/ (the on-screen controls' icons) are 32-bit with an alpha channel.
++                const bool keep_alpha = png || sprite.resource.starts_with("mods/");
+ #if SDL_VERSION_ATLEAST(3, 4, 0)
+                 std::unique_ptr<SDL_Surface, DestroySurface> loaded(
+                     png ? SDL_LoadPNG_IO(stream.get(), false) : SDL_LoadBMP_IO(stream.get(), false));
+@@ -887,7 +890,7 @@
+ #endif
+                 if (!loaded) return error();
+                 std::unique_ptr<SDL_Surface, DestroySurface> surface(
+-                    SDL_ConvertSurface(loaded.get(), png ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_XRGB8888));
++                    SDL_ConvertSurface(loaded.get(), keep_alpha ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_XRGB8888));
+                 if (!surface) return error();
+                 if (surface->w <= 0 || surface->h <= 0 || surface->w > 8192 || surface->h > 8192) {
+                     return fail(ErrorCode::limit, "image dimensions exceed limits");
+@@ -933,15 +936,24 @@
+             }
+             const SDL_FRect source{static_cast<float>(region.x), static_cast<float>(region.y),
+                                    static_cast<float>(region.width), static_cast<float>(region.height)};
+-            const SDL_FRect destination{static_cast<float>(sprite.x) * sprite.scale_x
+-                                            + static_cast<float>(sprite.translate_x) + offset_x,
+-                                        static_cast<float>(sprite.y) + offset_y,
+-                                        source.w * sprite.scale_x, source.h};
++            const SDL_FRect destination = sprite.dest_width > 0
++                ? SDL_FRect{static_cast<float>(sprite.x) + offset_x, static_cast<float>(sprite.y) + offset_y,
++                            static_cast<float>(sprite.dest_width), static_cast<float>(sprite.dest_height)}
++                : SDL_FRect{static_cast<float>(sprite.x) * sprite.scale_x
++                                + static_cast<float>(sprite.translate_x) + offset_x,
++                            static_cast<float>(sprite.y) + offset_y,
++                            source.w * sprite.scale_x, source.h};
+             // The tint multiplies the texture's colors (SDL keeps it on the texture, so set it every draw).
+             if (!SDL_SetTextureColorMod(texture.get(), static_cast<Uint8>((sprite.tint >> 16) & 0xff),
+                                         static_cast<Uint8>((sprite.tint >> 8) & 0xff), static_cast<Uint8>(sprite.tint & 0xff))) {
+                 return error();
+             }
++            // Like the tint, the alpha and the scale mode stay on the shared texture, so set them every draw:
++            // an icon is stretched smoothly, a sprite is sampled without filtering.
++            if (!SDL_SetTextureAlphaMod(texture.get(), static_cast<Uint8>(sprite.alpha))) return error();
++            if (!SDL_SetTextureScaleMode(texture.get(), sprite.dest_width > 0 ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST)) {
++                return error();
++            }
+             const auto flip = static_cast<SDL_FlipMode>((sprite.mirrored ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE)
+                                                         | (sprite.flipped ? SDL_FLIP_VERTICAL : SDL_FLIP_NONE));
+             if (!SDL_RenderTextureRotated(renderer_.get(), texture.get(), &source, &destination, 0.0, nullptr, flip)) {
+--- a/src/adapters/luajit/runtime.cpp
++++ b/src/adapters/luajit/runtime.cpp
+@@ -182,7 +182,7 @@
+ // Private protocol, matching the fixed-size opcodes in runtime/bootstrap.lua.
+ enum class FrameOpcode {
+     viewport = 1, sprite, fill, overlay, render_area, clip, sound, rumble,
+-    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite
++    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite, icon
+ };
+ class FrameReader {
+ public:
+@@ -252,7 +252,7 @@
+         int commands = 0;
+         while (reader.remaining()) {
+             if (++commands > 4096) throw std::runtime_error("too many frame commands");
+-            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 18));
++            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 19));
+             switch (opcode) {
+             case FrameOpcode::viewport:
+                 if (frame.viewport.width) throw std::runtime_error("duplicate viewport");
+@@ -283,6 +283,17 @@
+                 frame.commands.emplace_back(std::move(sprite));
+                 break;
+             }
++            case FrameOpcode::icon: {
++                // A whole image stretched to a size, with an alpha and a tint (the on-screen controls).
++                SpriteCommand icon{};
++                icon.resource = reader.resource();
++                icon.x = reader.integer(); icon.y = reader.integer();
++                icon.dest_width = reader.integer(1, 4096); icon.dest_height = reader.integer(1, 4096);
++                icon.alpha = reader.integer(0, 255); icon.tint = reader.integer(0, 0xffffff);
++                icon.color_key = false; icon.overlay = overlay; icon.clip = clip;
++                frame.commands.emplace_back(std::move(icon));
++                break;
++            }
+             case FrameOpcode::fill: {
+                 FillCommand fill{};
+                 fill.area = reader.rectangle(); fill.red = reader.integer(0, 255); fill.green = reader.integer(0, 255);
+--- a/scripts/runtime/bootstrap.lua
++++ b/scripts/runtime/bootstrap.lua
+@@ -107,7 +107,7 @@
+ local FrameOpcode = {
+     viewport = 1, sprite = 2, fill = 3, overlay = 4, render_area = 5,
+     clip = 6, sound = 7, rumble = 8, music = 9, speed = 10,
+-    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18,
++    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18, icon = 19,
+ }
+ local RumbleTarget = {gamepad = 0, phone = 1}
+ local MusicKind = {play = 0, stop = 1, resume = 2, volume = 3}
+@@ -154,6 +154,11 @@
+             true, not not mirrored, false, 0xffffff, 1, 0,
+             ground_y, azimuth, elevation, not not character, not not casts_shadow, shadow_blur or 2, shadow_opacity or 0.275)
+     end
++    -- A whole image stretched to w x h pixels, drawn with `alpha` (0-255) and a tint (0xRRGGBB, white = none),
++    -- smoothly scaled. Meant for the images under mods/ (32-bit with alpha), see the on-screen controls.
++    function context.icon(resource, x, y, w, h, alpha, tint)
++        command(FrameOpcode.icon, resource, x, y, w, h, alpha or 255, tint or 0xffffff)
++    end
+     function context.fill(x, y, w, h, r, g, b, alpha) command(FrameOpcode.fill, x, y, w, h, r, g, b, alpha or 255) end
+     function context.overlay(active) command(FrameOpcode.overlay, active) end
+     function context.render_area(x, y, w, h) command(FrameOpcode.render_area, x, y, w, h) end

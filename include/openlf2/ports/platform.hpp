@@ -60,6 +60,11 @@ struct SpriteCommand {
     std::optional<Rectangle> clip = std::nullopt; // defaults to the original viewport
     float scale_x = 1.0f; // horizontal transform; source sampling is unchanged
     int translate_x = 0;
+    // An icon (FrameOpcode::icon): the whole image stretched to dest_width x dest_height (0 = natural size), drawn
+    // with `alpha` (0-255, 0 draws nothing) and smooth scaling. Images under mods/ keep their alpha channel.
+    int dest_width = 0;
+    int dest_height = 0;
+    int alpha = 255;
     std::optional<SpriteLighting> lighting = std::nullopt;
 };
 // Solid rectangle in 8-bit RGBA channels.

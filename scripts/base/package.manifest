@@ -59,5 +59,12 @@ module=i18n/english|i18n/english.lua
 module=i18n/german|i18n/german.lua
 module=i18n/chinese|i18n/chinese.lua
 # Fonts for the translated languages (see i18n/i18n.lua); their licenses are next to them.
+asset=mods/base/onscreen/up.bmp|onscreen/up.bmp
+asset=mods/base/onscreen/down.bmp|onscreen/down.bmp
+asset=mods/base/onscreen/left.bmp|onscreen/left.bmp
+asset=mods/base/onscreen/right.bmp|onscreen/right.bmp
+asset=mods/base/onscreen/attack.bmp|onscreen/attack.bmp
+asset=mods/base/onscreen/jump.bmp|onscreen/jump.bmp
+asset=mods/base/onscreen/defend.bmp|onscreen/defend.bmp
 asset=mods/base/fonts/dejavu_sans.ttf|fonts/dejavu_sans.ttf
 asset=mods/base/fonts/droid_sans_fallback.ttf|fonts/droid_sans_fallback.ttf

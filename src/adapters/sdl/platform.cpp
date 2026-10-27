@@ -848,6 +848,7 @@ private:
                 continue;
             }
             const auto& sprite = std::get<SpriteCommand>(command);
+            if (sprite.alpha == 0) continue; // an invisible icon
             if (!overlay && sprite.lighting && !shadows_drawn) {
                 // All world sprites stand above the shared floor mask. Clip was applied
                 // separately to every silhouette while composing it on the CPU.
@@ -878,6 +879,8 @@ private:
                 std::unique_ptr<SDL_IOStream, CloseStream> stream(SDL_IOFromConstMem(bytes->data(), bytes->size()));
                 if (!stream) return error();
                 const bool png = sprite.resource.ends_with(".png");
+                // The images of mods/ (the on-screen controls' icons) are 32-bit with an alpha channel.
+                const bool keep_alpha = png || sprite.resource.starts_with("mods/");
 #if SDL_VERSION_ATLEAST(3, 4, 0)
                 std::unique_ptr<SDL_Surface, DestroySurface> loaded(
                     png ? SDL_LoadPNG_IO(stream.get(), false) : SDL_LoadBMP_IO(stream.get(), false));
@@ -887,7 +890,7 @@ private:
 #endif
                 if (!loaded) return error();
                 std::unique_ptr<SDL_Surface, DestroySurface> surface(
-                    SDL_ConvertSurface(loaded.get(), png ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_XRGB8888));
+                    SDL_ConvertSurface(loaded.get(), keep_alpha ? SDL_PIXELFORMAT_ARGB8888 : SDL_PIXELFORMAT_XRGB8888));
                 if (!surface) return error();
                 if (surface->w <= 0 || surface->h <= 0 || surface->w > 8192 || surface->h > 8192) {
                     return fail(ErrorCode::limit, "image dimensions exceed limits");
@@ -933,13 +936,22 @@ private:
             }
             const SDL_FRect source{static_cast<float>(region.x), static_cast<float>(region.y),
                                    static_cast<float>(region.width), static_cast<float>(region.height)};
-            const SDL_FRect destination{static_cast<float>(sprite.x) * sprite.scale_x
-                                            + static_cast<float>(sprite.translate_x) + offset_x,
-                                        static_cast<float>(sprite.y) + offset_y,
-                                        source.w * sprite.scale_x, source.h};
+            const SDL_FRect destination = sprite.dest_width > 0
+                ? SDL_FRect{static_cast<float>(sprite.x) + offset_x, static_cast<float>(sprite.y) + offset_y,
+                            static_cast<float>(sprite.dest_width), static_cast<float>(sprite.dest_height)}
+                : SDL_FRect{static_cast<float>(sprite.x) * sprite.scale_x
+                                + static_cast<float>(sprite.translate_x) + offset_x,
+                            static_cast<float>(sprite.y) + offset_y,
+                            source.w * sprite.scale_x, source.h};
             // The tint multiplies the texture's colors (SDL keeps it on the texture, so set it every draw).
             if (!SDL_SetTextureColorMod(texture.get(), static_cast<Uint8>((sprite.tint >> 16) & 0xff),
                                         static_cast<Uint8>((sprite.tint >> 8) & 0xff), static_cast<Uint8>(sprite.tint & 0xff))) {
+                return error();
+            }
+            // Like the tint, the alpha and the scale mode stay on the shared texture, so set them every draw:
+            // an icon is stretched smoothly, a sprite is sampled without filtering.
+            if (!SDL_SetTextureAlphaMod(texture.get(), static_cast<Uint8>(sprite.alpha))) return error();
+            if (!SDL_SetTextureScaleMode(texture.get(), sprite.dest_width > 0 ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST)) {
                 return error();
             }
             const auto flip = static_cast<SDL_FlipMode>((sprite.mirrored ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE)

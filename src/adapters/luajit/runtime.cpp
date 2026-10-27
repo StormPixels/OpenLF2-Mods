@@ -182,7 +182,7 @@ int create_bridge_slot(lua_State* state) {
 // Private protocol, matching the fixed-size opcodes in runtime/bootstrap.lua.
 enum class FrameOpcode {
     viewport = 1, sprite, fill, overlay, render_area, clip, sound, rumble,
-    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite
+    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite, icon
 };
 class FrameReader {
 public:
@@ -252,7 +252,7 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
         int commands = 0;
         while (reader.remaining()) {
             if (++commands > 4096) throw std::runtime_error("too many frame commands");
-            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 18));
+            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 19));
             switch (opcode) {
             case FrameOpcode::viewport:
                 if (frame.viewport.width) throw std::runtime_error("duplicate viewport");
@@ -281,6 +281,17 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
                     sprite.lighting = lighting;
                 }
                 frame.commands.emplace_back(std::move(sprite));
+                break;
+            }
+            case FrameOpcode::icon: {
+                // A whole image stretched to a size, with an alpha and a tint (the on-screen controls).
+                SpriteCommand icon{};
+                icon.resource = reader.resource();
+                icon.x = reader.integer(); icon.y = reader.integer();
+                icon.dest_width = reader.integer(1, 4096); icon.dest_height = reader.integer(1, 4096);
+                icon.alpha = reader.integer(0, 255); icon.tint = reader.integer(0, 0xffffff);
+                icon.color_key = false; icon.overlay = overlay; icon.clip = clip;
+                frame.commands.emplace_back(std::move(icon));
                 break;
             }
             case FrameOpcode::fill: {
