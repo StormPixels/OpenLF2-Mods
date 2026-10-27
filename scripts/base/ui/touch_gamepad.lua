@@ -72,12 +72,27 @@ function gamepad.set_available() end
 -- Geometry of the controls. The centre of a control, then its shape.
 local function center_of(state, name)
     local spec, l = state.config.buttons[name], state.l
-    return l.left + spec.x * l.w, l.top + spec.y * l.h
+    -- The show/hide button hangs from the very top of the window and only slides left and right.
+    return l.left + spec.x * l.w, name == "toggle" and l.top or l.top + spec.y * l.h
 end
-local menu_radius = {f = 0.5, toggle = 0.4, set = 0.5}
+-- The F button as a circle: the grid beside it is measured from this.
 local function circle_of(state, name)
     local x, y = center_of(state, name)
-    return {x = x, y = y, r = menu_radius[name] * state.l.u * state.config.buttons[name].size}
+    return {x = x, y = y, r = 0.5 * state.l.u * state.config.buttons[name].size}
+end
+-- The square the icon of the F button, SET or the show/hide button is drawn in. The show/hide icon is a half
+-- ring in the upper half of its square, which sits against the top of the window.
+local square_sizes = {f = 1.0, set = 1.0, toggle = 1.2}
+local function square_of(state, name)
+    local x, y = center_of(state, name)
+    local side = square_sizes[name] * state.l.u * state.config.buttons[name].size
+    if name == "toggle" then return {x = x - side / 2, y = y, w = side, h = side} end
+    return {x = x - side / 2, y = y - side / 2, w = side, h = side}
+end
+-- Where a finger counts for the show/hide button: its half ring and a generous margin around it.
+local function toggle_hit(state)
+    local square = square_of(state, "toggle")
+    return {x = square.x - 0.1 * square.w, y = square.y, w = 1.2 * square.w, h = 0.7 * square.h}
 end
 local function action_box(state, name)
     local x, y = center_of(state, name)
@@ -121,10 +136,11 @@ local function grid_cells(state)
 end
 local function bounds_of(state, name)
     if name == "dpad" then return dpad_box(state) end
-    if menu_radius[name] then
-        local c = circle_of(state, name)
-        return {x = c.x - c.r, y = c.y - c.r, w = 2 * c.r, h = 2 * c.r}
+    if name == "toggle" then
+        local square = square_of(state, name)
+        return {x = square.x + 0.03 * square.w, y = square.y, w = 0.94 * square.w, h = 0.47 * square.h}
     end
+    if name == "f" or name == "set" then return square_of(state, name) end
     return action_box(state, name)
 end
 
@@ -250,9 +266,14 @@ local function hit(state, x, y, mode)
         end
         return {kind = "blocked"}
     end
-    if within(circle_of(state, "set"), x, y, 1.5) then return {kind = "gear"} end
-    if within(circle_of(state, "toggle"), x, y, 2) then return {kind = "toggle"} end
-    if within(circle_of(state, "f"), x, y, 1.5) then return {kind = "ftoggle"} end
+    local function inside_square(name)
+        local square = square_of(state, name)
+        local pad = 0.15 * square.w
+        return contains({x = square.x - pad, y = square.y - pad, w = square.w + 2 * pad, h = square.h + 2 * pad}, x, y)
+    end
+    if inside_square("set") then return {kind = "gear"} end
+    if contains(toggle_hit(state), x, y) then return {kind = "toggle"} end
+    if inside_square("f") then return {kind = "ftoggle"} end
     if state.functions_open then
         local pad = 0.05 * state.l.u
         for _, cell in ipairs(grid_cells(state)) do
@@ -335,7 +356,7 @@ function gamepad.update(state, input, mode)
         if zone.kind == "drag" then
             local spec = state.config.buttons[zone.name]
             spec.x = clamp((touch.x + zone.dx - l.left) / l.w, 0.02, 0.98)
-            spec.y = clamp((touch.y + zone.dy - l.top) / l.h, 0.02, 0.98)
+            if zone.name ~= "toggle" then spec.y = clamp((touch.y + zone.dy - l.top) / l.h, 0.02, 0.98) end
         elseif zone.kind == "buttons" and not state.editing and state.shown and mode ~= "pause" then
             local directions = dpad_directions(state, touch.x, touch.y)
             if directions then
@@ -395,29 +416,6 @@ function gamepad.take_changes(state)
     return state.config
 end
 
--- A disc or a ring (`inner` > 0) in horizontal strips (each strip is one command, so they are kept few),
--- drawn with alpha so overlapping controls blend once.
-local function disc(context, cx, cy, radius, inner, color, alpha)
-    if alpha <= 0 then return end
-    local step = max(2, floor(radius / 6))
-    for top = -floor(radius), floor(radius) - 1, step do
-        local mid = abs(top + step / 2)
-        if mid < radius then
-            local outer = sqrt(radius * radius - mid * mid)
-            if inner > 0 and mid < inner then
-                local hollow = sqrt(inner * inner - mid * mid)
-                local width = floor(outer - hollow + 0.5)
-                if width > 0 then
-                    context.fill(floor(cx - outer + 0.5), floor(cy + top), width, step, color[1], color[2], color[3], alpha)
-                    context.fill(floor(cx + hollow + 0.5), floor(cy + top), width, step, color[1], color[2], color[3], alpha)
-                end
-            else
-                context.fill(floor(cx - outer + 0.5), floor(cy + top), floor(outer * 2 + 0.5), step, color[1], color[2], color[3], alpha)
-            end
-        end
-    end
-end
-
 local function rect(context, x, y, width, height, color, alpha)
     context.fill(floor(x), floor(y), ceil(width), ceil(height), color[1], color[2], color[3], alpha)
 end
@@ -431,6 +429,7 @@ local function outline(context, box, color, alpha)
 end
 
 local white, yellow, blue = {255, 255, 255}, {255, 217, 64}, {76, 141, 255}
+local yellow_tint, blue_tint = 0xffd940, 0x4c8dff
 local dark, grey = {11, 15, 26}, {51, 66, 94}
 
 -- Call only while state.visible; the caller hides it on screens the controls do not drive.
@@ -449,18 +448,16 @@ function gamepad.draw(state, context)
     end
     context.overlay(true)
 
-    -- Round buttons: the show/hide button, SET and the F button.
-    local toggle = circle_of(state, "toggle")
-    disc(context, toggle.x, toggle.y, toggle.r, toggle.r * 0.8, white, alpha_of("toggle", 0.8))
-    if state.shown then disc(context, toggle.x, toggle.y, toggle.r * 0.5, 0, white, alpha_of("toggle", 0.5)) end
-    local gear = circle_of(state, "set")
-    disc(context, gear.x, gear.y, gear.r, gear.r * 0.88, white, alpha_of("set", 0.8))
-    if editing then disc(context, gear.x, gear.y, gear.r * 0.88, 0, yellow, alpha_of("set", 0.6)) end
-    if alpha_of("set") > 0 then label(context, "SET", gear.x, gear.y - 8, "center", tint_of("set")) end
-    local ftoggle = circle_of(state, "f")
-    disc(context, ftoggle.x, ftoggle.y, ftoggle.r, ftoggle.r * 0.88, white, alpha_of("f", 0.8))
-    if state.functions_open then disc(context, ftoggle.x, ftoggle.y, ftoggle.r * 0.88, 0, blue, alpha_of("f", 0.6)) end
-    if alpha_of("f") > 0 then label(context, "F", ftoggle.x, ftoggle.y - 8, "center", tint_of("f")) end
+    -- The show/hide button (against the top of the window), SET and the F button: icons, lit while on.
+    local function menu_icon(name, resource, tint)
+        local alpha = alpha_of(name)
+        if alpha <= 0 then return end
+        local box = square_of(state, name)
+        context.icon(icon_path(resource), floor(box.x + 0.5), floor(box.y + 0.5), floor(box.w + 0.5), floor(box.h + 0.5), alpha, tint)
+    end
+    menu_icon("toggle", state.shown and "hide" or "show", 0xffffff)
+    menu_icon("set", "setting", editing and yellow_tint or 0xffffff)
+    menu_icon("f", "f", state.functions_open and blue_tint or 0xffffff)
 
     if state.functions_open or (editing and state.selected == "f") then
         for _, cell in ipairs(grid_cells(state)) do
