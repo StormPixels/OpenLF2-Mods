@@ -218,6 +218,8 @@ local function start_phase(state, run)
     local goto_phase = phase >= 0 and phase_data(run, phase).when_clear_goto_phase or -1
     if phase < 0 or goto_phase == -1 then run.phase = phase + 1 else run.phase = goto_phase end
     local data = phase_data(run, run.phase)
+    -- LF2 Darkfiren's Beat the Clock: a phase's `time:` is the seconds (30 ticks each) to beat it in.
+    run.time_left = (data.time and data.time >= 0) and data.time * 30 or nil
     if data.music ~= "" then music.play(data.music) end
     state.camera_limit = data.bound - constants.screen.width
     state.stage_bound = data.bound
@@ -348,6 +350,7 @@ function stage.update(state, run)
         local value = state.items[index]
         if value and value.record.kind == record_kinds.character and value.team == constants.teams.enemies then enemies_left = true break end
     end
+    stage.tick_clock(state, run, enemies_left)
     local target
     if enemies_left then
         run.phase_done = 0
@@ -507,6 +510,16 @@ function stage.status(state, run, display)
     display[#display + 1] = {"text", string.format("%s %3d      %s %4d", i18n.tr("Man:"), men_b, i18n.tr("HP:"), hp_b), 645, 110, 0xff00ff}
 end
 
+-- The phase clock runs while the phase's enemies are on the stage. At 0 the stage is lost: the fighters stand without
+-- control (as when a versus time limit runs out) and the round ends like a defeat. state.stage_clock is what is drawn.
+function stage.tick_clock(state, run, enemies_left)
+    if run.time_left and enemies_left and run.result == 0 and not state.time_up then
+        run.time_left = run.time_left - 1
+        if run.time_left <= 0 then run.time_left, state.time_up = 0, true end
+    end
+    state.stage_clock = run.time_left
+end
+
 function stage.round_counter(state, run)
     local alive = false
     for index = 0, constants.item_slots - 1 do
@@ -518,7 +531,7 @@ function stage.round_counter(state, run)
             alive = true
         end
     end
-    if not alive or run.result > 0 then
+    if not alive or run.result > 0 or state.time_up then
         state.round_counter = state.round_counter + 1
         if run.result < 1 and state.round_counter == 80 then
             sounds.direct(state, "finish")
