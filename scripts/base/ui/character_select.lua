@@ -1198,14 +1198,19 @@ local function roster_pass(state, held)
 end
 
 -- <misc> `background_small`: the chosen background's small map picture (bg/sys/map/<name>.bmp) in a frame next to the
--- music line. Not for Random, Lee On Road or Stage mode, which have no single background to show.
+-- music line; Random shows sprite/ui/bg_random.bmp. Stage mode has no single background to show.
 local function small_background(state)
-    if misc.show_small ~= 1 or state.mode == constants.modes.stage or state.options.random_background then return end
+    if misc.show_small ~= 1 or state.mode == constants.modes.stage then return end
     local row = state.options.background
-    if row == constants.background_rows.random or row == constants.background_rows.lee_on_road then return end
-    local entry = state.backgrounds[row + 1]
-    local folder = entry and entry.path:match("bg/sys/([^/]+)/") or "temp"
-    local picture = "bg/sys/map/" .. folder .. ".bmp"
+    local picture
+    if state.options.random_background or row == constants.background_rows.random then
+        picture = "sprite/ui/bg_random.bmp"
+    elseif row == constants.background_rows.lee_on_road then
+        picture = "bg/sys/map/lor.bmp"
+    else
+        local entry = state.backgrounds[row + 1]
+        picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
+    end
     if not grid_has(picture) then return end
     if grid_has(misc.frame_pic) then image(state, misc.frame_pic, misc.frame_x, misc.frame_y) end
     image(state, picture, misc.small_x, misc.small_y)

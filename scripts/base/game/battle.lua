@@ -6,6 +6,8 @@ local i18n = require("base/i18n/i18n")
 local record_kinds = constants.record_kinds
 local battle_strategies = constants.battle_strategies
 local objects = require("base/game/objects")
+local options = require("base/game/options")
+local mode_layout = require("base/game/mode_layout")
 local battle = {}
 
 local function cdiv(a, b)
@@ -19,6 +21,26 @@ local types = {[0] = constants.fighter_ids.bandit, constants.fighter_ids.hunter,
     constants.fighter_ids.sorcerer, constants.fighter_ids.justin, constants.fighter_ids.mark,
     constants.fighter_ids.monk, constants.fighter_ids.jan, constants.fighter_ids.knight, constants.item_ids.milk, constants.item_ids.beer}
 local type_count = 11
+-- LF2 Darkfiren's <battle> of the mode file names the nine soldiers (the troop picker's order); without it, the ones
+-- above stand. troop[id] says whether an id is a soldier (or milk, beer), for the census of what is on the field.
+local default_types = {}
+for kind = 0, type_count - 1 do default_types[kind] = types[kind] end
+local troop = {}
+local function set_troop_ids(ids)
+    for kind = 0, type_count - 1 do types[kind] = default_types[kind] end
+    if ids then for kind = 0, 8 do types[kind] = ids[kind + 1] end end
+    troop = {}
+    for kind = 0, type_count - 1 do troop[types[kind]] = true end
+end
+set_troop_ids(nil)
+-- What a game gives (the module keeps it for the battle that follows); the file is read for the wide layout only.
+local function load_troops()
+    local ok, text = pcall(engine.read_resource, "game/mode_file")
+    local wide = options.current().battlefield_layout == options.wide_layout
+    set_troop_ids(ok and wide and mode_layout.battle_ids(text) or nil)
+end
+battle.set_troop_ids = set_troop_ids
+function battle.troop_ids() local copy = {} for kind = 0, type_count - 1 do copy[kind] = types[kind] end return copy end
 local strategies = {[battle_strategies.zero] = "Zero", [battle_strategies.balanced] = "Balanced",
     [battle_strategies.inferior] = "Inferior", [battle_strategies.ranged_attack] = "Ranged attack",
     [battle_strategies.melee_attack] = "Melee attack", [battle_strategies.giant] = "Giant", [battle_strategies.full] = "Full"}
@@ -31,6 +53,7 @@ local soldier_hp = {[constants.fighter_ids.jan] = 250, [constants.fighter_ids.kn
 
 -- config: the setup's counts (stock/on_field computed at Start Game), defense, strategy, size.
 function battle.create(config)
+    load_troops()
     local run = {stock = {}, on_field = {}, deaths = {[1] = 0, [2] = 0}, damage = {[1] = 0, [2] = 0},
         defense = {[0] = config.defense[0], [1] = config.defense[1]},
         strategy = {[0] = config.strategy[0], [1] = config.strategy[1]},
@@ -77,8 +100,7 @@ function battle.update(state, run)
         if value then
             if value.battle_side > 0 and value.battle_side < 3 and index >= 20 then
                 local id = value.record.id
-                if (id >= constants.fighter_ids.bandit and id <= constants.fighter_ids.justin
-                    and id ~= constants.fighter_ids.bat) or id == constants.item_ids.milk or id == constants.item_ids.beer then
+                if troop[id] then
                     for kind = 0, type_count - 1 do
                         if types[kind] == id then
                             local key = (value.battle_side - 1) * type_count + kind

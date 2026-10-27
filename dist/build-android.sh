@@ -122,6 +122,8 @@ tar -xzf "$sdl_archive" -C "$root/build/android/sdl-java" --strip-components=6 \
 python3 "$root/tools/icons/make_icons.py" "$root/build/android/icons"
 rm -rf "$root/build/android/res"
 cp -R "$root/build/android/icons/android/res" "$root/build/android/res"
+# Custom launcher icons (dist/android/icons/mipmap-*/ic_launcher.png) override the rendered ones.
+if [ -d "$root/dist/android/icons" ]; then cp -R "$root/dist/android/icons/." "$root/build/android/res/"; fi
 rm -rf "$root/build/android/assets/scripts"
 cp -R "$root/scripts" "$root/build/android/assets/scripts"
 python3 dist/collect-licenses.py "$root/build/android/assets/licenses" \

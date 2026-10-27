@@ -117,4 +117,20 @@ function mode_layout.cost_settings(text)
     return settings
 end
 
+-- The <battle> block of a mode file (LF2 Darkfiren): exactly nine `id:` lines, the soldiers of Battle mode in the order
+-- of the troop picker. Anything else gives nil (the built-in soldiers stay).
+function mode_layout.battle_ids(text)
+    local ids, inside = {}, false
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag == "battle" then inside = true
+        elseif tag == "battle_end" then break
+        elseif inside then
+            local id = tonumber(line:match("^%s*id%s*:%s*(%d+)"))
+            if id and id > 0 then ids[#ids + 1] = id end
+        end
+    end
+    return #ids == 9 and ids or nil
+end
+
 return mode_layout
