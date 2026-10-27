@@ -130,7 +130,8 @@ function screen.snapshot(state, snapshot)
         order[position] = entry
     end
     snapshot.camera, snapshot.shake = state.camera, state.shake
-    snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or nil
+    snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or state.stage_clock
+    snapshot.time_row = state.stage_clock and 16 or 0
     if state.cost then
         snapshot.cost_pool = snapshot.cost_pool or {}
         for team, left in pairs(state.cost.pool) do snapshot.cost_pool[team] = left end
@@ -515,7 +516,7 @@ function screen.draw(state, context, window_bounds)
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
         view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage,
-            time_left = view.time_left, cost_pool = view.cost_pool}
+            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool}
         -- Only matters for a stage narrower than the window.
         bounds = {left = math.max(window_bounds.left, -shift), right = math.min(window_bounds.right, stage_width - shift)}
         passable_bounds = {left = bounds.left, right = bounds.right}
@@ -566,7 +567,7 @@ function screen.draw(state, context, window_bounds)
         -- The time limit's clock: the time left, in the middle under the HP frames.
         local seconds = math.ceil(view.time_left / 30)
         local clock_text = string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
-        bold_text(context, clock_text, 0x18d + wide_center() - math.floor(font.width(clock_text) / 2), 0x6e)
+        bold_text(context, clock_text, 0x18d + wide_center() - math.floor(font.width(clock_text) / 2), 0x6e + (view.time_row or 0))
     end
     if view.cost_pool then
         -- LF2 Darkfiren's cost mode: what each team has left, one line per team under the clock.

@@ -2,7 +2,7 @@
 -- Copyright (c) 2026 OpenLF2 contributors
 
 -- LF2 Darkfiren's mode4.dat as a layout: the text of "game/mode_file" is read for the blocks whose positions and
--- sizes the character menu draws with (<menu_control>, <grid_char>, <grid_bg>, <grid_bg_mode>, <grid_stage>). A value the file
+-- sizes the character menu draws with (<menu_control>, <grid_char>, <grid_bg>, <grid_bg_mode>, <grid_stage>, <misc>). A value the file
 -- does not give, or gives in the wrong form, leaves the built-in one in place. Compatible with Lua 5.1/LuaJIT.
 local mode_layout = {}
 
@@ -39,6 +39,9 @@ local maps = {
         human_x = "human_x", human_y = "human_y", com_x = "com_x", com_y = "com_y"},
     grid_bg = {tag = "grid_bg", panel_pic = "pic", random_pic = "small", panel_x = "pic_x", panel_y = "pic_y",
         x = "start_x", y = "start_y", w = "w", h = "h", step = "centery", name_x = "name_x", name_y = "name_y"},
+    misc = {tag = "misc", music_x = "music_x", music_y = "music_y", frame_x = "frame_x", frame_y = "frame_y",
+        small_x = "small_x", small_y = "small_y", show_small = "background_small", frame_pic = "pic",
+        music_title = "hexf", music_hint = "hexb"},
     grid_stage = {tag = "grid_stage", panel_pic = "pic", panel_x = "pic_x", panel_y = "pic_y", x = "start_x", y = "start_y",
         w = "w", h = "h", step_x = "centerx", name_x = "name_x", name_y = "name_y"},
     grid_mode = {tag = "grid_bg_mode", panel_pic = "pic", panel_x = "pic_x", panel_y = "pic_y",
@@ -48,7 +51,7 @@ local maps = {
 local at_least_one = {row = true, columns = true, w = true, h = true, width = true, height = true, step = true,
     step_x = true, step_y = true}
 
--- Overwrites the built-in values of targets = {menu = t, roster = t, grid_bg = t, grid_mode = t, grid_stage = t} (tables the
+-- Overwrites the built-in values of targets = {menu = t, roster = t, grid_bg = t, grid_mode = t, grid_stage = t, misc = t} (tables the
 -- caller owns) with what the text gives. Returns how many values were taken.
 function mode_layout.apply(text, targets)
     local blocks, taken = mode_layout.blocks(text), 0
@@ -59,6 +62,10 @@ function mode_layout.apply(text, targets)
                 local value = block[from]
                 if to ~= "tag" and value ~= nil and type(value) == type(target[to]) and
                    not (type(value) == "number" and at_least_one[to] and value < 1) then
+                    -- hexf / hexb are Windows colours (blue * 65536 + green * 256 + red); the menu draws 0xRRGGBB.
+                    if (to == "music_title" or to == "music_hint") and type(value) == "number" then
+                        value = (value % 256) * 65536 + (math.floor(value / 256) % 256) * 256 + math.floor(value / 65536) % 256
+                    end
                     target[to] = value
                     taken = taken + 1
                 end

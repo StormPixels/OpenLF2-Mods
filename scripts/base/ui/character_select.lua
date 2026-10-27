@@ -25,6 +25,11 @@ local computer_phase, computer_team_phase, computer_done = slot_phases.computer_
 local mode_layout = require("base/game/mode_layout")
 local stage_levels = require("base/game/stage_levels")
 local layout_targets = {}
+-- <misc> of mode4.dat: the music line (position, colours) and the small picture of the chosen background in its frame
+-- (position, frame picture, on or off). 1142 is where the classic menu's music line lands in the wide picture.
+local misc = {music_x = 1142, music_y = 3, music_title = 0x5a77d8, music_hint = 0x223fa0, frame_x = 531, frame_y = 4,
+    small_x = 538, small_y = 11, show_small = 0, frame_pic = "sprite/ui/menu_clip2b.bmp"}
+layout_targets.misc = misc
 -- LF2 Darkfiren <time> of mode4.dat: the time limits (seconds) the wide options menu offers, and who wins.
 local time_list, time_type = {}, 1
 -- LF2 Darkfiren <cost> of mode4.dat: the pools the options menu offers and the prices (cost mode).
@@ -587,9 +592,10 @@ local function music_option(state, left, right)
         music.enabled = true
     end
     -- Top right corner: in the wide menu it follows the right edge of the wider picture.
-    local right_edge = state.wide and constants.screen.wide_width - constants.screen.width or 0
-    text(state, i18n.tr("Music: %s", i18n.tr(label)), 603 + right_edge, 3, music_title)
-    text(state, i18n.tr("(Press Left/Right to change)"), 603 + right_edge, 20, music_hint)
+    local music_x = state.wide and misc.music_x or 603
+    local music_y = state.wide and misc.music_y or 3
+    text(state, i18n.tr("Music: %s", i18n.tr(label)), music_x, music_y, state.wide and misc.music_title or music_title)
+    text(state, i18n.tr("(Press Left/Right to change)"), music_x, music_y + 17, state.wide and misc.music_hint or music_hint)
 end
 
 -- LF2 Darkfiren's <grid_bg> (mode4.dat): a panel at (180, 3) with the backgrounds one under the other, each a 212x109
@@ -1191,6 +1197,20 @@ local function roster_pass(state, held)
     end
 end
 
+-- <misc> `background_small`: the chosen background's small map picture (bg/sys/map/<name>.bmp) in a frame next to the
+-- music line. Not for Random, Lee On Road or Stage mode, which have no single background to show.
+local function small_background(state)
+    if misc.show_small ~= 1 or state.mode == constants.modes.stage or state.options.random_background then return end
+    local row = state.options.background
+    if row == constants.background_rows.random or row == constants.background_rows.lee_on_road then return end
+    local entry = state.backgrounds[row + 1]
+    local folder = entry and entry.path:match("bg/sys/([^/]+)/") or "temp"
+    local picture = "bg/sys/map/" .. folder .. ".bmp"
+    if not grid_has(picture) then return end
+    if grid_has(misc.frame_pic) then image(state, misc.frame_pic, misc.frame_x, misc.frame_y) end
+    image(state, picture, misc.small_x, misc.small_y)
+end
+
 function selection.update(state, held, context)
     state.display = {}
     state.held = held
@@ -1206,7 +1226,7 @@ function selection.update(state, held, context)
         image(state, "pe/charmenu", 40, 33)
     end
     slots_pass(state, held)
-    if state.wide then roster_pass(state, held) end
+    if state.wide then roster_pass(state, held); small_background(state) end
     state.last_menu = state.menu
     if state.menu == menus.computer_count then computer_count_menu(state, previous_menu) end
     if state.menu == menus.computer_slots or state.menu == menus.options then computer_menu(state, previous_menu) end
