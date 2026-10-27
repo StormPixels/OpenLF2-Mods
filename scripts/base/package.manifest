@@ -5,6 +5,7 @@ api=1
 window=794x550
 module=ui/title|ui/title.lua
 module=game/constants|game/constants.lua
+module=game/onscreen|game/onscreen.lua
 module=game/collision|game/collision.lua
 module=ui/input|ui/input.lua
 module=ui/controls|ui/controls.lua
