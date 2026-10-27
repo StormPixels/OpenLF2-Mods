@@ -15,6 +15,8 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren time limit (`<time>` of mode4.dat): the wide options menu gets a Time limit row (Off, then the listed times). When the time is up the round ends at once, the fighters lose control, and the winner follows the list's `type` (1 highest hp, 2 highest dhp, 3 most damage, 4 most kills; a tie has no winner). The time left is drawn under the HP frames. Not in Stage mode; a match with a time limit is not recorded and is not played over the network
 
+- LF2 Darkfiren cost mode (`<cost>` of mode4.dat): the wide options menu gets a Cost pool row (Off, then 200 to 9999). Every team has one pool; a beaten fighter costs its price (`kind:`, or the `cost:` groups) and comes back at once while the pool is above 0, with hp and mp cut down when the rest does not cover its price; at 0 the team is out and the other team wins. The pools are drawn under the clock; with a time limit the team with more cost left wins. Not in Stage mode; a match with a cost pool is not recorded and not played over the network. Respawning as another fighter of the `random:` list is not done
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

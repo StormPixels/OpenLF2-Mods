@@ -131,6 +131,12 @@ function screen.snapshot(state, snapshot)
     end
     snapshot.camera, snapshot.shake = state.camera, state.shake
     snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or nil
+    if state.cost then
+        snapshot.cost_pool = snapshot.cost_pool or {}
+        for team, left in pairs(state.cost.pool) do snapshot.cost_pool[team] = left end
+    else
+        snapshot.cost_pool = nil
+    end
     snapshot.paused, snapshot.stage = nil, nil
     return snapshot
 end
@@ -508,7 +514,8 @@ function screen.draw(state, context, window_bounds)
         -- World x is drawn at x - shift in viewport coordinates.
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
-        view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage}
+        view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage,
+            time_left = view.time_left, cost_pool = view.cost_pool}
         -- Only matters for a stage narrower than the window.
         bounds = {left = math.max(window_bounds.left, -shift), right = math.min(window_bounds.right, stage_width - shift)}
         passable_bounds = {left = bounds.left, right = bounds.right}
@@ -560,6 +567,16 @@ function screen.draw(state, context, window_bounds)
         local seconds = math.ceil(view.time_left / 30)
         local clock_text = string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
         bold_text(context, clock_text, 0x18d + wide_center() - math.floor(font.width(clock_text) / 2), 0x6e)
+    end
+    if view.cost_pool then
+        -- LF2 Darkfiren's cost mode: what each team has left, one line per team under the clock.
+        local teams = {}
+        for team in pairs(view.cost_pool) do teams[#teams + 1] = team end
+        table.sort(teams)
+        for line, team in ipairs(teams) do
+            local label = string.format("%s %d: %d", team >= 10 and "P" or "Team", team >= 10 and team - 9 or team, view.cost_pool[team])
+            bold_text(context, label, 0x18d + wide_center() - math.floor(font.width(label) / 2), 0x6e + 14 * line)
+        end
     end
     if view.paused then
         context.image("pe/pause", 360 + wide_center(), 288, true)

@@ -24,6 +24,7 @@ local record_kinds = constants.record_kinds
 local object_data = require("base/game/object_data")
 local background = require("base/game/background")
 local bg_modes = require("base/game/bg_modes")
+local cost = require("base/game/cost")
 local item = require("base/game/item")
 local control = require("base/game/control")
 local physics = require("base/game/physics")
@@ -150,6 +151,18 @@ function match.create(options)
                 value.x = value.x_int
             end
         end
+    end
+    -- LF2 Darkfiren's cost mode: one pool of cost for every team that has a fighter.
+    if options.cost and state.mode ~= mode_stage then
+        local teams = {}
+        for index = 0, item_slots - 1 do
+            local value = state.items[index]
+            if value and value.record.kind == record_kinds.character and value.team > team_independent
+               and value.team < team_active_end_exclusive and value.team ~= team_enemies then
+                teams[value.team] = true
+            end
+        end
+        state.cost = cost.create(options.cost.pool, options.cost, teams)
     end
     -- LF2 Darkfiren: the objects the background's opoints put on the stage (state.stage.opoints, filtered above).
     if state.stage.opoints then objects.spawn_stage(state, state.stage.opoints) end
@@ -380,6 +393,8 @@ local function read_input(state, held)
 end
 
 local function time_winner(state)
+    -- In cost mode the team with the most cost left wins.
+    if state.cost then return cost.leader(state.cost) end
     local best, best_team, tied
     for index = 0, item_slots - 1 do
         local value = state.items[index]
@@ -407,6 +422,12 @@ local function versus_counter(state)
            and value.team < team_active_end_exclusive
            and value.team ~= team_enemies then
             alive[value.team] = (alive[value.team] or 0) + 1
+        end
+    end
+    -- A team whose pool still has cost is not beaten: its fallen fighters come back.
+    if state.cost then
+        for team in pairs(state.cost.pool) do
+            if cost.standing(state.cost, team) then alive[team] = (alive[team] or 0) + 1 end
         end
     end
     for team = 0, team_active_end_exclusive - 1 do

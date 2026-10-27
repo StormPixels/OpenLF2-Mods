@@ -27,6 +27,8 @@ local stage_levels = require("base/game/stage_levels")
 local layout_targets = {}
 -- LF2 Darkfiren <time> of mode4.dat: the time limits (seconds) the wide options menu offers, and who wins.
 local time_list, time_type = {}, 1
+-- LF2 Darkfiren <cost> of mode4.dat: the pools the options menu offers and the prices (cost mode).
+local cost_settings = {kind = 100, pools = {}, groups = {}}
 local per_row, shift, step_x, step_y = 4, 0, 153, 212
 local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212}
 layout_targets.menu = menu
@@ -106,17 +108,19 @@ function selection.create(options)
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
     end
     -- Option values are globals in the original and keep their values between visits.
-    local options = previous.options or {time_index = 0, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
+    local options = previous.options or {time_index = 0, cost_index = 0, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
         difficulty = 0, music = 0, stage_level = 0}
     -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
     -- that lacks a tag (or is gone) leaves the built-in one.
     reset_layout()
     time_list, time_type = {}, 1
+    cost_settings = {kind = 100, pools = {}, groups = {}}
     if user_options.current().battlefield_layout == user_options.wide_layout then
         local ok, text = pcall(engine.read_resource, "game/mode_file")
         if ok and text then
             mode_layout.apply(text, layout_targets)
             time_type, time_list = mode_layout.time_limits(text)
+            cost_settings = mode_layout.cost_settings(text)
         end
     end
     local state = {mode = mode, fighters = catalog.load(), backgrounds = catalog.backgrounds(),
@@ -957,15 +961,26 @@ local function options_menu(state, previous_menu, context)
     sprite(state, options_sheet, {348, 156, 304, 10}, 3, 159, true)
     -- The time limit row exists only where mode4.dat offers time limits (not in Stage mode).
     local has_time = state.wide and #time_list > 0 and state.mode ~= constants.modes.stage
-    local last_row = has_time and option_rows.exit + 1 or option_rows.exit
+    -- The cost pool row comes after it (cost mode, LF2 Darkfiren).
+    local has_cost = state.wide and #cost_settings.pools > 0 and state.mode ~= constants.modes.stage
+    local time_row = option_rows.exit + 1
+    local cost_row = option_rows.exit + (has_time and 2 or 1)
+    local last_row = option_rows.exit + (has_time and 1 or 0) + (has_cost and 1 or 0)
     if options.row > last_row then options.row = option_rows.start end
     options.time_index = math.min(options.time_index or 0, #time_list)
+    options.cost_index = math.min(options.cost_index or 0, #cost_settings.pools)
     local highlight = option_highlights[options.row]
     if highlight then sprite(state, options_sheet, highlight[1], highlight[2], highlight[3], false) end
     if has_time then
         local limit = options.time_index > 0 and string.format("%d:%02d", math.floor(time_list[options.time_index] / 60), time_list[options.time_index] % 60) or "Off"
-        text(state, "Time limit:", 15, 175, options.row == option_rows.exit + 1 and white or option_blue)
-        text(state, limit, 120, 175, options.row == option_rows.exit + 1 and white or option_blue)
+        text(state, "Time limit:", 15, 175, options.row == time_row and white or option_blue)
+        text(state, limit, 120, 175, options.row == time_row and white or option_blue)
+    end
+    if has_cost then
+        local y = has_time and 195 or 175
+        local pool = options.cost_index > 0 and tostring(cost_settings.pools[options.cost_index]) or "Off"
+        text(state, "Cost pool:", 15, y, options.row == cost_row and white or option_blue)
+        text(state, pool, 120, y, options.row == cost_row and white or option_blue)
     end
     if options.random_background then options.background = constants.background_rows.random end
     if state.mode == constants.modes.stage then
@@ -1023,8 +1038,10 @@ local function options_menu(state, previous_menu, context)
            or options.difficulty < constants.difficulties.crazy then
             options.difficulty = constants.difficulties.easy
         end
-    elseif has_time and options.row == option_rows.exit + 1 then
+    elseif has_time and options.row == time_row then
         options.time_index = (options.time_index + 1) % (#time_list + 1)
+    elseif has_cost and options.row == cost_row then
+        options.cost_index = (options.cost_index + 1) % (#cost_settings.pools + 1)
     elseif options.row == option_rows.exit then
         context.action("title")
     elseif options.row == option_rows.reselect then
@@ -1099,6 +1116,8 @@ function selection.match_options(state)
         stage_level = state.options.stage_level,
         time_limit = state.wide and state.mode ~= constants.modes.stage and (state.options.time_index or 0) > 0
             and time_list[state.options.time_index] or nil, time_type = time_type,
+        cost = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0 and
+            {pool = cost_settings.pools[state.options.cost_index], kind = cost_settings.kind, groups = cost_settings.groups} or nil,
         bg_mode = state.mode ~= constants.modes.stage and not state.options.random_background and state.options.bg_mode or nil,
         fighters = state.fighters, backgrounds = state.backgrounds, slots = slots}
 end

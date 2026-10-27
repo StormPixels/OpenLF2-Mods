@@ -5,6 +5,7 @@ local constants = require("base/game/constants")
 local record_kinds = constants.record_kinds
 local objects = require("base/game/objects")
 local merge = require("base/game/merge")
+local cost = require("base/game/cost")
 local unlock = require("base/game/unlock")
 local frame_rules = {}
 
@@ -89,8 +90,42 @@ function frame_rules.after_control(state, index, value)
     end
 end
 
+-- A fighter comes back near its teammates (the original's way of using up a life), with `part` (0 to 1) of its hp and mp.
+function frame_rules.drop_in(state, index, value, part)
+    local sum_x, sum_z, mates = 0, 0, 0
+    for other = 0, constants.item_slots - 1 do
+        local mate = state.items[other]
+        if mate and other ~= index and mate.record.kind == record_kinds.character and mate.team == value.team then
+            sum_x = sum_x + mate.x_int
+            sum_z = sum_z + mate.z_int
+            mates = mates + 1
+        end
+    end
+    -- The original divides by the mate count unguarded; without mates the port keeps x/z.
+    if mates > 0 then
+        value.x = cdiv(sum_x, mates) + random(constants.revival.x_random_range) - constants.revival.x_offset
+        value.z = cdiv(sum_z, mates) + random(constants.revival.z_random_range) - constants.revival.z_offset
+    end
+    value.mp = part >= 1 and constants.points.full or math.max(1, math.floor(constants.points.full * part))
+    value.dark_hp = part >= 1 and value.max_hp or math.max(1, math.floor(value.max_hp * part))
+    value.hp = value.dark_hp
+    value.blink = constants.blink.spawn_frames
+    value.frame = constants.character_frames.jump + 2
+    value.y_int = constants.revival.initial_y
+    value.y = value.y_int
+    value.vy = 0.0
+end
+
 -- After each item's physics step (the item may be removed; returns false then).
 function frame_rules.after_physics(state, index, value)
+    -- LF2 Darkfiren's cost mode: a beaten fighter (hp 0, lying) is paid for from its team's pool and comes back while
+    -- the pool lasts; once the team is out its body stays.
+    if state.cost and value.record.kind == record_kinds.character and value.hp <= 0 and not value.cost_paid
+       and state_of(value) == constants.frame_states.lying and state.cost.pool[value.team] ~= nil then
+        local result, part = cost.beaten(state.cost, value.team, value.record.id)
+        if result == "respawn" then frame_rules.drop_in(state, index, value, part) else value.cost_paid = true end
+        return true
+    end
     if state_of(value) == constants.frame_states.lying and value.hp <= 0 and (value.follow >= 0 or value.team == constants.teams.enemies or index >= 20)
        and value.blink > 0 and value.blink < 5 then
         if value.join_hp > 0 then
@@ -121,29 +156,8 @@ function frame_rules.after_physics(state, index, value)
             return false
         else
             -- One of its lives: it drops in again near its teammates.
-            local sum_x, sum_z, mates = 0, 0, 0
             value.lives = value.lives - 1
-            for other = 0, constants.item_slots - 1 do
-                local mate = state.items[other]
-                if mate and other ~= index and mate.record.kind == record_kinds.character and mate.team == value.team then
-                    sum_x = sum_x + mate.x_int
-                    sum_z = sum_z + mate.z_int
-                    mates = mates + 1
-                end
-            end
-            -- The original divides by the mate count unguarded; without mates the port keeps x/z.
-            if mates > 0 then
-                value.x = cdiv(sum_x, mates) + random(constants.revival.x_random_range) - constants.revival.x_offset
-                value.z = cdiv(sum_z, mates) + random(constants.revival.z_random_range) - constants.revival.z_offset
-            end
-            value.mp = constants.points.full
-            value.dark_hp = value.max_hp
-            value.hp = value.dark_hp
-            value.blink = constants.blink.spawn_frames
-            value.frame = constants.character_frames.jump + 2
-            value.y_int = constants.revival.initial_y
-            value.y = value.y_int
-            value.vy = 0.0
+            frame_rules.drop_in(state, index, value, 1)
         end
     end
     if value.transform > -1 and value.sequences[constants.combo_indices.jump_attack] == constants.combo_states.complete and value.y_int == 0 and value.hp > 0 then
