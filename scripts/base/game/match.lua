@@ -76,6 +76,7 @@ function match.create(options)
     state.bg_mode = options.bg_mode
     -- The menu's More options (LF2 Darkfiren): item drops, transform to LouisEX, respawn shuffle.
     state.no_item_drops, state.no_transform = options.no_item_drops, options.no_transform
+    state.tu1 = options.tu1
     -- LF2 Darkfiren's time limit (seconds, 30 ticks each): when it runs out the round ends and the fighters lose
     -- control; time_type says who wins (1 highest hp, 2 highest dhp, 3 most damage, 4 most kills).
     state.time_limit = options.time_limit and options.time_limit > 0 and options.time_limit or nil
@@ -369,7 +370,8 @@ local function read_input(state, held)
         local value = state.items[index]
         if value and value.human then
             for _, key in ipairs(item.keys) do value.previous_keys[key] = value.keys[key] end
-            if state.input_phase == 0 then
+            -- The original reads the keys every second time unit (2tu); LF2 Darkfiren's 1tu mode reads them every one.
+            if state.input_phase == 0 or state.tu1 then
                 local keys = held[index] or ""
                 value.keys.up = keys:find("u", 1, true) ~= nil
                 value.keys.down = keys:find("d", 1, true) ~= nil
@@ -788,6 +790,8 @@ local function exit_pressed(state, held)
 end
 
 -- Returns "finished", "leave" (F4 in Championship), "paused" or nil.
+match.read_input = read_input -- exported for the tests
+
 function match.step(state, held)
     state.frame_number = state.frame_number + 1
     state.held = held

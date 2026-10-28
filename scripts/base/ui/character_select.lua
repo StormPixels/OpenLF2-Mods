@@ -992,6 +992,12 @@ local function options_menu(state, previous_menu, context)
                 action = function() options.shuffle = not options.shuffle end}
         end
     end
+    -- TU mode (LF2 Darkfiren, <menu_small> layer 11): 1tu reads the keys every time unit instead of every second one,
+    -- for smoother input. It is offered in every mode of the wide layout.
+    if state.wide then
+        extras[#extras + 1] = {label = "TU mode:", value = function() return options.tu1 and "1tu" or "2tu" end,
+            action = function() options.tu1 = not options.tu1 end}
+    end
     local last_row = option_rows.exit + #extras
     if options.row > last_row then options.row = option_rows.start end
     local highlight = option_highlights[options.row]
@@ -1140,6 +1146,7 @@ function selection.match_options(state)
         no_transform = state.wide and state.mode ~= constants.modes.stage and state.options.allow_transform == false or nil,
         respawn_shuffle = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0
             and state.options.shuffle or nil,
+        tu1 = state.wide and state.options.tu1 == true or nil,
         bg_mode = state.mode ~= constants.modes.stage and not state.options.random_background and state.options.bg_mode or nil,
         fighters = state.fighters, backgrounds = state.backgrounds, slots = slots}
 end
