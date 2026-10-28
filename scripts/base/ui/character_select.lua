@@ -1251,12 +1251,12 @@ function selection.update(state, held, context)
     state.last_menu = state.menu
     if state.menu == menus.computer_count then computer_count_menu(state, previous_menu) end
     if state.menu == menus.computer_slots or state.menu == menus.options then computer_menu(state, previous_menu) end
-    -- Like the music line, the chosen background's small picture belongs to the menu: it shows only while the menu does.
-    if state.wide and (state.menu == menus.computer_slots or state.menu == menus.options) then small_background(state) end
     if state.countdown < 1 and state.menu == menus.human_slots then state.menu = menus.computer_count end
     if state.leave then context.action("title") end
     if state.menu == menus.options and state.mode ~= constants.modes.battle then
         options_menu(state, previous_menu, context)
+        -- With the menu panel and the music line, not before: the chosen background's small picture.
+        if state.wide then small_background(state) end
     elseif state.menu == menus.options and previous_menu ~= menus.options then
         context.action("battle_setup")
     end
