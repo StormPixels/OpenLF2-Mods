@@ -123,7 +123,22 @@ function frame_rules.after_physics(state, index, value)
     if state.cost and value.record.kind == record_kinds.character and value.hp <= 0 and not value.cost_paid
        and state_of(value) == constants.frame_states.lying and state.cost.pool[value.team] ~= nil then
         local result, part = cost.beaten(state.cost, value.team, value.record.id)
-        if result == "respawn" then frame_rules.drop_in(state, index, value, part) else value.cost_paid = true end
+        if result == "respawn" then
+            -- Respawn shuffle: a fighter that was chosen with Random comes back as another one.
+            if state.cost.shuffle and value.random_pick then
+                local taken = {}
+                for other = 0, constants.item_slots - 1 do
+                    local mate = state.items[other]
+                    if mate and other ~= index and mate.record.kind == record_kinds.character and mate.hp > 0 then taken[mate.record.id] = true end
+                end
+                local id = cost.shuffle_id(state.cost, value.record.id, taken, random)
+                local record = id and objects.record(state, id)
+                if record then value.record, value.pic_offset = record, 0 end
+            end
+            frame_rules.drop_in(state, index, value, part)
+        else
+            value.cost_paid = true
+        end
         return true
     end
     if state_of(value) == constants.frame_states.lying and value.hp <= 0 and (value.follow >= 0 or value.team == constants.teams.enemies or index >= 20)
@@ -177,7 +192,10 @@ end
 function frame_rules.before_advance(state, index, value)
     if value.record.kind == record_kinds.character
        and state_of(value) == constants.frame_states.transform_louis_ex then
-        value.record = objects.record(state, constants.fighter_ids.louis_ex) or value.record
+        -- The Transform option (LF2 Darkfiren, off): Louis stays Louis.
+        if not state.no_transform then
+            value.record = objects.record(state, constants.fighter_ids.louis_ex) or value.record
+        end
         value.frame = 0
     end
     local current = state_of(value)

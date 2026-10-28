@@ -12,7 +12,8 @@ function cost.create(pool, settings, teams)
     if not pool or pool <= 0 then return nil end
     local pools = {}
     for team in pairs(teams) do pools[team] = pool end
-    return {pool = pools, start = pool, default = settings.kind or 100, groups = settings.groups or {}, out = {}}
+    return {pool = pools, start = pool, default = settings.kind or 100, groups = settings.groups or {}, out = {},
+        randoms = settings.randoms or {}, shuffle = settings.shuffle == true}
 end
 
 function cost.price(self, id)
@@ -32,6 +33,29 @@ function cost.beaten(self, team, id)
     end
     self.pool[team] = left
     return "respawn", left >= price and 1 or left / price
+end
+
+-- Respawn shuffle: the id a fighter who chose Random comes back as. It is taken from the first `random:` list of the
+-- settings that holds its id (else the first list), never its own id and, as far as the list allows, not one a
+-- living fighter already has. `taken` is the set of ids in use; draw(n) gives 0 to n - 1. Returns nil with no list.
+function cost.shuffle_id(self, id, taken, draw)
+    local group
+    for _, list in ipairs(self.randoms) do
+        for _, member in ipairs(list) do if member == id then group = list end end
+        if group then break end
+    end
+    group = group or self.randoms[1]
+    if not group then return nil end
+    local fresh, other = {}, {}
+    for _, member in ipairs(group) do
+        if member ~= id then
+            other[#other + 1] = member
+            if not taken[member] then fresh[#fresh + 1] = member end
+        end
+    end
+    local pool = #fresh > 0 and fresh or other
+    if #pool == 0 then return nil end
+    return pool[draw(#pool) + 1]
 end
 
 -- A team with cost left, or one that never had a pool, is not beaten yet.

@@ -87,9 +87,13 @@ end
 local function with_recording(state, options)
     options.network = state.session ~= nil
     -- A background mode changes the simulation, which neither a recording's header nor the other player knows.
-    if options.network then options.bg_mode, options.time_limit, options.cost = nil, nil, nil end
+    if options.network then
+        options.bg_mode, options.time_limit, options.cost = nil, nil, nil
+        options.no_item_drops, options.no_transform, options.respawn_shuffle = nil, nil, nil
+    end
     local settings = controls.current()
-    if settings.record == 0 or options.bg_mode or options.time_limit or options.cost then return options end
+    if settings.record == 0 or options.bg_mode or options.time_limit or options.cost
+       or options.no_item_drops or options.no_transform or options.respawn_shuffle then return options end
     local names = {}
     for slot = 0, 7 do names[slot + 1] = controls.name(slot) end
     options.record = {names = names, version = state.options.recording_version or 0, time = engine.local_time(),

@@ -95,9 +95,9 @@ end
 
 -- The <cost> block (LF2 Darkfiren cost mode): `kind:` is the price of a fighter no `cost:` group lists, `respond:` each
 -- a choice of pool for the menu (up to 100), `cost: N` followed by `id:` lines the price N of those fighters (the
--- `random:` ... `random_end:` blocks of respawn ids are skipped). Returns {kind, pools, groups}.
+-- `random:` ... `random_end:` blocks are lists of ids a fighter may respawn as). Returns {kind, pools, groups, randoms}.
 function mode_layout.cost_settings(text)
-    local settings = {kind = 100, pools = {}, groups = {}}
+    local settings = {kind = 100, pools = {}, groups = {}, randoms = {}}
     local words = {}
     for word in (text or ""):gmatch("%S+") do words[#words + 1] = word end
     local inside, group, skipping = false, nil, false
@@ -106,12 +106,15 @@ function mode_layout.cost_settings(text)
         elseif word == "<cost_end>" then break
         elseif inside then
             local number = tonumber((words[index + 1] or ""):match("^(-?%d+)$"))
-            if word == "random:" then skipping = true
+            if word == "random:" then skipping = true; settings.randoms[#settings.randoms + 1] = {}
             elseif word == "random_end:" then skipping = false
             elseif word == "kind:" and number and number > 0 then settings.kind = number
             elseif word == "respond:" and number and number > 0 and #settings.pools < 100 then settings.pools[#settings.pools + 1] = number
             elseif word == "cost:" and number and number > 0 then group = number
-            elseif word == "id:" and number and group and not skipping then settings.groups[number] = group end
+            elseif word == "id:" and number and skipping then
+                local list = settings.randoms[#settings.randoms]
+                if #list < 100 then list[#list + 1] = number end
+            elseif word == "id:" and number and group then settings.groups[number] = group end
         end
     end
     return settings

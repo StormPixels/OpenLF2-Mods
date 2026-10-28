@@ -113,7 +113,7 @@ function selection.create(options)
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
     end
     -- Option values are globals in the original and keep their values between visits.
-    local options = previous.options or {time_index = 0, cost_index = 0, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
+    local options = previous.options or {time_index = 0, cost_index = 0, item_drops = true, allow_transform = true, shuffle = false, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
         difficulty = 0, music = 0, stage_level = 0}
     -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
     -- that lacks a tag (or is gone) leaves the built-in one.
@@ -965,28 +965,42 @@ local function options_menu(state, previous_menu, context)
     local options = state.options
     sprite(state, options_sheet, {348, 0, 304, 156}, 3, 3, false)
     sprite(state, options_sheet, {348, 156, 304, 10}, 3, 159, true)
-    -- The time limit row exists only where mode4.dat offers time limits (not in Stage mode).
-    local has_time = state.wide and #time_list > 0 and state.mode ~= constants.modes.stage
-    -- The cost pool row comes after it (cost mode, LF2 Darkfiren).
-    local has_cost = state.wide and #cost_settings.pools > 0 and state.mode ~= constants.modes.stage
-    local time_row = option_rows.exit + 1
-    local cost_row = option_rows.exit + (has_time and 2 or 1)
-    local last_row = option_rows.exit + (has_time and 1 or 0) + (has_cost and 1 or 0)
+    -- The extra rows under the options panel (LF2 Darkfiren's <menu_small> layers 8 to 10): time limit, cost pool, item
+    -- drops, transform, respawn shuffle. They exist in the wide layout, not in Stage mode, and only where mode4.dat
+    -- offers the choices (time limits, cost pools).
+    local extras = {}
+    if state.wide and state.mode ~= constants.modes.stage then
+        options.time_index = math.min(options.time_index or 0, #time_list)
+        options.cost_index = math.min(options.cost_index or 0, #cost_settings.pools)
+        if #time_list > 0 then
+            extras[#extras + 1] = {label = "Time limit:", value = function()
+                local limit = time_list[options.time_index]
+                return limit and string.format("%d:%02d", math.floor(limit / 60), limit % 60) or "Off"
+            end, action = function() options.time_index = (options.time_index + 1) % (#time_list + 1) end}
+        end
+        if #cost_settings.pools > 0 then
+            extras[#extras + 1] = {label = "Cost pool:", value = function()
+                return options.cost_index > 0 and tostring(cost_settings.pools[options.cost_index]) or "Off"
+            end, action = function() options.cost_index = (options.cost_index + 1) % (#cost_settings.pools + 1) end}
+        end
+        extras[#extras + 1] = {label = "Item drops:", value = function() return options.item_drops == false and "Off" or "On" end,
+            action = function() options.item_drops = options.item_drops == false end}
+        extras[#extras + 1] = {label = "Transform:", value = function() return options.allow_transform == false and "Off" or "On" end,
+            action = function() options.allow_transform = options.allow_transform == false end}
+        if #cost_settings.pools > 0 then
+            extras[#extras + 1] = {label = "Respawn shuffle:", value = function() return options.shuffle and "On" or "Off" end,
+                action = function() options.shuffle = not options.shuffle end}
+        end
+    end
+    local last_row = option_rows.exit + #extras
     if options.row > last_row then options.row = option_rows.start end
-    options.time_index = math.min(options.time_index or 0, #time_list)
-    options.cost_index = math.min(options.cost_index or 0, #cost_settings.pools)
     local highlight = option_highlights[options.row]
     if highlight then sprite(state, options_sheet, highlight[1], highlight[2], highlight[3], false) end
-    if has_time then
-        local limit = options.time_index > 0 and string.format("%d:%02d", math.floor(time_list[options.time_index] / 60), time_list[options.time_index] % 60) or "Off"
-        text(state, "Time limit:", 15, 175, options.row == time_row and white or option_blue)
-        text(state, limit, 120, 175, options.row == time_row and white or option_blue)
-    end
-    if has_cost then
-        local y = has_time and 195 or 175
-        local pool = options.cost_index > 0 and tostring(cost_settings.pools[options.cost_index]) or "Off"
-        text(state, "Cost pool:", 15, y, options.row == cost_row and white or option_blue)
-        text(state, pool, 120, y, options.row == cost_row and white or option_blue)
+    for position, extra in ipairs(extras) do
+        local y = 175 + 20 * (position - 1)
+        local color = options.row == option_rows.exit + position and white or option_blue
+        text(state, extra.label, 15, y, color)
+        text(state, extra.value(), 150, y, color)
     end
     if options.random_background then options.background = constants.background_rows.random end
     if state.mode == constants.modes.stage then
@@ -1044,10 +1058,8 @@ local function options_menu(state, previous_menu, context)
            or options.difficulty < constants.difficulties.crazy then
             options.difficulty = constants.difficulties.easy
         end
-    elseif has_time and options.row == time_row then
-        options.time_index = (options.time_index + 1) % (#time_list + 1)
-    elseif has_cost and options.row == cost_row then
-        options.cost_index = (options.cost_index + 1) % (#cost_settings.pools + 1)
+    elseif options.row > option_rows.exit and extras[options.row - option_rows.exit] then
+        extras[options.row - option_rows.exit].action()
     elseif options.row == option_rows.exit then
         context.action("title")
     elseif options.row == option_rows.reselect then
@@ -1113,9 +1125,9 @@ function selection.match_options(state)
     for index = 0, 7 do
         local slot = state.slots[index]
         if slot.phase >= slot_phases.choosing_fighter and slot.phase <= slot_phases.computer_fighter - 1 then
-            slots[index] = {kind = "human", fighter = slot.fighter, team = slot.team}
+            slots[index] = {kind = "human", fighter = slot.fighter, team = slot.team, random = slot.was_random}
         elseif slot.phase >= slot_phases.computer_fighter then
-            slots[index] = {kind = "computer", fighter = slot.fighter, team = slot.team}
+            slots[index] = {kind = "computer", fighter = slot.fighter, team = slot.team, random = slot.was_random}
         end
     end
     return {mode = state.mode, difficulty = state.options.difficulty, background = state.options.background,
@@ -1124,6 +1136,10 @@ function selection.match_options(state)
             and time_list[state.options.time_index] or nil, time_type = time_type,
         cost = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0 and
             {pool = cost_settings.pools[state.options.cost_index], kind = cost_settings.kind, groups = cost_settings.groups} or nil,
+        no_item_drops = state.wide and state.mode ~= constants.modes.stage and state.options.item_drops == false or nil,
+        no_transform = state.wide and state.mode ~= constants.modes.stage and state.options.allow_transform == false or nil,
+        respawn_shuffle = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0
+            and state.options.shuffle or nil,
         bg_mode = state.mode ~= constants.modes.stage and not state.options.random_background and state.options.bg_mode or nil,
         fighters = state.fighters, backgrounds = state.backgrounds, slots = slots}
 end

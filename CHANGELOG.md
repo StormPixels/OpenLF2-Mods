@@ -19,6 +19,14 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren cost mode (`<cost>` of mode4.dat): the wide options menu gets a Cost pool row (Off, then 200 to 9999). Every team has one pool; a beaten fighter costs its price (`kind:`, or the `cost:` groups) and comes back at once while the pool is above 0, with hp and mp cut down when the rest does not cover its price; at 0 the team is out and the other team wins. The pools are drawn under the clock; with a time limit the team with more cost left wins. Not in Stage mode; a match with a cost pool is not recorded and not played over the network. Respawning as another fighter of the `random:` list is not done
 
+- LF2 Darkfiren Beat the Clock (Time Battle): a stage phase's `time:` is the seconds to beat it in. The clock runs while the phase's enemies are on the stage and is drawn under the HP frames; at 0 the stage is lost and the fighters stand without control
+
+- LF2 Darkfiren `<misc>` of mode4.dat in the wide menu: the music line takes its position (`music_x/y`) and colours (`hexf`, `hexb`) from the file, and with `background_small: 1` the chosen background's small map picture is drawn in its frame (`frame_x/y`, `small_x/y`, `pic`). Random, Lee On Road and Stage mode show none
+
+- LF2 Darkfiren `<battle>` of mode4.dat: in the wide layout the nine soldiers of Battle mode (troop picker order) come from the file's nine `id:` lines (30 31 33 34 39 32 35 36 37 as shipped); a soldier whose id the original does not know gets 500 hp. A file without exactly nine ids, or the classic layout, keeps the built-in soldiers
+
+- LF2 Darkfiren More options (`<menu_small>` layers 8 to 10) in the wide options menu, under Time limit and Cost pool: **Item drops** (off: no random weapon drops, no F8 fill), **Transform** (off: Louis stays Louis at state 9995) and **Respawn shuffle** (with a cost pool: a fighter chosen with Random comes back as another id of the `<cost>` `random:` list, not its own and, if possible, not one a living fighter has). A match with any of them changed is not recorded and not played over the network. TU mode is not done: its rules are not in the documentation
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

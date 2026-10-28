@@ -74,6 +74,8 @@ function match.create(options)
         paused = false, pause_request = false, pause_next = false, cheat_lock = 0,
         heal_all = false, weapon_command = 0, function_counts = {[6] = 0, [7] = 0, [8] = 0, [9] = 0}}
     state.bg_mode = options.bg_mode
+    -- The menu's More options (LF2 Darkfiren): item drops, transform to LouisEX, respawn shuffle.
+    state.no_item_drops, state.no_transform = options.no_item_drops, options.no_transform
     -- LF2 Darkfiren's time limit (seconds, 30 ticks each): when it runs out the round ends and the fighters lose
     -- control; time_type says who wins (1 highest hp, 2 highest dhp, 3 most damage, 4 most kills).
     state.time_limit = options.time_limit and options.time_limit > 0 and options.time_limit or nil
@@ -111,6 +113,7 @@ function match.create(options)
             local index = entry.kind == "human" and slot or slot + 10
             local value = item.create(record)
             value.team = entry.team
+            value.random_pick = entry.random
             value.blink = 75
             value.drop_counter = record.data.weapon.hp or 0
             if options.mode == mode_battle then
@@ -162,6 +165,7 @@ function match.create(options)
                 teams[value.team] = true
             end
         end
+        options.cost.shuffle = options.respawn_shuffle
         state.cost = cost.create(options.cost.pool, options.cost, teams)
     end
     -- LF2 Darkfiren: the objects the background's opoints put on the stage (state.stage.opoints, filtered above).
@@ -887,7 +891,7 @@ function match.step(state, held)
     end
     combat.apply_impulses(state)
     each_item(state, advance_item)
-    if state.weapon_command == 1 and not (state.bg_mode and state.bg_mode.weapon_drop == 2) then fill_weapons(state) end
+    if state.weapon_command == 1 and not (state.bg_mode and state.bg_mode.weapon_drop == 2) and not state.no_item_drops then fill_weapons(state) end
     each_item(state, heal_item)
     state.heal_all, state.weapon_command = false, 0
     if state.resume_music then
