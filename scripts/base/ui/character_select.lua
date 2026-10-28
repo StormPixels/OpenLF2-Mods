@@ -1247,10 +1247,12 @@ function selection.update(state, held, context)
         image(state, "pe/charmenu", 40, 33)
     end
     slots_pass(state, held)
-    if state.wide then roster_pass(state, held); small_background(state) end
+    if state.wide then roster_pass(state, held) end
     state.last_menu = state.menu
     if state.menu == menus.computer_count then computer_count_menu(state, previous_menu) end
     if state.menu == menus.computer_slots or state.menu == menus.options then computer_menu(state, previous_menu) end
+    -- Like the music line, the chosen background's small picture belongs to the menu: it shows only while the menu does.
+    if state.wide and (state.menu == menus.computer_slots or state.menu == menus.options) then small_background(state) end
     if state.countdown < 1 and state.menu == menus.human_slots then state.menu = menus.computer_count end
     if state.leave then context.action("title") end
     if state.menu == menus.options and state.mode ~= constants.modes.battle then
