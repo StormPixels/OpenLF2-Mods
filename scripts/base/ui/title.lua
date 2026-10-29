@@ -67,7 +67,7 @@ function title.draw(state, context)
     local offset = state.vertical_offset
     context.image("pe/menu_back" .. state.background, 0, offset, true)
     -- The whole logo, with the "ver 2.0a" in its bottom-right corner (it was drawn in two pieces to leave it out).
-    context.sprite("pe/menu_clip", {0, 41, 497, 81}, 153, 96 + offset, true)
+    context.sprite("pe/menu_clip", {0, 41, 496, 80}, 153, 96 + offset, true)
     context.sprite(menu_sheet, {0, 116, 305, 213}, 244, 206 + offset, true)
     local replay = state.replay_disabled and {293, 504, 277, 25} or {405, 532, 277, 25}
     context.sprite(menu_sheet, replay, 257, 366 + offset, true)
