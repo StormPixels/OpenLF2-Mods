@@ -10,7 +10,7 @@ local navigation = require("base/ui/navigation")
 local constants = require("base/game/constants")
 local virtual_keys = constants.virtual_keys
 local screen = {}
-local frames = {[1] = {0, 41, 434, 80}, [2] = {434, 41, 62, 68}, [3] = {0, 247, 304, 126}, [4] = {0, 376, 363, 123},
+local frames = {[1] = {0, 41, 497, 81}, [2] = {434, 41, 62, 68}, [3] = {0, 247, 304, 126}, [4] = {0, 376, 363, 123},
     [5] = {500, 42, 291, 27}, [6] = {500, 72, 291, 27}, [10] = {460, 203, 334, 108},
     [11] = {460, 313, 334, 108}, [12] = {643, 426, 151, 26}, [13] = {489, 426, 151, 26},
     [14] = {490, 462, 304, 38}}
@@ -100,9 +100,8 @@ function screen.draw(state, context)
     local function sprite(frame, x, y) context.sprite("pe/menu_clip", frames[frame], x, y, true) end
     context.viewport(constants.screen.width, constants.screen.height, 16, 32, 108)
     context.image("pe/menu_back" .. state.background, 0, 0, true)
-    -- The logo without the version in its bottom-right corner.
+    -- The whole logo, with the "ver 2.0a" in its bottom-right corner.
     sprite(1, 0x9b, 0x69)
-    sprite(2, 0x9b + 434, 0x69)
     sprite(3, 0xfd, 0xde)
     sprite(14, 0xfd, 0x14f)
     -- The original writes " Your IP Address: <address>" here on an opaque box, which also hides

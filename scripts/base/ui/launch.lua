@@ -44,10 +44,9 @@ local function sprite(state, sheet, rectangle, x, y, keyed, mirrored, flipped)
     add(state, {"sprite", sheet, rectangle, x, y, keyed, mirrored, flipped})
 end
 local function image(state, path, x, y, keyed) add(state, {"image", path, x, y, keyed}) end
--- The logo without the version in its bottom-right corner.
+-- The whole logo, with the "ver 2.0a" in its bottom-right corner.
 local function logo(state, y)
-    sprite(state, "pe/menu_clip", {0, 41, 434, 80}, 0x9b, y, true)
-    sprite(state, "pe/menu_clip", {434, 41, 62, 68}, 0x9b + 434, y, true)
+    sprite(state, "pe/menu_clip", {0, 41, 497, 81}, 0x9b, y, true)
 end
 -- GDI text (an entry with a fifth field, the variant, is the original's bitmap font instead).
 local function text(state, value, x, y, color, background) add(state, {"text", value, x, y, nil, color, background}) end
