@@ -24,7 +24,10 @@ local computer_phase, computer_team_phase, computer_done = slot_phases.computer_
 -- these only stand when the file is missing or has no such tag.
 local mode_layout = require("base/game/mode_layout")
 local stage_levels = require("base/game/stage_levels")
+local menu_small = require("base/game/menu_small")
 local layout_targets = {}
+-- The options panel as LF2 Darkfiren draws it: the <menu_small> layers of mode4.dat (game/menu_small.lua).
+local small_layers = {}
 -- <misc> of mode4.dat: the music line (position, colours) and the small picture of the chosen background in its frame
 -- (position, frame picture, on or off). 1142 is where the classic menu's music line lands in the wide picture.
 local misc = {music_x = 1142, music_y = 3, music_title = 0x5a77d8, music_hint = 0x223fa0, frame_x = 531, frame_y = 4,
@@ -53,6 +56,8 @@ local function use_layout(state)
 end
 local function pressed(keys, key) return keys:find(key, 1, true) ~= nil end
 local function image(state, path, x, y) state.display[#state.display + 1] = {"image", path, x, y} end
+-- With black as the transparent colour (the options panel rows).
+local function keyed_image(state, path, x, y) state.display[#state.display + 1] = {"image", path, x, y, true} end
 local white, computer_red, option_blue = 0xffffff, 0xff9b9b, 0x9b9bff
 local music_title, music_hint = 0x5a77d8, 0x223fa0
 local count_greyed, count_box = 0x5068c0, 0x2f479f
@@ -113,19 +118,21 @@ function selection.create(options)
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
     end
     -- Option values are globals in the original and keep their values between visits.
-    local options = previous.options or {time_index = 0, cost_index = 0, item_drops = true, allow_transform = true, shuffle = false, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
+    local options = previous.options or {small_row = 1, hide_random = false, time_index = 0, cost_index = 0, item_drops = true, allow_transform = true, shuffle = false, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
         difficulty = 0, music = 0, stage_level = 0}
     -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
     -- that lacks a tag (or is gone) leaves the built-in one.
     reset_layout()
     time_list, time_type = {}, 1
     cost_settings = {kind = 100, pools = {}, groups = {}}
+    small_layers = {}
     if user_options.current().battlefield_layout == user_options.wide_layout then
         local ok, text = pcall(engine.read_resource, "game/mode_file")
         if ok and text then
             mode_layout.apply(text, layout_targets)
             time_type, time_list = mode_layout.time_limits(text)
             cost_settings = mode_layout.cost_settings(text)
+            small_layers = menu_small.parse(text)
         end
     end
     local state = {mode = mode, fighters = catalog.load(), backgrounds = catalog.backgrounds(),
@@ -173,6 +180,8 @@ local function previous_fighter(state, slot) slot.fighter = catalog.step(state.f
 
 local function draw_fighter(state, slot, col, row, color)
     local fighter = state.fighters[slot.fighter]
+    -- The eye of Reset Random (LF2 Darkfiren): a fighter that came from Random stays unseen until the match.
+    if state.options and state.options.hide_random and slot.was_random then fighter = nil end
     image(state, fighter and fighter.portrait or "pe/rface", col + 147, row + 94)
     slot_text(state, fighter and fighter.name or " Random", col, row, color, row + 241)
 end
@@ -715,6 +724,7 @@ end
 local function mode_choose(state, mode)
     if not mode.supported then return false end
     state.options.bg_mode = mode.effects
+    state.options.bg_mode_title = mode.title
     sounds.direct(state, "ok")
     state.mode_grid = nil
     return true
@@ -723,6 +733,7 @@ local function grid_choose(state, row)
     state.options.random_background = row == constants.background_rows.random
     state.options.background = row
     state.options.bg_mode = nil
+    state.options.bg_mode_title = nil
     sounds.direct(state, "ok")
     state.grid = nil
     -- A background of the catalog may have modes to choose from; Random and Lee On Road have none.
@@ -961,8 +972,219 @@ local function stage_popup(state, previous_menu)
     end
 end
 
+-- What attack does on a row of the options menu (the classic panel's rows, then the extra rows).
+-- LF2 Darkfiren's options panel (<menu_small> of mode4.dat, game/menu_small.lua): picture rows stacked from the top
+-- left, the selected one lit by its highlight picture, values written into the boxes the pictures leave.
+local function small_menu_wanted(state)
+    local first = small_layers[1]
+    return state.wide and first ~= nil and first.small ~= nil and grid_has(first.small)
+end
+local function background_has_modes(state)
+    local row = state.options.background
+    if state.options.random_background or row == constants.background_rows.random
+       or row == constants.background_rows.lee_on_road then return false end
+    return #visible_modes(row) > 1
+end
+local small_forced = {[7] = true, [8] = true}
+local function small_rows(state)
+    local stage_mode = state.mode == constants.modes.stage
+    local skip = {[8] = not stage_mode and #time_list == 0, [9] = stage_mode or #cost_settings.pools == 0}
+    return menu_small.rows(small_layers, state.mode, unlock.flags.characters == 1, small_forced, skip), stage_mode,
+        not stage_mode and background_has_modes(state)
+end
+local function small_disabled(number, stage_mode, has_modes)
+    return (number == 7 and (stage_mode or not has_modes)) or (number == 8 and stage_mode)
+end
+
+local function option_action(state, context, row, extras)
+    local options = state.options
+    sounds.direct(state, "ok")
+    if row == option_rows.start then
+        if state.mode == constants.modes.versus then music.play_selected() end
+        -- The flow reads selection.match_options(state) to build the match.
+        context.action("start_match")
+    elseif row == option_rows.difficulty then
+        options.difficulty = options.difficulty - 1
+        local unlocked = require("base/game/unlock").flags.characters
+        if (options.difficulty < constants.difficulties.difficult and unlocked == 0)
+           or options.difficulty < constants.difficulties.crazy then
+            options.difficulty = constants.difficulties.easy
+        end
+    elseif row > option_rows.exit and extras[row - option_rows.exit] then
+        extras[row - option_rows.exit].action()
+    elseif row == option_rows.exit then
+        context.action("title")
+    elseif row == option_rows.reselect then
+        for index = 0, 7 do
+            local slot = state.slots[index]
+            slot.phase = slot_phases.empty
+            slot.latched = true
+            if slot.was_random then slot.fighter = 0 end
+        end
+        state.countdown = idle_countdown
+        state.menu = menus.human_slots
+    elseif row == option_rows.background then
+        if levels_wanted(state) then
+            open_stage_grid(state)
+        elseif state.mode == constants.modes.stage then
+            options.stage_level = (options.stage_level + 10) % 60
+        elseif state.wide then
+            open_grid(state)
+        else
+            options.random_background = false
+            if options.background == constants.background_rows.random then options.background = constants.background_rows.lee_on_road
+            elseif options.background == constants.background_rows.lee_on_road then options.background = 0
+            else
+                options.background = options.background + 1
+                if options.background == #state.backgrounds then
+                    options.background = constants.background_rows.random
+                    options.random_background = true
+                end
+            end
+        end
+    elseif row == option_rows.reroll then
+        for index = 0, 7 do
+            local slot = state.slots[index]
+            if slot.was_random then slot.fighter = pick_fighter(state) end
+        end
+    end
+end
+
+local function small_menu(state, previous_menu, context)
+    local options = state.options
+    options.time_index = math.min(options.time_index or 0, #time_list)
+    options.cost_index = math.min(options.cost_index or 0, #cost_settings.pools)
+    if options.random_background then options.background = constants.background_rows.random end
+    local rows, stage_mode, has_modes = small_rows(state)
+    local cost_on = options.cost_index > 0
+    if stage_mode then options.stage_level = options.stage_level - options.stage_level % 10 end
+    -- The selected row must exist and be usable.
+    local present = false
+    for _, row in ipairs(rows) do
+        if row.layer == options.small_row and not small_disabled(row.layer, stage_mode, has_modes) then present = true end
+    end
+    if not present then options.small_row = 1 end
+    local sub_count = cost_on and 3 or 2
+    options.sub_row = math.min(options.sub_row or 1, sub_count)
+    for _, row in ipairs(rows) do
+        local number, layer = row.layer, small_layers[row.layer]
+        local x, y = layer.x or 3, row.y
+        local selected = options.small_row == number
+        local color = menu_small.colour(layer.hex) or option_blue
+        local base, light = layer.small, layer.head
+        if number == 4 and stage_mode then base, light = layer.smallb or base, layer.smallc or light
+        elseif number == 7 and stage_mode then base, light = layer.smallc or base, nil
+        elseif number == 7 and not has_modes then base, light = layer.smallb or base, nil
+        elseif number == 8 and stage_mode then base, light = layer.smallb or base, nil
+        elseif number == 10 then base, light = (cost_on and layer.head) or layer.smalld or layer.head, nil end
+        if base then keyed_image(state, base, x, y) end
+        if selected and light then keyed_image(state, light, x, y) end
+        if number == 3 and options.hide_random and layer.smallb then keyed_image(state, layer.smallb, layer.dx or 0, layer.dy or 0)
+        elseif number == 4 then
+            if stage_mode then
+                local level = math.floor(options.stage_level / 10)
+                local info = levels_wanted(state) and stage_levels.level(stage_data(), level)
+                text(state, info and info.name or (level < 5 and tostring(level + 1) or "Survival"), layer.next or 107, layer.dy or 91, color)
+            else
+                text(state, background_name(state, options.background), layer.dx or 174, layer.dy or 91, color)
+            end
+        elseif number == 5 then
+            text(state, difficulties[options.difficulty] or "", layer.dx or 174, y + (layer.dy or 4), option_blue)
+        elseif number == 7 and not small_disabled(7, stage_mode, has_modes) then
+            local modes = visible_modes(options.background)
+            text(state, options.bg_mode_title or (modes[1] and modes[1].title) or "", layer.dx or 174, y + (layer.dy or 5), color)
+        elseif number == 8 and not stage_mode then
+            local limit = time_list[options.time_index]
+            text(state, limit and string.format("%d:%02d", math.floor(limit / 60), limit % 60) or "Off", layer.dx or 174, y + (layer.dy or 5), color)
+        elseif number == 9 then
+            if cost_on then
+                if layer.smallb then keyed_image(state, layer.smallb, layer.dvx or 108, y + (layer.dvy or 8)) end
+                text(state, tostring(cost_settings.pools[options.cost_index]), layer.dx or 188, y + (layer.dy or 8), color)
+                if options.shuffle and layer.smallb then keyed_image(state, layer.smallb, layer.next or 276, y + (layer.dvy or 8)) end
+            end
+        elseif number == 10 then
+            local mark = layer.smallp
+            if mark then
+                local top = y + (layer.dy or 8)
+                if options.item_drops ~= false then keyed_image(state, mark, layer.dx or 65, top) end
+                if options.allow_transform ~= false then keyed_image(state, mark, layer.dvx or 151, top) end
+                if cost_on and options.shuffle then keyed_image(state, mark, layer.next or 276, top) end
+            end
+            if selected then
+                local focus = ({layer.small, layer.smallb, layer.smallc})[options.sub_row]
+                if focus then keyed_image(state, focus, x, y) end
+            end
+        elseif number == 11 then
+            text(state, options.tu1 and "1tu" or "2tu", layer.dx or 271, layer.fy or 17, option_blue)
+        end
+    end
+    if state.grid then return grid_popup(state, previous_menu) end
+    if state.mode_grid then return mode_popup(state, previous_menu) end
+    if state.stage_grid then return stage_popup(state, previous_menu) end
+
+    local keys = {}
+    local accept = previous_menu == menus.options
+    for index = 0, 7 do
+        local slot = state.slots[index]
+        if slot.ready then
+            local held = state.held[index] or ""
+            local key
+            for _, candidate in ipairs({"u", "d", "r", "l", "c", "b"}) do
+                if pressed(held, candidate) then key = candidate; break end
+            end
+            if key then keys[key] = trigger(slot, accept) or keys[key]
+            else slot.latched = false end
+        end
+    end
+    local function move(step)
+        local position
+        for index, row in ipairs(rows) do if row.layer == options.small_row then position = index end end
+        position = position or 1
+        for _ = 1, #rows do
+            position = (position - 1 + step) % #rows + 1
+            local layer = rows[position].layer
+            if not small_disabled(layer, stage_mode, has_modes) then options.small_row = layer; return end
+        end
+    end
+    if keys.u then move(-1) end
+    if keys.d then move(1) end
+    music_option(state, keys.l, keys.r)
+    local number = options.small_row
+    if keys.b then
+        if number == 3 then options.hide_random = not options.hide_random; sounds.direct(state, "ok")
+        elseif number == 9 and cost_on then options.shuffle = not options.shuffle; sounds.direct(state, "ok")
+        elseif number == 10 then options.sub_row = options.sub_row % sub_count + 1; sounds.direct(state, "ok") end
+    end
+    if not keys.c then return end
+    if number == 1 then option_action(state, context, option_rows.start, {})
+    elseif number == 2 then option_action(state, context, option_rows.reselect, {})
+    elseif number == 3 then option_action(state, context, option_rows.reroll, {})
+    elseif number == 4 then option_action(state, context, option_rows.background, {})
+    elseif number == 5 then option_action(state, context, option_rows.difficulty, {})
+    elseif number == 12 then option_action(state, context, option_rows.exit, {})
+    elseif number == 7 and has_modes then
+        sounds.direct(state, "ok")
+        open_mode_grid(state, options.background, visible_modes(options.background))
+    elseif number == 8 and not stage_mode then
+        sounds.direct(state, "ok")
+        options.time_index = (options.time_index + 1) % (#time_list + 1)
+    elseif number == 9 then
+        sounds.direct(state, "ok")
+        options.cost_index = (options.cost_index + 1) % (#cost_settings.pools + 1)
+    elseif number == 10 then
+        sounds.direct(state, "ok")
+        if options.sub_row == 1 then options.item_drops = options.item_drops == false
+        elseif options.sub_row == 2 then options.allow_transform = options.allow_transform == false
+        elseif cost_on then options.shuffle = not options.shuffle end
+    elseif number == 11 then
+        sounds.direct(state, "ok")
+        options.tu1 = not options.tu1
+    end
+end
+
 local function options_menu(state, previous_menu, context)
     local options = state.options
+    if small_menu_wanted(state) then return small_menu(state, previous_menu, context) end
     sprite(state, options_sheet, {348, 0, 304, 156}, 3, 3, false)
     sprite(state, options_sheet, {348, 156, 304, 10}, 3, 159, true)
     -- The extra rows under the options panel (LF2 Darkfiren's <menu_small> layers 8 to 10): time limit, cost pool, item
@@ -1052,56 +1274,7 @@ local function options_menu(state, previous_menu, context)
     if keys.d then options.row = (options.row + 1) % (last_row + 1) end
     music_option(state, keys.l, keys.r)
     if not keys.c then return end
-    sounds.direct(state, "ok")
-    if options.row == option_rows.start then
-        if state.mode == constants.modes.versus then music.play_selected() end
-        -- The flow reads selection.match_options(state) to build the match.
-        context.action("start_match")
-    elseif options.row == option_rows.difficulty then
-        options.difficulty = options.difficulty - 1
-        local unlocked = require("base/game/unlock").flags.characters
-        if (options.difficulty < constants.difficulties.difficult and unlocked == 0)
-           or options.difficulty < constants.difficulties.crazy then
-            options.difficulty = constants.difficulties.easy
-        end
-    elseif options.row > option_rows.exit and extras[options.row - option_rows.exit] then
-        extras[options.row - option_rows.exit].action()
-    elseif options.row == option_rows.exit then
-        context.action("title")
-    elseif options.row == option_rows.reselect then
-        for index = 0, 7 do
-            local slot = state.slots[index]
-            slot.phase = slot_phases.empty
-            slot.latched = true
-            if slot.was_random then slot.fighter = 0 end
-        end
-        state.countdown = idle_countdown
-        state.menu = menus.human_slots
-    elseif options.row == option_rows.background then
-        if levels_wanted(state) then
-            open_stage_grid(state)
-        elseif state.mode == constants.modes.stage then
-            options.stage_level = (options.stage_level + 10) % 60
-        elseif state.wide then
-            open_grid(state)
-        else
-            options.random_background = false
-            if options.background == constants.background_rows.random then options.background = constants.background_rows.lee_on_road
-            elseif options.background == constants.background_rows.lee_on_road then options.background = 0
-            else
-                options.background = options.background + 1
-                if options.background == #state.backgrounds then
-                    options.background = constants.background_rows.random
-                    options.random_background = true
-                end
-            end
-        end
-    elseif options.row == option_rows.reroll then
-        for index = 0, 7 do
-            local slot = state.slots[index]
-            if slot.was_random then slot.fighter = pick_fighter(state) end
-        end
-    end
+    option_action(state, context, options.row, extras)
 end
 
 function selection.reset_all(state)
@@ -1195,7 +1368,7 @@ local function roster_pass(state, held)
     local owners = {}
     for index = 0, 7 do
         local slot = state.slots[index]
-        if slot.phase >= slot_phases.choosing_fighter then
+        if slot.phase >= slot_phases.choosing_fighter and not (state.options.hide_random and slot.was_random) then
             local computer = slot.phase >= computer_phase
             owners[slot.fighter] = {computer = computer, label = computer and "COM" or ("P" .. (index + 1)),
                 color = computer and computer_red or white, gray = computer and 160 or 255}
@@ -1273,7 +1446,7 @@ end
 function selection.draw(state, context)
     context.viewport(state.wide and constants.screen.wide_width or constants.screen.width, constants.screen.height, 0, 0, 0)
     for _, command in ipairs(state.display) do
-        if command[1] == "image" then context.image(command[2], command[3], command[4], false)
+        if command[1] == "image" then context.image(command[2], command[3], command[4], command[5] == true)
         elseif command[1] == "sprite" then
             context.sprite(command[2], command[3], command[4], command[5], command[6])
         elseif command[1] == "text" then font.gdi(context, command[2], command[3], command[4], command[5], command[6], command[7])

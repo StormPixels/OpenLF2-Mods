@@ -27,6 +27,8 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren More options (`<menu_small>` layers 8 to 10) in the wide options menu, under Time limit and Cost pool: **Item drops** (off: no random weapon drops, no F8 fill), **Transform** (off: Louis stays Louis at state 9995) and **Respawn shuffle** (with a cost pool: a fighter chosen with Random comes back as another id of the `<cost>` `random:` list, not its own and, if possible, not one a living fighter has). A match with any of them changed is not recorded and not played over the network. **TU mode** (every mode of the wide layout): 2tu (default) reads the keys every second time unit like the original, 1tu every one, for smoother input; a 1tu match is not recorded and not played over the network
 
+- LF2 Darkfiren's options panel (`<menu_small>` of mode4.dat) in the wide menu, with its own pictures: rows `b1` to `b12` stacked from (3,3), the selected one lit by `n1` to `n12`, values written into the boxes (background, difficulty, bg mode, time limit, cost pool and its check marks, TU mode). Layers follow their `hidden` (1 to 3 need the cheat code, 4 never) and `mode:` tags; Bg Mode and Time Limit show their disabled pictures where they do not apply. Reset Random: jump closes the eye and hides what Random gave until the match. The cost row: attack changes the pool, jump turns Respawn shuffle on or off. The More options row (layer 10: drop, transform, shuffle) shows when its `hidden` is 0. Without the pictures the classic panel stays
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
