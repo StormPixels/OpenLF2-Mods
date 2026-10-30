@@ -1,4 +1,4 @@
-<p align="center"><img src="dist/io.github.openlf2.OpenLF2.svg" alt="OpenLF2 logo" width="128" height="128"></p>
+<p align="center"><img src="dist/Android/icons/mipmap-xxxhdpi/ic_launcher.png" alt="OpenLF2 logo" width="128" height="128"></p>
 
 # OpenLF2
 
