@@ -1,4 +1,4 @@
-# AI 3 — interaksi pertempuran (putaran 1, sebagian)
+# AI 3 — interaksi pertempuran (putaran 1-3: P1 lengkap kecuali batas suara; P2 butir 5 selesai)
 
 BASE_ID: base-20261103-1-80a34ae. Rujukan: DOCX Darkfiren bagian 1, 4, 16.2.
 
@@ -10,8 +10,22 @@ BASE_ID: base-20261103-1-80a34ae. Rujukan: DOCX Darkfiren bagian 1, 4, 16.2.
 - itr (§4): `dvz`, `drain`, `gain` (17xxx = heal HP), `recover` 1/2/3, `dbdefend` 1-4, `spark` (-1 dan indeks).
   Semua di `fx_itr.lua`; tanpa tag = perilaku lama.
 
+- itr kind 17 (whirlwind khusus t0) dan 18 (whirlwind khusus t1/t2/t4/t6) lewat `eligible`; kind 14 dengan `respond` 1-7
+  hanya memblok objek bertipe respond-1.
+- bdy (§5, `docs/txt/readme/frame/bdy.txt`): `zwidth`; kind 1xxx (dengan guncangan) dan 2xxx (tanpa) untuk semua tipe objek,
+  `respond` = tim (0 = tim 1, -1 = tim penyerang, lainnya = tim itu); kind 50/51/52 (tanpa luka+jatuh / tanpa luka / tanpa jatuh);
+  kind 53/54/55 (hanya tim sama / hanya pemilik sama / tim dan musuh); `1xxyyyzzzw` (peluang %, frame target, frame penyerang, efek 0-7);
+  `respond` bdy senjata = frame pemungut (bawaan 115/116). Benturan mencatat bdy yang kena di `hit_list_body`.
+- opoint (§6): `hp`, `team` (kind 1 dan 2), `z`, `mp`, `dvz`, `effect` (waktu kebal), kind 1 saja; `centerx/y/z` dan `framea` acak;
+  `reserve` (t0/t5), `attacking`, `pic:1`; kind pegangan 3, 5, 6, 7 (selain kind 2 lama).
+- wpoint `cover` 2: sumbu z sama dengan pemegang.
+- Efek status itr (§4, DOCX 20.2; hanya itr kind 0 dan 9; `fx_status.lua`): `poison`, `manacle`, `delay`, `confus`, `weak`, `join`, `mimic`,
+  `bound`, `facing`. Status disimpan di `value.fx.status`; `fx_status.active(value, nama)` dipakai kode kontrol/MP.
+  Yang dikerjakan langsung di sini: damage racun, pertukaran tim `join`, dan damage separuh `weak`.
+- Kontrak I7: semua field runtime baru AI 3 ada di `value.fx` (`hit_body`, `status`, `reserve`, `attacking`, `skin_owner`).
+
 ## Belum dikerjakan
-kind 17/18/14+respond, bdy baru (§5), titik lain selain opoint ganda (§6), seluruh P2 dan P3.
+P2 butir 6-8 (armor, stats/weapon_piece/weapon_strength_list, state t3) dan P3 (platform, cpoint/ppoint/bpoint diperluas).
 Batas 20 suara bersamaan ada di `sounds.lua` (milik AI 5): lihat Permintaan perubahan di REPORT.
 
 ## Keputusan atas [BELUM PASTI] (semua nilai ada di `fx_itr.lua`, mudah diubah)
@@ -28,3 +42,25 @@ Batas 20 suara bersamaan ada di `sounds.lua` (milik AI 5): lihat Permintaan peru
 | `dbdefend` 1 | bisa ditangkis dari dua sisi: syarat arah hadap berbeda diabaikan | dokumen |
 | `spark` | -1 = tanpa spark; selain itu `spark_id` (nilai mentah) disimpan di catatan spark untuk AI 4 | kontrak: indeks disimpan, AI 4 menggambar |
 | `601-699` vs `601-603` | belum disentuh (P2) | |
+| kind 17 / 18 | semua aturan kind 10 (whirlwind) berlaku; hanya jenis korban yang disaring | dokumen: "sama seperti kind 10 tapi hanya t0 / t1,t2,t4,t6" |
+| kind 14 respond N | blok hanya objek bertipe N-1 | dokumen: "respond 1 = t0 saja ... 7 = t6 saja" |
+| bdy `zwidth` | jendela kedalaman = yang lebih besar antara zwidth itr dan bdy | dokumen hanya bilang "dukung zwidth" |
+| bdy 1xxx / 2xxx | pindah ke frame xxx, tim lewat `respond`, tanpa damage dan tanpa spark; berlaku di semua tipe objek. Di stage mode bdy >= 1000 tetap dilindungi aturan lama | dokumen; perlakuan di stage mode tebakan |
+| bdy 50 / 51 / 52 | damage tetap dihitung, tetapi frame luka (51), jatuh (52), atau keduanya (50) dibatalkan: frame, `timer_b0`, `impulse_y` dikembalikan | dokumen: "kena damage tapi tidak masuk frame jatuh/DOP" |
+| bdy 53 / 54 / 55 | 53 hanya tim sama, 54 hanya `owner` sama, 55 tanpa batas (tim dan musuh). Dokumen mencantumkan "kind 53" dua kali; yang kedua dianggap 55 | salah ketik di dokumen |
+| bdy `1xxyyyzzzw` | digit: `1 XX YYY ZZZ W`; peluang XX% (0 = 100%), target ke frame YYY, penyerang ke ZZZ (0 = tidak pindah); W 0-3 tanpa guncangan, 4-7 dengan; bit 1 = ambil tim penyerang, bit 2 = damage `itr.injury`. Bila peluang gagal, benturan biasa terjadi | dokumen; "0 = tidak pindah" dan benturan biasa saat gagal tebakan |
+| bdy `respond` senjata | frame pemungut = respond bila > 0, setelah `pick_up` (tidak untuk kind 7) | dokumen |
+| opoint `dvz` | ditambahkan ke kecepatan z dari tombol atas/bawah | dokumen hanya bilang "dukung dvz" |
+| opoint `z` | ditambahkan ke z pencipta (negatif naik, positif turun) | dokumen |
+| opoint `centerx/y/z` | geser acak seragam -N..+N lewat `engine.random` | dokumen: "tambah keacakan posisi" |
+| opoint `framea` | frame = action + acak 0..N | dokumen: "keacakan untuk action" |
+| opoint `reserve`, `attacking`, `pic:1` | hanya disimpan: `value.reserve` (t0/t5), `value.attacking`, `value.skin_owner` = slot pencipta; pemakainya (nyawa cadangan, lempar dengan A, skin) ada di berkas lain | maknanya tidak cukup jelas untuk diterapkan di sini |
+| wpoint `cover` 2 | z dan y senjata sama dengan pemegang (0 = depan, 1 = belakang seperti semula) | `leaf stuff.txt`: "same z axis as holder" |
+| `poison` xyyyzzww | X jenis 0-5 (0 HP biasa, 1 HP tak di bawah 1, 2/3 persen HP sekarang, 4/5 persen HP maksimum; genap bisa membunuh, ganjil tidak), YYY durasi dalam frame, ZZ damage, WW peluang (0 = pasti); satu tick tiap 60 frame | contoh 13005075 dan "50 HP per 2 detik"; 60 frame = 2 detik pada 30 fps |
+| `manacle/delay/confus/weak/join/mimic/bound/facing` xxyyy | XX peluang % (0 = pasti), YYY durasi dalam frame (300 = 10 detik). Contoh di dokumen (bound 90240 = 40%?) bertentangan dengan penjelasannya: dipakai XX = dua digit pertama | DOCX 20.2 mencatat sendiri ketidakcocokan itu |
+| efek ditangkis | tidak ada efek status bila hit ditangkis | tebakan |
+| pemberian ulang | durasi diperpanjang bila lebih lama, tidak dipersingkat | tebakan |
+| `weak` | damage serangan sendiri karakter (t0) dibagi dua (pembulatan ke bawah); serangan objek opoint tetap normal. Regen HP/MP melambat: dikerjakan kode regen lewat `fx_status.active` (belum disambung) | dokumen |
+| `join` | korban pindah ke tim penyerang selama durasi lalu kembali; dengan `effect: 364` tetap di tim penyerang. Hanya t0 | dokumen |
+| `mimic` | hanya bila penyerang t0 dan korban t0; peniruan gerakan dikerjakan kode kontrol lewat `active` (belum disambung) | dokumen |
+| `manacle`, `delay`, `confus`, `bound`, `facing` | hanya status dan timernya; pemakainya (kontrol, MP) adalah berkas lain | di luar lingkup berkas AI 3 |

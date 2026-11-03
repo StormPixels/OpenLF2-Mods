@@ -49,6 +49,8 @@ local bg_modes = require("base/game/bg_modes")
 local merge = require("base/game/merge")
 local rumble = require("base/game/rumble")
 local fx_itr = require("base/game/fx_itr")
+local fx_body = require("base/game/fx_body")
+local fx_status = require("base/game/fx_status")
 local combat = {}
 
 local function cdiv(a, b)
@@ -114,10 +116,15 @@ end
 
 local function recent_state(value) return value.record.frame(value.state_frame).state end
 
-local function eligible(state, a_entry, b_entry, itr)
+local function eligible(state, a_entry, b_entry, itr, force_friendly)
     local attacker, defender = a_entry.value, b_entry.value
     local attack_kind = itr.kind
     if itr.dbdefend and not fx_itr.dbdefend_allows(attacker, defender, itr.dbdefend) then return false end
+    if attack_kind == 17 or attack_kind == 18 then
+        if not fx_itr.whirl_matches(attack_kind, defender.record.kind) then return false end
+        attack_kind = fx_itr.base_kind(attack_kind)
+    end
+    if attack_kind == attack_kinds.obstacle and not fx_itr.obstacle_matches(itr.respond, defender.record.kind) then return false end
     if attack_kind > attack_kinds.freezing_whirlwind or attack_kind == attack_kinds.ignored_12 or attack_kind == attack_kinds.ignored_13 then return false end
     if breakable[attacker.record.id] and defender.record.id == object_freeze_ball and attack_kind ~= attack_kinds.reflect_ball then return false end
     local defender_kind = defender.record.kind
@@ -136,7 +143,7 @@ local function eligible(state, a_entry, b_entry, itr)
     if defender.blink ~= 0 and attack_kind ~= attack_kinds.heal and attack_kind ~= attack_kinds.obstacle then return false end
     -- Frozen or caught victims can be hit by their own team; so can a ball met head-on.
     local defender_state = b_entry.frame.state
-    local friendly_fire = bg_modes.friendly_fire(state.bg_mode) or fx_itr.friendly(itr)
+    local friendly_fire = bg_modes.friendly_fire(state.bg_mode) or fx_itr.friendly(itr) or force_friendly
     local team_rule = attack_kind <= attack_kinds.catch or attack_kind == attack_kinds.super_window
         or (attack_kind == attack_kinds.reflect_ball and defender_kind == record_kinds.character)
         or attack_kind == attack_kinds.whirlwind or attack_kind == attack_kinds.conditional_whirlwind
@@ -170,16 +177,24 @@ local function record_targets(state, a_entry, b_entry)
     local attacker, defender = a_entry.value, b_entry.value
     local a_frame, b_frame = a_entry.frame, b_entry.frame
     for itr_index, itr in ipairs(a_frame.interactions) do
-        if eligible(state, a_entry, b_entry, itr) then
+        -- bdy 53/54/55 lift the team immunity for their own bodies only (`team_pass`).
+        local allowed = eligible(state, a_entry, b_entry, itr)
+        local team_pass = false
+        if not allowed and fx_body.has_team_body(b_frame.bodies) then
+            allowed = eligible(state, a_entry, b_entry, itr, true)
+            team_pass = allowed
+        end
+        if allowed then
             local window = itr.zwidth ~= 0 and itr.zwidth or combat_default_zwidth
             local depth = attacker.z_int - defender.z_int
             local attack_box = box(a_entry, itr)
             for _, body in ipairs(b_frame.bodies) do
                 local body_box = box(b_entry, body)
-                if collision.overlaps(body_box, attack_box) and depth < window and depth > -window then
+                if collision.overlaps(body_box, attack_box) and fx_body.depth_ok(depth, window, body)
+                   and (fx_body.team_body(body) and fx_body.allows(attacker, defender, body) or not team_pass and not fx_body.team_body(body)) then
                     -- Weak attacks do not touch a falling victim.
                     local skip = b_frame.state == state_falling and itr.fall < 41
-                        and itr.kind ~= attack_kinds.whirlwind and itr.kind ~= attack_kinds.conditional_whirlwind
+                        and fx_itr.base_kind(itr.kind) ~= attack_kinds.whirlwind and itr.kind ~= attack_kinds.conditional_whirlwind
                     if state.mode == constants.modes.stage and body.kind >= body_kind_frame_base then
                         local record = attacker.record
                         local protected = (record.kind == record_kinds.character or record.id == object_henry_arrow or record.id == object_rudolf_weapon)
@@ -196,7 +211,7 @@ local function record_targets(state, a_entry, b_entry)
                     if itr.vrest ~= 0 or itr.kind == attack_kinds.catch_nearest or itr.kind == attack_kinds.pick_up or itr.kind == attack_kinds.rolling_pickup or lying_weapon or skip then
                         if attacker.hit_list_count < combat_max_hit_list_entries and not skip then
                             local result = hit_result_not_listed
-                            if lying_weapon and itr.kind ~= attack_kinds.pick_up and itr.kind ~= attack_kinds.rolling_pickup and itr.kind ~= attack_kinds.whirlwind then result = hit_result_skip end
+                            if lying_weapon and itr.kind ~= attack_kinds.pick_up and itr.kind ~= attack_kinds.rolling_pickup and fx_itr.base_kind(itr.kind) ~= attack_kinds.whirlwind then result = hit_result_skip end
                             local defender_state = b_frame.state
                             local fresh_attack = attacker.keys.attack and not attacker.previous_keys.attack
                             if itr.kind == attack_kinds.catch_nearest then
@@ -232,6 +247,7 @@ local function record_targets(state, a_entry, b_entry)
                                 attacker.hit_list_count = attacker.hit_list_count + 1
                                 attacker.hit_list[attacker.hit_list_count] = b
                                 attacker.hit_list_itr[attacker.hit_list_count] = itr_index
+                                if attacker.fx then attacker.fx.hit_body[attacker.hit_list_count] = body end
                             end
                         end
                     else
@@ -245,6 +261,7 @@ local function record_targets(state, a_entry, b_entry)
                             attacker.nearest = distance
                             attacker.hit_list[1] = b
                             attacker.hit_list_itr[1] = itr_index
+                            if attacker.fx then attacker.fx.hit_body[1] = body end
                             attacker.hit_list_count = 1
                         end
                     end
@@ -469,7 +486,7 @@ local function ball_struck(state, p, attacker, victim, itr)
     if lagged.hit_lag > 0 then lagged.hit_lag = -lagged.hit_lag end
 end
 
-local function plain_hit(state, p, v, attacker, victim, itr)
+local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
     local victim_frame = victim.record.frame(victim.frame_at_pass)
     local victim_kind = victim.record.kind
     local spark_kind = 0
@@ -484,8 +501,31 @@ local function plain_hit(state, p, v, attacker, victim, itr)
         end
         return "stop"
     end
+    -- LF2 Darkfiren bdy kind 1xxx / 2xxx (any object) and 1xxyyyzzzw (chance, frames, extra effect).
+    local frame_hit = fx_body.frame_hit(hit_body)
+    if frame_hit then
+        victim.team = fx_body.team_of(hit_body.respond, attacker)
+        victim.frame = frame_hit.frame
+        if frame_hit.shake then attacker.hit_lag = 3 victim.hit_lag = -3 end
+        return "skip"
+    end
+    local complex = fx_body.complex(hit_body)
+    if complex and (complex.chance == 0 or engine.random(100) < complex.chance) then
+        if complex.take_team then victim.team = attacker.team end
+        if complex.damage then
+            local applied = dealt(state, itr.injury)
+            victim.hp = victim.hp - applied
+            victim.dark_hp = victim.dark_hp + cdiv(applied, -damage_dark_hp_divisor)
+            victim.hp_spent = victim.hp_spent + applied
+            battle.count_damage(state, victim, itr.injury)
+        end
+        if complex.target_frame ~= 0 then victim.frame = complex.target_frame end
+        if complex.attacker_frame ~= 0 then attacker.frame = complex.attacker_frame end
+        if complex.shake then attacker.hit_lag = 3 victim.hit_lag = -3 end
+        return "skip"
+    end
     if victim_kind ~= record_kinds.drink then
-        local damage = itr.injury
+        local damage = fx_status.weak_damage(attacker, itr.injury)
         if victim.armor > 0 then damage = cdiv(damage * 100, victim.armor) end
         local counted = victim_kind == record_kinds.character and victim.follow == -1
         local applied = dealt(state, damage)
@@ -1017,6 +1057,8 @@ function combat.apply(state, p)
         if victim and (victim.pair_rest[p] or 0) <= 0 then
             if attacker.hit_this_frame and victim.record.kind == record_kinds.character then return end
             local itr = frame.interactions[itr_index]
+            if itr.kind == 17 or itr.kind == 18 then itr = copy_itr(itr) itr.kind = attack_kinds.whirlwind end
+            local hit_body = attacker.fx and attacker.fx.hit_body[position]
             -- A caught victim is protected unless its catcher's frame is hurtable.
             local catcher = objects.lookup(state, victim.caught_by)
             local protected = victim.record.frame(victim.frame_at_pass).cpoint.kind == cpoint_kinds.caught and catcher ~= nil
@@ -1065,6 +1107,10 @@ function combat.apply(state, p)
                 -- Skipped: protected caught victim.
             elseif itr.kind == attack_kinds.pick_up then
                 pick_up(attacker, victim, v, p)
+                -- bdy respond of a weapon: frame the picker goes to (default 115 light / 116 heavy).
+                if hit_body and hit_body.respond and hit_body.respond > 0 and (victim.record.kind == record_kinds.light_item or victim.record.kind == record_kinds.heavy_item) then
+                    attacker.frame = hit_body.respond
+                end
             elseif itr.kind == attack_kinds.rolling_pickup then
                 if attacker.weapon == weapon_none then grab_weapon(attacker, victim, v, p) end
             elseif itr.kind == attack_kinds.catch_nearest or itr.kind == attack_kinds.catch then
@@ -1116,12 +1162,16 @@ function combat.apply(state, p)
                         defended_hit(state, p, attacker, victim, itr)
                         rumble.queue(state, v, 40) -- lighter feedback for a blocked hit
                     else
-                        spark_kind = plain_hit(state, p, v, attacker, victim, itr)
+                        local before_frame, before_b0, before_vy = victim.frame, victim.timer_b0, victim.impulse_y
+                        spark_kind = plain_hit(state, p, v, attacker, victim, itr, hit_body)
+                        fx_body.keep_pose(hit_body, victim, before_frame, before_b0, before_vy)
                         if victim.record.kind == record_kinds.character then rumble.queue(state, v, 100) end
                     end
                     if spark_kind == "stop" then return end
-                    fx_itr.after_hit(attacker, victim, itr, defended)
-                    if itr.spark ~= -1 then record_spark(state, p, v, attacker, victim, itr, spark_kind) end
+                    if spark_kind ~= "skip" then
+                        fx_itr.after_hit(attacker, victim, itr, defended)
+                        if itr.spark ~= -1 then record_spark(state, p, v, attacker, victim, itr, spark_kind) end
+                    end
                 end
             end
         end
@@ -1144,6 +1194,7 @@ function combat.apply_impulses(state)
 end
 
 function combat.reset_lists(state)
+    fx_status.update(state, item_slots)
     for index = 0, item_slots - 1 do
         local value = state.items[index]
         if value then

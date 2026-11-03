@@ -111,10 +111,10 @@ function weapons.carry(state)
                 if point.cover == 0 then
                     value.z_int = value.z_int + 1
                     value.y_int = value.y_int - 1
-                else
+                elseif point.cover ~= 2 then
                     value.z_int = value.z_int - 1
                     value.y_int = value.y_int + 1
-                end
+                end -- cover 2 (Darkfiren): same z axis as the holder
                 value.z, value.x, value.y = value.z_int, value.x_int, value.y_int
                 local holder_state = holder.record.frame(holder.frame).state
                 if holder_state == constants.frame_states.falling

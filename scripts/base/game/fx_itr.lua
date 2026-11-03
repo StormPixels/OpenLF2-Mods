@@ -4,6 +4,7 @@
 -- LF2 Darkfiren itr extras (feature list section 4): dvz, drain, gain, recover, dbdefend, spark.
 -- Every function is nil-safe: an itr without these tags behaves exactly like an original LF2 itr.
 local constants = require("base/game/constants")
+local fx_status = require("base/game/fx_status")
 local fx = {}
 
 -- UNCERTAIN (documented in docs/darkfiren/ai3_interactions.md): the exact number formats are not
@@ -22,6 +23,22 @@ end
 function fx.dbdefend_allows(attacker, defender, mode)
     if mode == 2 then return attacker.team == defender.team end
     if mode == 3 then return attacker.owner == defender.owner end
+    return true
+end
+
+-- itr kind 17 = whirlwind (10) for t0 (characters) only; 18 = whirlwind for t1, t2, t4 and t6 only.
+function fx.base_kind(kind)
+    if kind == 17 or kind == 18 then return 10 end
+    return kind
+end
+function fx.whirl_matches(kind, defender_kind)
+    if kind == 17 then return defender_kind == 0 end
+    if kind == 18 then return defender_kind == 1 or defender_kind == 2 or defender_kind == 4 or defender_kind == 6 end
+    return true
+end
+-- itr kind 14 with respond 1-7 blocks only objects of type respond-1 (t0..t6).
+function fx.obstacle_matches(respond, defender_kind)
+    if respond and respond >= 1 and respond <= 7 then return defender_kind == respond - 1 end
     return true
 end
 
@@ -49,5 +66,6 @@ function fx.after_hit(attacker, victim, itr, defended)
     if recover == 1 or recover == 3 then attacker.hit_lag = 0 end
     if recover == 2 or recover == 3 then victim.hit_lag = 0 end
     if itr.dvz and itr.dvz ~= 0 and not defended then victim.impulse_z = victim.impulse_z + itr.dvz end
+    fx_status.apply(attacker, victim, itr, defended, engine.random)
 end
 return fx

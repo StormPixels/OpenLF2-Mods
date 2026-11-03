@@ -53,7 +53,7 @@ function item.create(record)
         blocked_up = false, blocked_down = false, blocked_left = false, blocked_right = false,
         keys = {}, previous_keys = {},
         impulse_x = 0.1, impulse_y = 0.1, impulse_z = 0.1, hit_count = 0, pair_rest = engine.new_array(item_slots),
-        hit_list = {}, hit_list_itr = {}, hit_list_count = 0, nearest = nobody_near, nearest_catcher = nobody_near,
+        hit_list = {}, hit_list_itr = {}, fx = {hit_body = {}}, hit_list_count = 0, nearest = nobody_near, nearest_catcher = nobody_near,
         frame_at_pass = 0, state_frame = 0, sparks = {}, hit_this_frame = false,
         kills = 0, damage_dealt = 0, pickings = 0,
         order_x = no_order, order_z = no_order, follow_order = 0, last_target = -1,

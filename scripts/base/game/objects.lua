@@ -17,6 +17,7 @@ local state_rebound_ball = constants.frame_states.rebound_ball
 local state_thrown_item = constants.frame_states.thrown_item
 local item_slots = constants.item_slots
 local fx_constants = require("base/game/fx_constants")
+local fx_point = require("base/game/fx_point")
 local object_bat_ball = constants.object_ids.bat_ball
 local object_bat_chase = constants.object_ids.bat_chase
 local object_broken_weapon = constants.object_ids.broken_weapon
@@ -215,12 +216,14 @@ local function spawn_point(state, index, parent, frame, point)
         if record.id == fighter_rudolf or record.id == fighter_julian then
             value.hp, value.max_hp, value.dark_hp, value.mp = 10, 10, 10, 5
         end
+        fx_point.extend(index, parent, value, record, point, engine.random)
         value.x_int, value.y_int, value.z_int = trunc(value.x), trunc(value.y), trunc(value.z)
-        if point.kind == opoint_kind_held_spawn then
-            -- The spawner holds the new object like a light weapon.
-            parent.weapon, value.weapon = record_kinds.light_item, -record_kinds.light_item
+        local held = fx_point.held_code(point.kind)
+        if held then
+            -- The spawner holds the new object like a weapon (kind 2 light, 3 heavy, 5/6/7 like t4/t5/t6).
+            parent.weapon, value.weapon = held, -held
             parent.held_item, value.holder = slot, index
-            value.team = parent.team
+            if point.team == nil then value.team = parent.team end
         end
     end
     local created = #spawned

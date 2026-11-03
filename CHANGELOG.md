@@ -157,3 +157,6 @@ All notable changes to this project are documented in this file.
 ## [0.9.0] - 2026-09-28
 
 - Initial release
+- LF2 Darkfiren: itr kinds 17 and 18, kind 14 respond 1-7; bdy zwidth, kinds 1xxx/2xxx/50-55 and 1xxyyyzzzw, weapon pickup respond.
+- LF2 Darkfiren: opoint hp/team/z/mp/dvz/effect/centerx/centery/centerz/framea/reserve/attacking/pic, holding kinds 3/5/6/7 and wpoint cover 2.
+- LF2 Darkfiren: itr status effects poison, manacle, delay, confus, weak, join, mimic, bound and facing (kind 0 and 9 only).
