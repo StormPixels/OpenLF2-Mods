@@ -48,6 +48,7 @@ local battle = require("base/game/battle")
 local bg_modes = require("base/game/bg_modes")
 local merge = require("base/game/merge")
 local rumble = require("base/game/rumble")
+local fx_itr = require("base/game/fx_itr")
 local combat = {}
 
 local function cdiv(a, b)
@@ -116,6 +117,7 @@ local function recent_state(value) return value.record.frame(value.state_frame).
 local function eligible(state, a_entry, b_entry, itr)
     local attacker, defender = a_entry.value, b_entry.value
     local attack_kind = itr.kind
+    if itr.dbdefend and not fx_itr.dbdefend_allows(attacker, defender, itr.dbdefend) then return false end
     if attack_kind > attack_kinds.freezing_whirlwind or attack_kind == attack_kinds.ignored_12 or attack_kind == attack_kinds.ignored_13 then return false end
     if breakable[attacker.record.id] and defender.record.id == object_freeze_ball and attack_kind ~= attack_kinds.reflect_ball then return false end
     local defender_kind = defender.record.kind
@@ -134,7 +136,7 @@ local function eligible(state, a_entry, b_entry, itr)
     if defender.blink ~= 0 and attack_kind ~= attack_kinds.heal and attack_kind ~= attack_kinds.obstacle then return false end
     -- Frozen or caught victims can be hit by their own team; so can a ball met head-on.
     local defender_state = b_entry.frame.state
-    local friendly_fire = bg_modes.friendly_fire(state.bg_mode)
+    local friendly_fire = bg_modes.friendly_fire(state.bg_mode) or fx_itr.friendly(itr)
     local team_rule = attack_kind <= attack_kinds.catch or attack_kind == attack_kinds.super_window
         or (attack_kind == attack_kinds.reflect_ball and defender_kind == record_kinds.character)
         or attack_kind == attack_kinds.whirlwind or attack_kind == attack_kinds.conditional_whirlwind
@@ -413,7 +415,8 @@ local function record_spark(state, p, v, attacker, victim, itr, spark_kind)
     elseif victim.y_int < spark then spark = cdiv(spark + victim.y_int, 2) end
     local y = engine.crt_random() % constants.hit_sparks.position_range + attacker.z_int - constants.hit_sparks.position_offset + spark
     x = x + engine.crt_random() % constants.hit_sparks.position_range - constants.hit_sparks.position_offset
-    owner.sparks[#owner.sparks + 1] = {timer = spark_kind * 20 + (itr.fall <= 60 and 10 or 0), x = x, y = y}
+    owner.sparks[#owner.sparks + 1] = {timer = spark_kind * 20 + (itr.fall <= 60 and 10 or 0), x = x, y = y,
+        spark_id = itr.spark} -- Darkfiren spark 100-199 picks an image set (drawn by the UI); nil for original data
 end
 
 local function freeze_record(state, victim)
@@ -1100,7 +1103,7 @@ function combat.apply(state, p)
                     or victim_frame.state == constants.frame_states.dizzy or victim_frame.state == state_burning
                 if not exposed then defended = armored(attacker, victim, itr) end
                 if not defended and victim_frame.state == state_defending and itr.bdefend < 61
-                   and (attacker.facing ~= victim.facing or itr.dvx < 0 or attacker.record.id == constants.item_ids.boomerang
+                   and (attacker.facing ~= victim.facing or itr.dvx < 0 or itr.dbdefend == 1 or attacker.record.id == constants.item_ids.boomerang
                         or attacker.record.id == constants.object_ids.jan_chase or attacker.record.id == constants.object_ids.firzen_chase_fire or attacker.record.id == constants.object_ids.firzen_chase_ice)
                    and victim.hp > 0 then
                     defended = true
@@ -1117,7 +1120,8 @@ function combat.apply(state, p)
                         if victim.record.kind == record_kinds.character then rumble.queue(state, v, 100) end
                     end
                     if spark_kind == "stop" then return end
-                    record_spark(state, p, v, attacker, victim, itr, spark_kind)
+                    fx_itr.after_hit(attacker, victim, itr, defended)
+                    if itr.spark ~= -1 then record_spark(state, p, v, attacker, victim, itr, spark_kind) end
                 end
             end
         end

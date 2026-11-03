@@ -16,6 +16,7 @@ local state_lying = constants.frame_states.lying
 local state_rebound_ball = constants.frame_states.rebound_ball
 local state_thrown_item = constants.frame_states.thrown_item
 local item_slots = constants.item_slots
+local fx_constants = require("base/game/fx_constants")
 local object_bat_ball = constants.object_ids.bat_ball
 local object_bat_chase = constants.object_ids.bat_chase
 local object_broken_weapon = constants.object_ids.broken_weapon
@@ -65,7 +66,7 @@ function objects.record(state, id)
 end
 
 function objects.free_slot(state)
-    for index = 50, 399 do
+    for index = 50, item_slots - 1 do
         if not state.items[index] then return index end
     end
     return -1
@@ -81,7 +82,7 @@ function objects.remove(state, index)
     end
 end
 function objects.lookup(state, index)
-    if index < 0 or index > 399 then return nil end
+    if index < 0 or index > item_slots - 1 then return nil end
     return state.items[index] or (state.removed and state.removed[index])
 end
 
@@ -142,9 +143,7 @@ end
 
 -- Frame opoint spawning, run after the frame advance when the frame has just started. Returns
 -- false when the frame does not spawn (the original then checks destroyed weapons instead).
-function objects.spawn_from_frame(state, index, parent)
-    local frame = parent.record.frame(parent.frame)
-    local point = frame.opoint
+local function spawn_point(state, index, parent, frame, point)
     if point.kind <= 0 or point.oid <= 0 or parent.wait_counter ~= 0
        or (parent.hit_lag ~= 0 and parent.record.kind == record_kinds.character) then
         return false
@@ -247,6 +246,19 @@ function objects.spawn_from_frame(state, index, parent)
         end
     end
     return true
+end
+
+-- LF2 Darkfiren: a frame may carry up to 20 opoints (`opoints`, 1-based, all spawned). Without
+-- `opoints` the single legacy `opoint` is used, exactly as before.
+function objects.spawn_from_frame(state, index, parent)
+    local frame = parent.record.frame(parent.frame)
+    local points = frame.opoints
+    if not points then return spawn_point(state, index, parent, frame, frame.opoint) end
+    local spawned = false
+    for n = 1, math.min(#points, fx_constants.max_opoints) do
+        if spawn_point(state, index, parent, frame, points[n]) then spawned = true end
+    end
+    return spawned
 end
 
 -- LF2 Darkfiren: the opoints of a background (bg.dat `opoint:`, already filtered by the mode's arest) put their

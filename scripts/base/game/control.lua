@@ -20,6 +20,8 @@ local velocity_encoding = constants.velocity_encoding
 local move_cost_encoding = constants.move_cost_encoding
 local sounds = require("base/game/sounds")
 local unlock = require("base/game/unlock")
+local st_input = require("base/game/st_input")
+local st_frame = require("base/game/st_frame")
 local control = {}
 
 local function cdiv(a, b)
@@ -58,7 +60,7 @@ function control.enter_frame(match, value, target)
     local cost = frame.mp
     local mp_cost = scaled_mp(match, cmod(cost, move_cost_encoding.hp_radix))
     local hp_cost = cdiv(cost, move_cost_encoding.hp_radix) * move_cost_encoding.hp_unit
-    if value.mp >= mp_cost and value.hp > hp_cost then
+    if value.mp >= mp_cost and value.hp > hp_cost and st_frame.affordable(value, frame) then
         value.hp = value.hp - hp_cost
         value.mp = value.mp - mp_cost
         value.hp_spent = value.hp_spent + hp_cost
@@ -66,6 +68,13 @@ function control.enter_frame(match, value, target)
         value.frame = target
         if turn then value.facing = 1 - value.facing end
         clear_presses(value)
+    else
+        -- LF2 Darkfiren: a frame's `caught` is where a fighter goes when it cannot pay for the frame.
+        local caught = st_frame.caught_target(frame)
+        if caught and value.record.frames[caught] then
+            value.frame = caught
+            clear_presses(value)
+        end
     end
 end
 
@@ -128,6 +137,7 @@ local function recognize(match, value, index)
     if state == completed_sequence then
         local frame = value.record.frame(value.frame)
         local target = frame.hits[spec[5]]
+        if target == 0 then target = st_input.alias_target(frame, spec[5]) end
         if index == combo_jump_attack then
             if value.record.id == constants.fighter_ids.louis and target == 300 and value.hp > 177 and unlock.flags.characters == 0 then
                 value.sequences[index] = state
@@ -443,6 +453,7 @@ function control.step(match, value)
     end
 
     -- A frame's hit_a/hit_d/hit_j continue to another frame on the freshest key.
+    local frame_before_hits = value.frame
     local frame = value.record.frame(value.frame)
     local hits = frame.hits
     if hits.a ~= 0 and value.attack_press > value.defend_press and value.attack_press > value.jump_press then
@@ -455,6 +466,7 @@ function control.step(match, value)
         control.enter_frame(match, value, hits.j)
         value.jump_press = 0
     end
+    st_input.step(match, value, control.enter_frame, value.frame ~= frame_before_hits)
     if value.frame == character_frames.defend then
         if value.keys.right then value.facing = facing_right end
         if value.keys.left then value.facing = facing_left end

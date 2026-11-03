@@ -31,6 +31,7 @@ local character_frames = constants.character_frames
 local cpoint_kinds = constants.cpoint_kinds
 local record_kinds = constants.record_kinds
 local sounds = require("base/game/sounds")
+local st_frame = require("base/game/st_frame")
 local physics = {}
 
 -- C (int) conversion of a double truncates toward zero.
@@ -122,6 +123,7 @@ function physics.step(match, value)
     end
     if value.weapon < 0 then return end
     if frame(value.frame).cpoint.kind == cpoint_kinds.caught then return end
+    local air_frame, was_airborne = value.frame, value.y_int < 0
     if not ((value.vx > 0.0 and value.blocked_right) or (value.vx < 0.0 and value.blocked_left)) then
         value.x = value.x + value.vx
     end
@@ -262,9 +264,11 @@ function physics.step(match, value)
             value.vx = 0.0
         end
     end
+    st_frame.direct_move(value)
     value.x_int = truncate(value.x)
     value.y_int = truncate(value.y)
     value.z_int = truncate(value.z)
     if frame(value.frame).state ~= state_falling then value.fall_damage = 0 end
+    st_frame.landing(value, air_frame, was_airborne)
 end
 return physics

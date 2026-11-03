@@ -7,6 +7,7 @@ local objects = require("base/game/objects")
 local merge = require("base/game/merge")
 local cost = require("base/game/cost")
 local unlock = require("base/game/unlock")
+local st_states = require("base/game/st_states")
 local frame_rules = {}
 
 local function cdiv(a, b)
@@ -88,6 +89,7 @@ function frame_rules.after_control(state, index, value)
             pass_record(state, index, record)
         end
     end
+    st_states.after_control(state, index, value)
 end
 
 -- A fighter comes back near its teammates (the original's way of using up a life), with `part` (0 to 1) of its hp and mp.
@@ -190,6 +192,7 @@ end
 
 -- Before each item's regeneration and frame advance.
 function frame_rules.before_advance(state, index, value)
+    st_states.before_advance(state, index, value)
     if value.record.kind == record_kinds.character
        and state_of(value) == constants.frame_states.transform_louis_ex then
         -- The Transform option (LF2 Darkfiren, off): Louis stays Louis.

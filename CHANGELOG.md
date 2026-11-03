@@ -29,6 +29,13 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren's options panel (`<menu_small>` of mode4.dat) in the wide menu, with its own pictures: rows `b1` to `b12` stacked from (3,3), the selected one lit by `n1` to `n12`, values written into the boxes (background, difficulty, bg mode, time limit, cost pool and its check marks, TU mode). Layers follow their `hidden` (1 to 3 need the cheat code, 4 never) and `mode:` tags; Bg Mode and Time Limit show their disabled pictures where they do not apply. Reset Random: jump closes the eye and hides what Random gave until the match. The cost row: attack changes the pool, jump turns Respawn shuffle on or off. The More options row (layer 10: drop, transform, shuffle) shows when its `hidden` is 0. Without the pictures the classic panel stays
 
+- LF2 Darkfiren input tags: hit_f/hit_b/hit_uz/hit_dz and hold_a/d/j/f/b/uz/dz (computer fighters never hold), hit_Faj/Uaj/Daj as the jump-key sequences' fallback.
+- LF2 Darkfiren frame effects: dx/dy/dz direct movement, hp/chp/cmp, caught, hit_g landing frame and next 13XX random jumps.
+- LF2 Darkfiren flow states 80/81/82, 121-139, 62-66, 85/86, 20/21, 150-159, 364X, 4xxx, 17xxx, 404 and 405.
+
+- LF2 Darkfiren: raised the object slot capacity from 400 to 1000 and spawn up to 20 opoints per frame.
+- LF2 Darkfiren: itr tags dvz, drain, gain (17xxx heals HP), recover, dbdefend 1-4 and spark (-1 / image set index).
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

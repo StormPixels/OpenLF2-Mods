@@ -383,7 +383,7 @@ return {
         f12 = 0x7b,
     },
     -- Item slots: 0-19 hold the fighters (players and computers), the rest spawned objects.
-    item_slots = 400,
+    item_slots = 1000,
     first_spawned_slot = 20,
     -- facing 0 looks right, 1 left.
     facings = {

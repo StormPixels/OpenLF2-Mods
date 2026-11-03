@@ -45,6 +45,7 @@ local battle = require("base/game/battle")
 local catalog = require("base/game/catalog")
 local recording = require("base/game/recording")
 local unlock = require("base/game/unlock")
+local st_states = require("base/game/st_states")
 local match = {}
 
 local function cdiv(a, b)
@@ -384,7 +385,7 @@ local function read_input(state, held)
         end
     end
     local scan
-    for index = 10, 399 do
+    for index = 10, item_slots - 1 do
         local value = state.items[index]
         if value then
             if value.record.kind == record_kinds.character then
@@ -522,7 +523,7 @@ local function regenerate(state, value)
        and not (mode and mode.regen_mp == 1) then
         local hp = math.min(value.hp, points_full)
         if value.record.id == constants.fighter_ids.firzen or value.record.id == constants.fighter_ids.julian then hp = cdiv(hp, 2) end
-        value.mp = value.mp + math.floor((points_full - hp) / 100) + 1
+        value.mp = value.mp + math.floor((points_full - hp) / 100) + 1 + (value.st and value.st.mp_regen or 0)
     end
 end
 
@@ -766,6 +767,7 @@ local function advance_item(state, index, value)
     frame_rules.before_advance(state, index, value)
     regenerate(state, value)
     animation.advance(state, value, index)
+    st_states.after_advance(state, index, value)
     after_advance(state, index, value)
 end
 

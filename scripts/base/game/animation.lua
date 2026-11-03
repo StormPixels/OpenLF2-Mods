@@ -25,6 +25,8 @@ local team_enemies = constants.teams.enemies
 local cpoint_kinds = constants.cpoint_kinds
 local record_kinds = constants.record_kinds
 local sounds = require("base/game/sounds")
+local st_frame = require("base/game/st_frame")
+local st_states = require("base/game/st_states")
 local animation = {}
 local jump_frame, standing_frame = constants.character_frames.jump + 2, constants.character_frames.standing
 
@@ -55,6 +57,7 @@ function animation.advance(match, value, index)
         -- A frame entered since the last advance plays its sound.
         sounds.item(match, value.x_int, frame(value.frame).sound)
         value.wait_counter = 0
+        st_frame.on_enter(match, value, frame(value.frame))
     end
     value.wait_counter = value.wait_counter + 1
     if record.kind >= 0 and frame(value.frame).state == state_standing and value.y_int < 0 then value.frame = jump_frame end
@@ -71,7 +74,7 @@ function animation.advance(match, value, index)
     if value.wait_counter <= frame(value.frame).wait then return animation.tail(value) end
     value.wait_counter = 0
     if frame(value.frame).next == 0 then return animation.tail(value) end
-    value.frame = frame(value.frame).next
+    value.frame = st_states.resolve_next(match, value, frame(value.frame))
     if value.frame < 0 then
         value.facing = 1 - value.facing
         value.frame = -value.frame
@@ -102,6 +105,7 @@ function animation.advance(match, value, index)
         elseif value.keys.up and not value.keys.down then value.vz = -(movement.jump_distancez or 0) end
     end
     sounds.item(match, value.x_int, frame(value.frame).sound)
+    st_frame.on_enter(match, value, frame(value.frame))
     local current = frame(value.frame)
     if current.mp < 0 and match.running then
         -- Continuous mp cost: without enough mp the move ends at hit_d.

@@ -59,6 +59,12 @@ module=i18n/baked|i18n/baked.lua
 module=i18n/english|i18n/english.lua
 module=i18n/german|i18n/german.lua
 module=i18n/chinese|i18n/chinese.lua
+module=game/st_constants|game/st_constants.lua
+module=game/st_input|game/st_input.lua
+module=game/st_frame|game/st_frame.lua
+module=game/st_states|game/st_states.lua
+module=game/fx_constants|game/fx_constants.lua
+module=game/fx_itr|game/fx_itr.lua
 # Fonts for the translated languages (see i18n/i18n.lua); their licenses are next to them.
 asset=mods/base/onscreen/up.bmp|onscreen/up.bmp
 asset=mods/base/onscreen/down.bmp|onscreen/down.bmp
