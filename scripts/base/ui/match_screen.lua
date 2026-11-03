@@ -12,12 +12,14 @@ local sounds = require("base/game/sounds")
 local rumble = require("base/game/rumble")
 local controls = require("base/ui/controls")
 local options = require("base/game/options")
+local ui_hud = require("base/game/ui_hud")
 -- The HUD, pause picture and mode line are laid out for the classic 794 wide picture. In LF2 Darkfiren's super
 -- widescreen layout the picture is 1333 wide: wide_gap() is the extra width (for things at the right corner) and
 -- wide_center() half of it (for things in the middle). Both are 0 in the classic layout.
 local function wide_gap()
-    if options.current().battlefield_layout == options.wide_layout then
-        return constants.screen.wide_width - constants.screen.width
+    local width = options.wide_width(options.current().battlefield_layout)
+    if width then
+        return width - constants.screen.width
     end
     return 0
 end
@@ -115,6 +117,13 @@ function screen.snapshot(state, snapshot)
             entry.pic_offset, entry.weapon, entry.team = value.pic_offset, value.weapon, value.team
             entry.hp, entry.max_hp, entry.human = value.hp, value.max_hp, value.human
             entry.lives = value.lives
+            -- I10: state 20/21 hide the object; the frame tag center_z (10000..29999) replaces z as the drawing
+            -- order [BELUM PASTI: assumed to put the object in front of everything of a smaller value]. Entries are
+            -- reused, so every field is set on every snapshot.
+            local frame = value.record.frame and value.record.frame(value.frame)
+            local priority = frame and frame.center_z
+            entry.invisible = value.st ~= nil and value.st.invisible == true
+            entry.depth = type(priority) == "number" and priority >= 10000 and priority <= 29999 and priority or value.z_int
             advance_sparks(value.sparks, entry.sparks)
             order[count] = entry
         end
@@ -123,7 +132,7 @@ function screen.snapshot(state, snapshot)
     -- Keep the original slot order for equal depths.
     for index = 2, count do
         local entry, position = order[index], index
-        while position > 1 and entry.z < order[position - 1].z do
+        while position > 1 and entry.depth < order[position - 1].depth do
             order[position] = order[position - 1]
             position = position - 1
         end
@@ -255,7 +264,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
        and frame.state ~= constants.frame_states.team_order_marker
        and entry.record.id ~= constants.object_ids.firzen_ball
        and entry.record.id ~= constants.object_ids.bat_ball
-       and entry.blink > -70 and blink % 4 < 2
+       and entry.blink > -70 and blink % 4 < 2 and frame.shadow ~= 1
     if casts_shadow and stage.shadow and not lighting.projected_shadows then
         local width, height = stage.shadow_size[1] or 0, stage.shadow_size[2] or 0
         local shadow = stage.shadow:gsub("\\", "/"):lower()
@@ -263,7 +272,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
             entry.z - math.floor(height / 2), true)
     end
     local shake = entry.hit_lag < 0 and view.shake * 6 - 3 or 0
-    local visible = blink % 4 < 2 and entry.blink > -25
+    local visible = blink % 4 < 2 and entry.blink > -25 and not entry.invisible
     local on_screen = frame.state == constants.frame_states.team_order_marker
     local resource, source = object_data.picture(entry.record.data, entry.frame, entry.pic_offset)
     if visible and resource and not frame.undefined then
@@ -285,7 +294,14 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
                 lighting.character_shading and kind == record_kinds.character,
                 lighting.projected_shadows and (casts_shadow or physical), lighting.shadow_blur, lighting.shadow_opacity)
         else
-            context.sprite(resource, source, x, y, true, entry.facing ~= constants.facings.right)
+            -- Frame tags `amount` and `loop`: the picture is repeated `amount` times, `loop` pixels apart
+            -- [BELUM PASTI: modelled on the background layers; the spacing is the picture width when loop is absent].
+            local copies = type(frame.amount) == "number" and frame.amount > 1 and math.min(frame.amount, 64) or 1
+            local spacing = type(frame.loop) == "number" and frame.loop ~= 0 and frame.loop or source[3]
+            for copy = 0, copies - 1 do
+                local shift = entry.facing == constants.facings.right and copy * spacing or -copy * spacing
+                context.sprite(resource, source, x + shift, y, true, entry.facing ~= constants.facings.right)
+            end
         end
     end
     if visible and not on_screen and entry.hp < math.floor(entry.max_hp / 3) and frame.bpoint.x > 0 then
@@ -311,7 +327,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         -- Bosses and other enemy characters in slots 20+ (WORDS5 sheet).
         label, sheet = "Com", "pe/words5"
     end
-    if label and entry.blink > -25 then
+    if label and entry.blink > -25 and frame.bound ~= 1 then
         local length = #label
         local x = entry.draw_offset + entry.x - camera - math.floor(length * 9 / 2)
         if bounds then
@@ -329,28 +345,52 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
     end
 end
 
-local function draw_status(context, state)
+-- The classic HUD, for a host or a test that has no game/ui_hud (the same numbers as ui_hud.default_style()).
+local fallback_hud = {frame_pic = "pe/frame", bars_pic = "pe/bars", frame_x = 0, frame_y = 0, frame_w = 198, frame_h = 54,
+    small_x = 9, small_y = 7, row = 4, col_dhp = 30, col_hp = 20, col_bhp = 40, col_dmp = 10, col_mp = 0,
+    hp_bar = {x = 57, y = 16, w = 124, h = 10}, mp_bar = {x = 57, y = 36, w = 124, h = 10}, team_flag = {x = 5, y = 0}}
+
+-- A bar of the fighter's own <hp_bar>/<mp_bar> (record.display) when it gives a position and a width, else the style's.
+local function bar_of(value, name, style)
+    local display = value.record.display
+    local own = type(display) == "table" and display[name] or nil
+    -- Only the plain horizontal bar (type 1, or none given) is drawn from it; other types are [BELUM PASTI] and keep the style's.
+    if type(own) == "table" and (own.type == nil or own.type == 1) and type(own.x) == "number"
+       and type(own.y) == "number" and type(own.w) == "number" and own.w >= 1 then
+        return {x = own.x, y = own.y, w = own.w, h = type(own.h) == "number" and own.h >= 1 and own.h or style[name].h}
+    end
+    return style[name]
+end
+
+local function draw_status(context, state, style)
+    style = style or fallback_hud
     for slot = 0, 7 do
-        local row, column = math.floor(slot / 4) * 54, (slot % 4) * 198 + wide_center()
-        context.image("pe/frame", column, row, false)
+        local row = math.floor(slot / style.row) * style.frame_h + style.frame_y
+        local column = style.frame_x + (slot % style.row) * style.frame_w + wide_center()
+        context.image(style.frame_pic, column, row, false)
         local value = state.items[slot] or state.items[slot + 10]
         if value then
             local small = value.record.data.small
-            if small then context.image(small:gsub("\\", "/"):lower(), column + 9, row + 7, false) end
+            if small then context.image(small:gsub("\\", "/"):lower(), column + style.small_x, row + style.small_y, false) end
             if value.hp > 0 then
-                local function bar(source_y, width, y)
-                    if width > 0 then context.sprite("pe/bars", {0, source_y, width, 10}, column + 57, row + y, false) end
+                local hp_bar, mp_bar = bar_of(value, "hp_bar", style), bar_of(value, "mp_bar", style)
+                local function bar(source_y, width, geometry)
+                    if width > 0 then context.sprite(style.bars_pic, {0, source_y, width, geometry.h}, column + geometry.x, row + geometry.y, false) end
                 end
-                bar(30, math.floor(value.dark_hp * 31 / 125), 16)
-                bar(20, math.floor(value.hp * 31 / 125), 16)
+                -- 124 pixels is the full bar of the classic HUD; another width scales it.
+                local function filled(amount, geometry) return math.floor(amount * 31 / 125 * (geometry.w / 124)) end
+                bar(style.col_dhp, filled(value.dark_hp, hp_bar), hp_bar)
+                bar(style.col_hp, filled(value.hp, hp_bar), hp_bar)
                 -- Healing (milk, regeneration): the bar flashes every other tick of the 12-tick counter.
                 if (math.floor(value.regen_timer / constants.healing.timer_base) == 1 or value.heal_timer > 0) and state.counter_12 % 2 == 0 then
-                    bar(40, math.floor(value.hp * 31 / 125), 16)
+                    bar(style.col_bhp, filled(value.hp, hp_bar), hp_bar)
                 end
-                bar(10, 124, 36)
-                bar(0, math.floor(math.min(value.mp, constants.points.full) * 31 / 125), 36)
+                bar(style.col_dmp, mp_bar.w, mp_bar)
+                bar(style.col_mp, filled(math.min(value.mp, constants.points.full), mp_bar), mp_bar)
             end
-            glyphs(context, label_font(value.team), string.char(254), column + 5, row, 8)
+            local own_flag = type(value.record.display) == "table" and value.record.display.team_flag or nil
+            local flag = type(own_flag) == "table" and type(own_flag.x) == "number" and type(own_flag.y) == "number" and own_flag or style.team_flag
+            glyphs(context, label_font(value.team), string.char(254), column + flag.x, row + flag.y, 8)
         end
     end
 end
@@ -465,11 +505,12 @@ end
 
 function screen.draw(state, context, window_bounds)
     local view_width = constants.screen.width
-    if options.current().battlefield_layout == options.wide_layout then
-        -- LF2 Darkfiren's super widescreen: the picture is 1333 wide whatever the window; a window that is
+    local wide_picture = options.wide_width(options.current().battlefield_layout)
+    if wide_picture then
+        -- LF2 Darkfiren's widescreen: the picture is 1333 (or 1018) wide whatever the window; a window that is
         -- even wider shows more of the stage, and a narrower one is letterboxed by the platform. The simulation
         -- keeps its classic 794 wide view; the expanded battlefield below shows the rest.
-        view_width = constants.screen.wide_width
+        view_width = wide_picture
         window_bounds = {
             left = math.min(window_bounds and window_bounds.left or 0, 0),
             top = math.min(window_bounds and window_bounds.top or 0, 0),
@@ -562,7 +603,10 @@ function screen.draw(state, context, window_bounds)
             end
         end
     end
-    draw_status(context, current)
+    do
+        local layout = options.current().battlefield_layout
+        draw_status(context, current, ui_hud.current(layout, options.wide_width(layout)))
+    end
     if view.time_left then
         -- The time limit's clock: the time left, in the middle under the HP frames.
         local seconds = math.ceil(view.time_left / 30)

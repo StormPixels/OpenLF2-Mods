@@ -5,6 +5,8 @@
 #include "openlf2/resources/data_file.hpp"
 #include "openlf2/detail/resources/scan_stream.hpp"
 #include <algorithm>
+#include <array>
+#include <span>
 
 namespace openlf2::object_data {
 namespace {
@@ -15,6 +17,115 @@ using scanning::wrapping_subtract;
 constexpr std::size_t token_capacity = 200;
 constexpr std::size_t max_diagnostics = 256;
 constexpr std::size_t max_input = 4 * 1024 * 1024;
+
+// Darkfiren tag name (without the trailing colon) and the key scripts see.
+struct TagKey {
+    std::string_view tag;
+    std::string_view key;
+};
+constexpr TagKey same(std::string_view name) { return {name, name}; }
+
+constexpr std::array itr_tags{same("dvz"), same("drain"), same("gain"), same("recover"), same("dbdefend"),
+    same("spark"), same("cover"), same("z"), same("dx"), same("dy"), same("dz"), same("delay"),
+    same("poison"), same("confus"), same("weak"), same("manacle"), same("join"), same("mimic"),
+    same("bound"), same("facing"), same("sound")};
+constexpr std::array itr_pair_tags{same("pickingact"), same("pickedact")};
+constexpr std::array strength_tags{same("dvz"), same("drain"), same("gain"), same("spark"), same("recover"),
+    same("dbdefend"), same("z"), same("sound"), same("cover"), same("caughtact"), same("selfinjury"),
+    same("decrease")};
+constexpr std::array body_tags{same("zwidth"), same("respond")};
+constexpr std::array opoint_tags{same("hp"), same("mp"), same("team"), same("z"), same("dvz"), same("reserve"),
+    same("effect"), same("centerx"), same("centery"), same("centerz"), same("framea"), same("attacking"),
+    same("pic"), same("join"), same("join_reserve"), same("join_pic")};
+constexpr std::array bpoint_tags{same("w"), same("h"), same("rect"), same("respond")};
+constexpr std::array cpoint_tags{same("z"), same("faction"), same("baction"), same("uzaction"), same("dzaction"),
+    same("respond"), same("drain"), same("gain"), same("recover"), same("throwz")};
+constexpr std::array cpoint_pair_tags{same("catchingact"), same("caughtact"), same("pickingact"), same("pickedact")};
+constexpr std::array ppoint_tags{same("kind"), same("x"), same("y"), same("z")};
+constexpr std::array frame_tags{same("dx"), same("dy"), same("dz"), same("hp"), same("chp"), same("cmp"),
+    same("caught"), same("loop"), same("amount"), same("shadow"), same("bound"), TagKey{"centerz", "center_z"},
+    same("respond"), same("cover"), same("attacking"), same("caughtact"), same("music")};
+constexpr std::array hold_tags{TagKey{"hold_a", "a"}, TagKey{"hold_d", "d"}, TagKey{"hold_j", "j"},
+    TagKey{"hold_f", "f"}, TagKey{"hold_b", "b"}, TagKey{"hold_uz", "uz"}, TagKey{"hold_dz", "dz"}};
+// hit_aj/hit_jj/hit_aa are the pdk names for hit_Faj/hit_Uaj/hit_Daj; their meaning is not documented,
+// so they are kept under their own keys.
+constexpr std::array hit_ext_tags{TagKey{"hit_f", "f"}, TagKey{"hit_b", "b"}, TagKey{"hit_uz", "uz"},
+    TagKey{"hit_dz", "dz"}, TagKey{"hit_g", "g"}, TagKey{"hit_Faj", "Faj"}, TagKey{"hit_Uaj", "Uaj"},
+    TagKey{"hit_Daj", "Daj"}, TagKey{"hit_aj", "aj"}, TagKey{"hit_jj", "jj"}, TagKey{"hit_aa", "aa"}};
+// <bmp_begin> tags. The data mixes `name: v` and `name v`, so the colon is optional here.
+constexpr std::array header_int_tags{same("heavy_walking_frame_rate"), same("heavy_running_frame_rate"),
+    same("hidden"), same("random"), same("kind"), same("ratio"), same("use_ai"), same("drop"), same("bound"),
+    same("shadow"), same("shadowsize"), same("effect"), same("start_frame"), same("cost"), same("respond"),
+    same("pic"), same("frame_0mp"), same("small_x"), same("small_y"), same("property")};
+constexpr std::array header_text_tags{same("shadow_pic"), same("frame"), same("bars"), same("smallb"),
+    same("smallc"), same("smalld"), same("smallp"), same("smallt"), same("hidden_head"), same("hidden_small"),
+    same("sound1"), same("sound2")};
+constexpr std::array header_list_tags{same("walking_frame"), same("running_frame"),
+    same("heavy_walking_frame"), same("heavy_running_frame")};
+
+constexpr std::array stats_tags{same("bleed_hp"), same("attacking"), same("regen_hp"), same("regen_mp"),
+    same("regen_dhp"), same("defend"), same("normal_attack1"), same("normal_attack2"), same("jump_attack"),
+    same("run_attack"), same("dash_attack"), same("light_throw"), same("heavy_throw"), same("sky_light_throw"),
+    same("run_heavy_throw"), same("weapon_drink"), same("respond"), same("recmp"), same("max_mp"), same("ohp"),
+    same("omp"), same("reserve"), same("phase"), same("caught"), same("caughtact"), same("bound"), same("y"),
+    same("weaponact")};
+constexpr std::array armor_int_tags{same("type"), same("ratio"), same("decrease"), same("mp"), same("fall"),
+    same("bdefend"), same("injury"), same("spark"), same("delay"), same("hp"), same("recover"),
+    same("facing"), same("action")};
+constexpr std::array armor_text_tags{same("sound1"), same("sound2")};
+// Repeated tags that build a list: `id: 1 id: 2` -> ids = {1, 2}.
+constexpr std::array armor_repeat_tags{TagKey{"id", "ids"}, TagKey{"state", "states"}, TagKey{"effect", "effects"}};
+// `frame: first last` may repeat; every occurrence becomes one group.
+constexpr std::array armor_group_tags{TagKey{"frame", "frames"}};
+constexpr std::array piece_head_tags{same("team")};
+constexpr std::array piece_tags{same("act"), same("framea"), same("dvx"), same("dvy"), same("dvz"), same("oid"),
+    same("amount")};
+constexpr std::array sound_int_tags{same("bg"), same("mode")};
+constexpr std::array sound_text_tags{TagKey{"weapon_hit_sound", "weapon_hit"},
+    TagKey{"weapon_drop_sound", "weapon_drop"}, TagKey{"weapon_broken_sound", "weapon_broken"}};
+constexpr std::array skin_head_int_tags{same("random")};
+constexpr std::array skin_head_text_tags{same("sound")};
+constexpr std::array skin_int_tags{same("offset"), same("respond")};
+constexpr std::array skin_text_tags{same("head"), same("small"), same("smallb"), same("smallt")};
+constexpr std::array command_int_tags{same("bound"), same("type"), same("respond"), same("hp"), same("mp"),
+    same("team")};
+constexpr std::array command_repeat_tags{TagKey{"mode", "modes"}, TagKey{"action", "actions"}};
+
+constexpr std::array phase_int_tags{same("respond"), same("oid"), same("pic_x"), same("pic_y"), same("start_x"),
+    same("start_y"), same("rect"), same("row"), same("centerx"), same("centery"), same("w"), same("h"),
+    same("bound"), same("caughtact"), same("pickedact"), same("hidden")};
+constexpr std::array phase_text_tags{same("sound1"), same("sound2"), same("pic")};
+constexpr std::array phase_repeat_tags{TagKey{"id", "ids"}};
+// Fields of the bar blocks and of their layers (one table: layers use a subset of the block tags).
+constexpr std::array bar_int_tags{same("type"), same("x"), same("y"), same("w"), same("h"), same("dx"), same("dy"),
+    same("facing"), same("effect"), same("amount"), same("loop"), same("respond"), same("bound"),
+    same("transparency"), same("max"), same("cc"), same("c1"), same("c2"), same("centerx"), same("cover")};
+constexpr std::array bar_text_tags{same("pic")};
+constexpr std::array bar_repeat_tags{TagKey{"team", "teams"}};
+constexpr std::array count_int_tags{same("x"), same("y"), same("type"), same("max"), same("respond"),
+    same("facing"), same("loop")};
+constexpr std::array count_flex_tags{same("pic")};
+constexpr std::array team_flag_int_tags{TagKey{"team_flag_x", "x"}, TagKey{"team_flag_y", "y"}};
+constexpr std::array team_flag_text_tags{TagKey{"team0_flag", "team0"}, TagKey{"team1_flag", "team1"},
+    TagKey{"team2_flag", "team2"}, TagKey{"team3_flag", "team3"}, TagKey{"team4_flag", "team4"},
+    TagKey{"team5_flag", "team5"}};
+constexpr std::array name_int_tags{same("respond"), same("name_x"), same("name_y"), same("x"), same("y"),
+    same("hexf"), same("hexb")};
+constexpr std::array name_text_tags{same("name")};
+
+// A later occurrence of the same tag replaces the earlier one, like the original's overwrite.
+void put(Extras& target, std::string_view key, ExtraItem::Kind kind, std::vector<std::int32_t> values,
+         std::string text = {}) {
+    for (auto& item : target) {
+        if (item.key == key) {
+            item.kind = kind;
+            item.values = std::move(values);
+            item.text = std::move(text);
+            return;
+        }
+    }
+    target.push_back(ExtraItem{std::string(key), kind, std::move(values), std::move(text), {}});
+}
 
 class Parser {
 public:
@@ -32,6 +143,23 @@ public:
             if (token_ == "<bmp_begin>") header();
             else if (token_ == "<weapon_strength_list>") strength_list();
             else if (token_ == "<frame>") frame();
+            else if (token_ == "<stats>") stats_block();
+            else if (token_ == "<armor>") armor_block();
+            else if (token_ == "<weapon_piece>") weapon_piece_block();
+            else if (token_ == "<sound>") sound_block();
+            else if (token_ == "<pic>") skin_block();
+            else if (token_ == "<command>") command_block();
+            else if (token_ == "<phase>") phase_block();
+            else if (token_ == "<hp_bar>") bar_block(display().hp_bar, "<hp_bar_end>", max_display_layers);
+            else if (token_ == "<mp_bar>") bar_block(display().mp_bar, "<mp_bar_end>", max_display_layers);
+            else if (token_ == "<minibar>") bar_block(display().minibar, "<minibar_end>", 50);
+            else if (token_ == "<bossbar>") bar_block(display().bossbar, "<bossbar_end>", 50);
+            else if (token_ == "<effect>") bar_block(display().effect, "<effect_end>", max_display_layers);
+            else if (token_ == "<menu_face>") bar_block(display().menu_face, "<menu_face_end>", 30);
+            else if (token_ == "<stats_count>") stats_count_block();
+            else if (token_ == "<team_flag>") team_flag_block();
+            else if (token_ == "<name>") name_block("<name_end>");
+            else if (token_ == "<n>") name_block("<n_end>");
             else if (token_ != "<bmp_end>" && token_ != "<frame_end>" &&
                      token_ != "<weapon_strength_list_end>") {
                 note("ignored top-level token `" + token_ + "`");
@@ -94,6 +222,213 @@ private:
         }
     }
 
+    // Name of the current token without its trailing colon; empty if it has none and one is required.
+    [[nodiscard]] std::string_view tag_name(bool colon_optional) const {
+        std::string_view name = token_;
+        if (!name.empty() && name.back() == ':') name.remove_suffix(1);
+        else if (!colon_optional) return {};
+        return name;
+    }
+    [[nodiscard]] static const TagKey* find_tag(std::span<const TagKey> table, std::string_view name) {
+        for (const auto& entry : table) {
+            if (entry.tag == name) return &entry;
+        }
+        return nullptr;
+    }
+    // Integer-valued Darkfiren tag. Returns false when the token is not in `table`.
+    bool extra_int(Extras& target, std::span<const TagKey> table, bool colon_optional = false) {
+        const auto name = tag_name(colon_optional);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        std::int32_t value = 0;
+        if (read_int(value)) put(target, entry->key, ExtraItem::Kind::integer, {value});
+        return true;
+    }
+    // `tag: left [right]`: the second number is optional, so it is only taken when present.
+    bool extra_pair(Extras& target, std::span<const TagKey> table) {
+        const auto name = tag_name(false);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        std::int32_t first = 0;
+        if (!read_int(first)) return true;
+        std::vector<std::int32_t> values{first};
+        std::int32_t second = 0;
+        if (stream_.integer(second) == TokenStream::Scan::value) values.push_back(second);
+        put(target, entry->key, ExtraItem::Kind::list, std::move(values));
+        return true;
+    }
+    bool extra_text(Extras& target, std::span<const TagKey> table, std::string_view section) {
+        const auto name = tag_name(true);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        put(target, entry->key, ExtraItem::Kind::text, {}, read_word(section, 300));
+        return true;
+    }
+    // `tag: v` repeated: every occurrence appends to one list.
+    bool extra_repeat(Extras& target, std::span<const TagKey> table) {
+        const auto name = tag_name(false);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        std::int32_t value = 0;
+        if (!read_int(value)) return true;
+        for (auto& item : target) {
+            if (item.key == entry->key && item.kind == ExtraItem::Kind::list) {
+                item.values.push_back(value);
+                return true;
+            }
+        }
+        target.push_back(ExtraItem{std::string(entry->key), ExtraItem::Kind::list, {value}, {}, {}});
+        return true;
+    }
+    // `tag: first [second]` repeated: every occurrence appends one group.
+    bool extra_group(Extras& target, std::span<const TagKey> table) {
+        const auto name = tag_name(false);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        std::int32_t first = 0;
+        if (!read_int(first)) return true;
+        std::vector<std::int32_t> group{first};
+        std::int32_t second = 0;
+        if (stream_.integer(second) == TokenStream::Scan::value) group.push_back(second);
+        for (auto& item : target) {
+            if (item.key == entry->key && item.kind == ExtraItem::Kind::groups) {
+                item.groups.push_back(std::move(group));
+                return true;
+            }
+        }
+        ExtraItem item{std::string(entry->key), ExtraItem::Kind::groups, {}, {}, {}};
+        item.groups.push_back(std::move(group));
+        target.push_back(std::move(item));
+        return true;
+    }
+    // Number if the value parses as one, otherwise the word itself.
+    bool extra_flex(Extras& target, std::span<const TagKey> table, std::string_view section) {
+        const auto name = tag_name(false);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        std::int32_t value = 0;
+        const auto result = stream_.integer(value);
+        if (result == TokenStream::Scan::value) put(target, entry->key, ExtraItem::Kind::integer, {value});
+        else put(target, entry->key, ExtraItem::Kind::text, {}, read_word(section, 300));
+        return true;
+    }
+    bool bar_field(Extras& target, std::string_view section) {
+        return extra_int(target, bar_int_tags) || extra_text(target, bar_text_tags, section) ||
+               extra_repeat(target, bar_repeat_tags);
+    }
+    // Reads one `layer:` record. Returns false when the block's own end token was reached first.
+    // The `#comment` after the layer number may span several words and names the layer's purpose.
+    bool read_layer(Extras& layer, std::string_view section, std::string_view block_end) {
+        std::int32_t index = 0;
+        if (stream_.integer(index) == TokenStream::Scan::value) put(layer, "layer", ExtraItem::Kind::integer, {index});
+        std::string comment;
+        bool in_comment = false;
+        for (;;) {
+            next_token(section);
+            if (token_ == "layer_end" || token_ == "layer_end:") break;
+            if (token_ == block_end) {
+                if (!comment.empty()) put(layer, "comment", ExtraItem::Kind::text, {}, comment);
+                return false;
+            }
+            const bool is_tag = token_.back() == ':';
+            if (token_.front() == '#' || (in_comment && !is_tag)) {
+                in_comment = true;
+                if (!comment.empty()) comment += ' ';
+                comment += token_.front() == '#' ? token_.substr(1) : token_;
+                continue;
+            }
+            in_comment = false;
+            if (!bar_field(layer, section)) note("ignored layer token `" + token_ + "`");
+        }
+        if (!comment.empty()) put(layer, "comment", ExtraItem::Kind::text, {}, comment);
+        return true;
+    }
+    void bar_block(std::optional<DisplayBlock>& target, std::string_view block_end, std::size_t max_layers) {
+        const std::string section = token_;
+        DisplayBlock result;
+        next_token(section);
+        while (token_ != block_end) {
+            if (token_ == "layer:") {
+                Extras layer;
+                const bool closed = read_layer(layer, section, block_end);
+                if (result.layers.size() < max_layers) result.layers.push_back(std::move(layer));
+                else note("more than " + std::to_string(max_layers) + " layers in " + section + "; extra layer ignored");
+                if (!closed) break;
+            } else if (!bar_field(result.fields, section)) note("ignored " + section + " token `" + token_ + "`");
+            next_token(section);
+        }
+        target = std::move(result);
+    }
+    Display& display() {
+        if (!data_.display) data_.display = Display{};
+        return *data_.display;
+    }
+    void stats_count_block() {
+        std::vector<Extras> entries;
+        block("<stats_count_end>", [&] {
+            if (token_ != "count:") return false;
+            Extras entry;
+            block("count_end:", [&] {
+                return extra_int(entry, count_int_tags) || extra_flex(entry, count_flex_tags, "count:");
+            });
+            if (entries.size() < max_stats_counts) entries.push_back(std::move(entry));
+            else note("more than " + std::to_string(max_stats_counts) + " stats_count entries; extra ignored");
+            return true;
+        });
+        display().stats_count = std::move(entries);
+    }
+    void team_flag_block() {
+        Extras fields;
+        block("<team_flag_end>", [&] {
+            return extra_int(fields, team_flag_int_tags) || extra_text(fields, team_flag_text_tags, "<team_flag>");
+        });
+        display().team_flag = std::move(fields);
+    }
+    // The notes call this block <n>; the sample data spells it <name>. Both are accepted.
+    void name_block(std::string_view block_end) {
+        Extras fields;
+        block(block_end, [&] {
+            return extra_int(fields, name_int_tags) || extra_text(fields, name_text_tags, "<name>");
+        });
+        display().name = std::move(fields);
+    }
+    void phase_block() {
+        Extras fields;
+        block("<phase_end>", [&] {
+            return extra_int(fields, phase_int_tags) || extra_text(fields, phase_text_tags, "<phase>") ||
+                   extra_repeat(fields, phase_repeat_tags);
+        });
+        for (auto& item : fields) {
+            if (item.key == "ids" && item.values.size() > max_phase_ids) {
+                note("more than " + std::to_string(max_phase_ids) + " phase ids; extra ids ignored");
+                item.values.resize(max_phase_ids);
+            }
+        }
+        data_.phase = std::move(fields);
+    }
+
+    // `tag: count v1 .. vcount`
+    bool extra_list(Extras& target, std::span<const TagKey> table) {
+        const auto name = tag_name(true);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        std::int32_t count = 0;
+        if (!read_int(count)) return true;
+        if (count < 0 || count > static_cast<std::int32_t>(max_header_list)) {
+            note("`" + token_ + "` count outside 0-" + std::to_string(max_header_list) + ": " +
+                 std::to_string(count));
+            return true;
+        }
+        std::vector<std::int32_t> values;
+        for (std::int32_t index = 0; index < count; ++index) {
+            std::int32_t value = 0;
+            if (!read_int(value)) break;
+            values.push_back(value);
+        }
+        put(target, entry->key, ExtraItem::Kind::list, std::move(values));
+        return true;
+    }
+
     struct PendingSheet {
         std::optional<std::int32_t> width, height, columns, rows;
     };
@@ -132,6 +467,89 @@ private:
             return;
         }
         read_int(pending_.*field);
+    }
+
+    void stats_block() {
+        Extras fields;
+        block("<stats_end>", [&] { return extra_int(fields, stats_tags); });
+        data_.stats = std::move(fields);
+    }
+
+    void armor_block() {
+        Extras fields;
+        block("<armor_end>", [&] {
+            return extra_int(fields, armor_int_tags) || extra_text(fields, armor_text_tags, "<armor>") ||
+                   extra_repeat(fields, armor_repeat_tags) || extra_group(fields, armor_group_tags);
+        });
+        data_.armor = std::move(fields);
+    }
+
+    void weapon_piece_block() {
+        WeaponPiece result;
+        block("<weapon_piece_end>", [&] {
+            if (extra_int(result.fields, piece_head_tags)) return true;
+            if (token_ != "piece:") return false;
+            std::int32_t index = 0;
+            if (!read_int(index)) return true;
+            Extras piece;
+            block("piece_end:", [&] { return extra_int(piece, piece_tags); });
+            if (index < 1 || index > static_cast<std::int32_t>(result.pieces.size())) {
+                note("weapon piece number outside 1-5: " + std::to_string(index));
+            } else result.pieces[static_cast<std::size_t>(index - 1)] = std::move(piece);
+            return true;
+        });
+        data_.weapon_piece = std::move(result);
+    }
+
+    // [UNCONFIRMED] The notes do not show the layout. Assumed: `bg:` opens a new entry, `mode:` opens one
+    // when the current entry already has a mode, and the three sound tags fill the current entry.
+    void sound_block() {
+        data_.sound_list.clear();
+        const auto has = [](const Extras& entry, std::string_view key) {
+            return std::any_of(entry.begin(), entry.end(), [&](const auto& item) { return item.key == key; });
+        };
+        block("<sound_end>", [&] {
+            const auto name = tag_name(false);
+            if (name.empty()) return false;
+            const bool opens = name == "bg" || (name == "mode" && !data_.sound_list.empty() &&
+                                                has(data_.sound_list.back(), "mode"));
+            if (opens || data_.sound_list.empty()) data_.sound_list.emplace_back();
+            return extra_int(data_.sound_list.back(), sound_int_tags) ||
+                   extra_text(data_.sound_list.back(), sound_text_tags, "<sound>");
+        });
+    }
+
+    void skin_block() {
+        Skins result;
+        block("<pic_end>", [&] {
+            if (extra_int(result.fields, skin_head_int_tags) ||
+                extra_text(result.fields, skin_head_text_tags, "<pic>")) return true;
+            if (token_ != "pic:") return false;
+            std::int32_t number = 0;
+            if (!read_int(number)) return true;
+            Extras skin;
+            put(skin, "pic", ExtraItem::Kind::integer, {number});
+            block("pic_end:", [&] {
+                return extra_int(skin, skin_int_tags) || extra_text(skin, skin_text_tags, "pic:");
+            });
+            if (result.entries.size() < max_skins) result.entries.push_back(std::move(skin));
+            else note("more than " + std::to_string(max_skins) + " skins; extra skin ignored");
+            return true;
+        });
+        data_.skins = std::move(result);
+    }
+
+    void command_block() {
+        block("<command_end>", [&] {
+            if (token_ != "command:") return false;
+            Extras entry;
+            block("command_end:", [&] {
+                return extra_int(entry, command_int_tags) || extra_repeat(entry, command_repeat_tags);
+            });
+            if (data_.command.size() < max_commands) data_.command.push_back(std::move(entry));
+            else note("more than " + std::to_string(max_commands) + " commands; extra command ignored");
+            return true;
+        });
     }
 
     void header() {
@@ -177,12 +595,27 @@ private:
             else if (token_ == "h:") sheet_field(&PendingSheet::height);
             else if (token_ == "row:") sheet_field(&PendingSheet::columns);
             else if (token_ == "col:") sheet_field(&PendingSheet::rows);
-            else if (token_ == "weapon_hp:") read_int(data_.weapon_hp);
-            else if (token_ == "weapon_drop_hurt:") read_int(data_.weapon_drop_hurt);
-            else if (token_ == "weapon_hit_sound:") data_.weapon_hit_sound = read_word(section, 300);
-            else if (token_ == "weapon_drop_sound:") data_.weapon_drop_sound = read_word(section, 300);
-            else if (token_ == "weapon_broken_sound:") data_.weapon_broken_sound = read_word(section, 300);
-            else note("ignored header token `" + token_ + "`");
+            // The weapon values keep their 2.0a place in `weapon`; Darkfiren's contract also lists them in `header`.
+            else if (token_ == "weapon_hp:") {
+                if (read_int(data_.weapon_hp)) put(data_.header, "weapon_hp", ExtraItem::Kind::integer, {data_.weapon_hp});
+            } else if (token_ == "weapon_drop_hurt:") {
+                if (read_int(data_.weapon_drop_hurt)) {
+                    put(data_.header, "weapon_drop_hurt", ExtraItem::Kind::integer, {data_.weapon_drop_hurt});
+                }
+            } else if (token_ == "weapon_hit_sound:") {
+                data_.weapon_hit_sound = read_word(section, 300);
+                put(data_.header, "weapon_hit_sound", ExtraItem::Kind::text, {}, *data_.weapon_hit_sound);
+            } else if (token_ == "weapon_drop_sound:") {
+                data_.weapon_drop_sound = read_word(section, 300);
+                put(data_.header, "weapon_drop_sound", ExtraItem::Kind::text, {}, *data_.weapon_drop_sound);
+            } else if (token_ == "weapon_broken_sound:") {
+                data_.weapon_broken_sound = read_word(section, 300);
+                put(data_.header, "weapon_broken_sound", ExtraItem::Kind::text, {}, *data_.weapon_broken_sound);
+            }
+            else if (extra_int(data_.header, header_int_tags, true) ||
+                     extra_text(data_.header, header_text_tags, section) ||
+                     extra_list(data_.header, header_list_tags)) {
+            } else note("ignored header token `" + token_ + "`");
         }
     }
 
@@ -230,7 +663,8 @@ private:
                 // The original's only fields here are dvx..zwidth; kind/x/y/w/h are not keys.
                 const bool geometry = token_ == "kind:" || token_ == "x:" || token_ == "y:" ||
                                       token_ == "w:" || token_ == "h:";
-                if (geometry || !interaction_field(data_.strengths[static_cast<std::size_t>(entry)].values)) {
+                auto& values = data_.strengths[static_cast<std::size_t>(entry)].values;
+                if (geometry || !(interaction_field(values) || extra_int(values.extra, strength_tags))) {
                     note("ignored weapon strength token `" + token_ + "`");
                 }
             }
@@ -256,7 +690,7 @@ private:
         else if (token_ == "dvy:") read_int(point.dvy);
         else if (token_ == "oid:") read_int(point.oid);
         else if (token_ == "facing:") read_int(point.facing);
-        else return false;
+        else return extra_int(point.extra, opoint_tags);
         return true;
     }
 
@@ -278,7 +712,7 @@ private:
         else if (token_ == "throwinjury:") read_int(point.throwinjury);
         else if (token_ == "decrease:") read_int(point.decrease);
         else if (token_ == "dircontrol:") read_int(point.dircontrol);
-        else return false;
+        else return extra_int(point.extra, cpoint_tags) || extra_pair(point.extra, cpoint_pair_tags);
         return true;
     }
 
@@ -302,9 +736,17 @@ private:
             if (read_int(target.catching_actions[0])) read_int(target.catching_actions[1]);
         } else if (token_ == "caughtact:") {
             if (read_int(target.caught_actions[0])) read_int(target.caught_actions[1]);
-        } else if (token_ == "pickingact:") read_int(target.catching_actions[0]);
-        else if (token_ == "pickedact:") read_int(target.catching_actions[1]);
-        else return false;
+        } else if (token_ == "pickingact:" || token_ == "pickedact:") {
+            // Legacy slots keep the 2.0a behavior; Darkfiren's left/right pair is exposed as well.
+            const bool picking = token_ == "pickingact:";
+            if (extra_pair(target.extra, itr_pair_tags) && !target.extra.empty()) {
+                for (const auto& item : target.extra) {
+                    if (item.key == (picking ? "pickingact" : "pickedact") && !item.values.empty()) {
+                        target.catching_actions[picking ? 0 : 1] = item.values.front();
+                    }
+                }
+            }
+        } else return extra_int(target.extra, itr_tags);
         return true;
     }
 
@@ -339,6 +781,9 @@ private:
         frame.defined = true;
         frame.interactions.clear();
         frame.bodies.clear();
+        frame.sounds.clear();
+        frame.opoints.clear();
+        frame.bpoints.clear();
         next_token(section);
         while (token_ != "<frame_end>") {
             if (token_ == "pic:") read_int(frame.picture);
@@ -361,27 +806,51 @@ private:
             else if (token_ == "hit_Dj:") read_int(frame.hits[8]);
             else if (token_ == "hit_ja:") read_int(frame.hits[9]);
             else if (token_ == "mp:") read_int(frame.mp);
-            else if (token_ == "sound:") frame.sound = read_word(section, 300);
-            else if (token_ == "opoint:") block("opoint_end:", [&] { return object_point(frame.opoint); });
-            else if (token_ == "bpoint:") {
+            else if (token_ == "sound:") {
+                auto path = read_word(section, 300);
+                if (frame.sounds.size() == max_frame_sounds) {
+                    throw ParseFailure{ErrorCode::unsupported,
+                                       "more than " + std::to_string(max_frame_sounds) + " sound entries in a frame"};
+                }
+                frame.sounds.push_back(std::move(path));
+            } else if (token_ == "opoint:") {
+                if (frame.opoints.size() == max_object_points) {
+                    throw ParseFailure{ErrorCode::unsupported,
+                                       "more than " + std::to_string(max_object_points) + " opoint blocks in a frame"};
+                }
+                auto& point = frame.opoints.emplace_back();
+                block("opoint_end:", [&] { return object_point(point); });
+            } else if (token_ == "bpoint:") {
+                if (frame.bpoints.size() == max_body_points) {
+                    throw ParseFailure{ErrorCode::unsupported,
+                                       "more than " + std::to_string(max_body_points) + " bpoint blocks in a frame"};
+                }
+                auto& point = frame.bpoints.emplace_back();
                 block("bpoint_end:", [&] {
-                    if (token_ == "x:") read_int(frame.bpoint.x);
-                    else if (token_ == "y:") read_int(frame.bpoint.y);
-                    else return false;
+                    if (token_ == "x:") read_int(point.x);
+                    else if (token_ == "y:") read_int(point.y);
+                    else return extra_int(point.extra, bpoint_tags);
                     return true;
                 });
+            } else if (token_ == "ppoint:") {
+                // At most one per frame; a repeated block replaces the earlier one.
+                Extras fields;
+                block("ppoint_end:", [&] { return extra_int(fields, ppoint_tags); });
+                frame.ppoint = std::move(fields);
             } else if (token_ == "cpoint:") block("cpoint_end:", [&] { return catch_point(frame.cpoint); });
             else if (token_ == "wpoint:") block("wpoint_end:", [&] { return weapon_point(frame.wpoint); });
             else if (token_ == "itr:") {
-                // The original allocates room for five records on the first block.
+                // Five records in LF2 2.0a; Darkfiren raised the limit to 100.
                 if (frame.interactions.size() == max_frame_blocks) {
-                    throw ParseFailure{ErrorCode::unsupported, "more than five itr blocks in a frame"};
+                    throw ParseFailure{ErrorCode::unsupported,
+                                       "more than " + std::to_string(max_frame_blocks) + " itr blocks in a frame"};
                 }
                 auto& interaction = frame.interactions.emplace_back();
                 block("itr_end:", [&] { return interaction_block_field(interaction); });
             } else if (token_ == "bdy:") {
                 if (frame.bodies.size() == max_frame_blocks) {
-                    throw ParseFailure{ErrorCode::unsupported, "more than five bdy blocks in a frame"};
+                    throw ParseFailure{ErrorCode::unsupported,
+                                       "more than " + std::to_string(max_frame_blocks) + " bdy blocks in a frame"};
                 }
                 auto& body = frame.bodies.emplace_back();
                 block("bdy_end:", [&] {
@@ -390,12 +859,18 @@ private:
                     else if (token_ == "y:") read_int(body.area.y);
                     else if (token_ == "w:") read_int(body.area.width);
                     else if (token_ == "h:") read_int(body.area.height);
-                    else return false;
+                    else return extra_int(body.extra, body_tags);
                     return true;
                 });
+            } else if (extra_int(frame.extra, frame_tags) || extra_int(frame.hold, hold_tags) ||
+                       extra_int(frame.hit_ext, hit_ext_tags)) {
             } else note("ignored frame token `" + token_ + "`");
             next_token(section);
         }
+        // The single-record keys of LF2 2.0a mirror the first block of each list.
+        if (!frame.sounds.empty()) frame.sound = frame.sounds.front();
+        if (!frame.opoints.empty()) frame.opoint = frame.opoints.front();
+        if (!frame.bpoints.empty()) frame.bpoint = frame.bpoints.front();
         if (!frame.interactions.empty()) frame.interaction_bounds = bounds(frame.interactions);
         if (!frame.bodies.empty()) frame.body_bounds = bounds(frame.bodies);
     }
@@ -420,6 +895,52 @@ void set_optional(ScriptTable& target, std::string key, const std::optional<std:
     if (value) set_field(target, std::move(key), text(*value));
 }
 
+ScriptValue extra_value(const ExtraItem& item) {
+    if (item.kind == ExtraItem::Kind::text) return text(item.text);
+    if (item.kind == ExtraItem::Kind::integer) return integer(item.values.empty() ? 0 : item.values.front());
+    if (item.kind == ExtraItem::Kind::groups) {
+        ScriptTable outer;
+        for (std::size_t group = 0; group < item.groups.size(); ++group) {
+            ScriptTable inner;
+            for (std::size_t index = 0; index < item.groups[group].size(); ++index) {
+                set_field(inner, static_cast<std::int32_t>(index + 1), integer(item.groups[group][index]));
+            }
+            set_field(outer, static_cast<std::int32_t>(group + 1), table(std::move(inner)));
+        }
+        return table(std::move(outer));
+    }
+    ScriptTable list;
+    for (std::size_t index = 0; index < item.values.size(); ++index) {
+        set_field(list, static_cast<std::int32_t>(index + 1), integer(item.values[index]));
+    }
+    return table(std::move(list));
+}
+
+void append_extras(ScriptTable& target, const Extras& extras) {
+    for (const auto& item : extras) set_field(target, item.key, extra_value(item));
+}
+
+ScriptValue extras_table(const Extras& extras) {
+    ScriptTable result;
+    append_extras(result, extras);
+    return table(std::move(result));
+}
+
+ScriptValue object_point_value(const ObjectPoint& o) {
+    ScriptTable result{{"kind", integer(o.kind)}, {"x", integer(o.x)}, {"y", integer(o.y)},
+                       {"action", integer(o.action)}, {"dvx", integer(o.dvx)},
+                       {"dvy", integer(o.dvy)}, {"oid", integer(o.oid)},
+                       {"facing", integer(o.facing)}};
+    append_extras(result, o.extra);
+    return table(std::move(result));
+}
+
+ScriptValue body_point_value(const BodyPoint& b) {
+    ScriptTable result{{"x", integer(b.x)}, {"y", integer(b.y)}};
+    append_extras(result, b.extra);
+    return table(std::move(result));
+}
+
 ScriptValue rectangle(const Rectangle& area) {
     return table({{"x", integer(area.x)}, {"y", integer(area.y)},
                   {"width", integer(area.width)}, {"height", integer(area.height)}});
@@ -428,7 +949,7 @@ ScriptValue pair(const std::array<std::int32_t, 2>& values) {
     return table({{1, integer(values[0])}, {2, integer(values[1])}});
 }
 ScriptTable interaction_fields(const Interaction& value) {
-    return {{"kind", integer(value.kind)}, {"x", integer(value.area.x)},
+    ScriptTable result{{"kind", integer(value.kind)}, {"x", integer(value.area.x)},
             {"y", integer(value.area.y)}, {"width", integer(value.area.width)},
             {"height", integer(value.area.height)}, {"dvx", integer(value.dvx)},
             {"dvy", integer(value.dvy)}, {"fall", integer(value.fall)},
@@ -437,6 +958,8 @@ ScriptTable interaction_fields(const Interaction& value) {
             {"catching_actions", pair(value.catching_actions)},
             {"caught_actions", pair(value.caught_actions)}, {"bdefend", integer(value.bdefend)},
             {"injury", integer(value.injury)}, {"zwidth", integer(value.zwidth)}};
+    append_extras(result, value.extra);
+    return result;
 }
 
 ScriptValue frame_value(const Frame& frame) {
@@ -446,7 +969,6 @@ ScriptValue frame_value(const Frame& frame) {
     for (std::size_t index = 0; index < hit_names.size(); ++index) {
         set_field(hits, std::string(hit_names[index]), integer(frame.hits[index]));
     }
-    const auto& o = frame.opoint;
     const auto& c = frame.cpoint;
     const auto& w = frame.wpoint;
     ScriptTable catch_point{{"kind", integer(c.kind)}, {"x", integer(c.x)}, {"y", integer(c.y)},
@@ -458,6 +980,7 @@ ScriptValue frame_value(const Frame& frame) {
         {"decrease", integer(c.decrease)}, {"dircontrol", integer(c.dircontrol)}};
     set_optional(catch_point, "throwinjury", c.throwinjury);
     set_optional(catch_point, "throwvz", c.throwvz);
+    append_extras(catch_point, c.extra);
     ScriptTable interactions;
     for (std::size_t index = 0; index < frame.interactions.size(); ++index) {
         set_field(interactions, static_cast<std::int32_t>(index + 1),
@@ -467,9 +990,13 @@ ScriptValue frame_value(const Frame& frame) {
     for (std::size_t index = 0; index < frame.bodies.size(); ++index) {
         const auto& body = frame.bodies[index];
         set_field(bodies, static_cast<std::int32_t>(index + 1),
-                  table({{"kind", integer(body.kind)}, {"x", integer(body.area.x)},
-                         {"y", integer(body.area.y)}, {"width", integer(body.area.width)},
-                         {"height", integer(body.area.height)}}));
+                  table([&] {
+                      ScriptTable fields{{"kind", integer(body.kind)}, {"x", integer(body.area.x)},
+                                         {"y", integer(body.area.y)}, {"width", integer(body.area.width)},
+                                         {"height", integer(body.area.height)}};
+                      append_extras(fields, body.extra);
+                      return fields;
+                  }()));
     }
     ScriptTable result{{"name", text(frame.name)}, {"picture", integer(frame.picture)},
         {"state", integer(frame.state)}, {"wait", integer(frame.wait)},
@@ -477,11 +1004,8 @@ ScriptValue frame_value(const Frame& frame) {
         {"dvz", integer(frame.dvz)}, {"center_x", integer(frame.center_x)},
         {"center_y", integer(frame.center_y)}, {"mp", integer(frame.mp)},
         {"hits", table(std::move(hits))},
-        {"opoint", table({{"kind", integer(o.kind)}, {"x", integer(o.x)}, {"y", integer(o.y)},
-                          {"action", integer(o.action)}, {"dvx", integer(o.dvx)},
-                          {"dvy", integer(o.dvy)}, {"oid", integer(o.oid)},
-                          {"facing", integer(o.facing)}})},
-        {"bpoint", table({{"x", integer(frame.bpoint.x)}, {"y", integer(frame.bpoint.y)}})},
+        {"opoint", object_point_value(frame.opoint)},
+        {"bpoint", body_point_value(frame.bpoint)},
         {"cpoint", table(std::move(catch_point))},
         {"wpoint", table({{"kind", integer(w.kind)}, {"x", integer(w.x)}, {"y", integer(w.y)},
                           {"weaponact", integer(w.weaponact)}, {"attacking", integer(w.attacking)},
@@ -491,6 +1015,31 @@ ScriptValue frame_value(const Frame& frame) {
         {"interaction_bounds", rectangle(frame.interaction_bounds)},
         {"body_bounds", rectangle(frame.body_bounds)}};
     set_optional(result, "sound", frame.sound);
+    append_extras(result, frame.extra);
+    if (!frame.hold.empty()) set_field(result, "hold", extras_table(frame.hold));
+    if (!frame.hit_ext.empty()) set_field(result, "hit_ext", extras_table(frame.hit_ext));
+    if (frame.ppoint) set_field(result, "ppoint", extras_table(*frame.ppoint));
+    if (!frame.opoints.empty()) {
+        ScriptTable list;
+        for (std::size_t index = 0; index < frame.opoints.size(); ++index) {
+            set_field(list, static_cast<std::int32_t>(index + 1), object_point_value(frame.opoints[index]));
+        }
+        set_field(result, "opoints", table(std::move(list)));
+    }
+    if (!frame.bpoints.empty()) {
+        ScriptTable list;
+        for (std::size_t index = 0; index < frame.bpoints.size(); ++index) {
+            set_field(list, static_cast<std::int32_t>(index + 1), body_point_value(frame.bpoints[index]));
+        }
+        set_field(result, "bpoints", table(std::move(list)));
+    }
+    if (!frame.sounds.empty()) {
+        ScriptTable list;
+        for (std::size_t index = 0; index < frame.sounds.size(); ++index) {
+            set_field(list, static_cast<std::int32_t>(index + 1), text(frame.sounds[index]));
+        }
+        set_field(result, "sounds", table(std::move(list)));
+    }
     return table(std::move(result));
 }
 }
@@ -590,6 +1139,75 @@ ScriptValue to_script_value(const ObjectData& data) {
         {"frames", table(std::move(frames))}, {"token_checksum", integer(data.token_checksum)},
         {"diagnostics", table(std::move(diagnostics))}};
     set_optional(result, "small", data.small);
+    if (!data.header.empty()) set_field(result, "header", extras_table(data.header));
+    if (data.stats) set_field(result, "stats", extras_table(*data.stats));
+    if (data.armor) set_field(result, "armor", extras_table(*data.armor));
+    if (data.weapon_piece) {
+        ScriptTable pieces;
+        append_extras(pieces, data.weapon_piece->fields);
+        for (std::size_t index = 0; index < data.weapon_piece->pieces.size(); ++index) {
+            if (data.weapon_piece->pieces[index]) {
+                set_field(pieces, static_cast<std::int32_t>(index + 1), extras_table(*data.weapon_piece->pieces[index]));
+            }
+        }
+        set_field(result, "weapon_piece", table(std::move(pieces)));
+    }
+    if (!data.sound_list.empty()) {
+        ScriptTable list;
+        for (std::size_t index = 0; index < data.sound_list.size(); ++index) {
+            set_field(list, static_cast<std::int32_t>(index + 1), extras_table(data.sound_list[index]));
+        }
+        set_field(result, "sound_list", table(std::move(list)));
+    }
+    if (data.skins) {
+        ScriptTable skins;
+        append_extras(skins, data.skins->fields);
+        for (std::size_t index = 0; index < data.skins->entries.size(); ++index) {
+            set_field(skins, static_cast<std::int32_t>(index + 1), extras_table(data.skins->entries[index]));
+        }
+        set_field(result, "skins", table(std::move(skins)));
+    }
+    if (data.phase) set_field(result, "phase", extras_table(*data.phase));
+    if (data.display) {
+        const auto& shown = *data.display;
+        ScriptTable display;
+        const auto bar = [&](const char* key, const std::optional<DisplayBlock>& block) {
+            if (!block) return;
+            ScriptTable fields;
+            append_extras(fields, block->fields);
+            if (!block->layers.empty()) {
+                ScriptTable layers;
+                for (std::size_t index = 0; index < block->layers.size(); ++index) {
+                    set_field(layers, static_cast<std::int32_t>(index + 1), extras_table(block->layers[index]));
+                }
+                set_field(fields, "layers", table(std::move(layers)));
+            }
+            set_field(display, key, table(std::move(fields)));
+        };
+        bar("hp_bar", shown.hp_bar);
+        bar("mp_bar", shown.mp_bar);
+        bar("minibar", shown.minibar);
+        bar("bossbar", shown.bossbar);
+        bar("effect", shown.effect);
+        bar("menu_face", shown.menu_face);
+        if (shown.stats_count) {
+            ScriptTable counts;
+            for (std::size_t index = 0; index < shown.stats_count->size(); ++index) {
+                set_field(counts, static_cast<std::int32_t>(index + 1), extras_table((*shown.stats_count)[index]));
+            }
+            set_field(display, "stats_count", table(std::move(counts)));
+        }
+        if (shown.team_flag) set_field(display, "team_flag", extras_table(*shown.team_flag));
+        if (shown.name) set_field(display, "name", extras_table(*shown.name));
+        set_field(result, "display", table(std::move(display)));
+    }
+    if (!data.command.empty()) {
+        ScriptTable list;
+        for (std::size_t index = 0; index < data.command.size(); ++index) {
+            set_field(list, static_cast<std::int32_t>(index + 1), extras_table(data.command[index]));
+        }
+        set_field(result, "command", table(std::move(list)));
+    }
     return table(std::move(result));
 }
 }

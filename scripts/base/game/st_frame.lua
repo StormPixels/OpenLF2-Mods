@@ -78,8 +78,14 @@ end
 -- the physics step, `was_airborne` whether it was in the air then.
 function st_frame.landing(value, air_frame, was_airborne)
     if not was_airborne or value.y_int ~= 0 then return end
-    local ext = value.record.frame(air_frame).hit_ext
+    local air = value.record.frame(air_frame)
+    local ext = air.hit_ext
     local target = ext and ext.g
+    -- 9xxx: the frame's own state names the landing frame (0-399).
+    local landing = st_constants.landing
+    if (not target or target == 0) and air.state >= landing.first and air.state <= landing.last then
+        target = air.state - landing.first
+    end
     if target and target ~= 0 and value.record.frames[target] then
         value.frame = target
         value.wait_counter = 0

@@ -73,8 +73,9 @@ function animation.advance(match, value, index)
     if frame(value.frame).state == state_flying_heavy_item then value.facing = value.vx > 0 and facing_right or facing_left end
     if value.wait_counter <= frame(value.frame).wait then return animation.tail(value) end
     value.wait_counter = 0
-    if frame(value.frame).next == 0 then return animation.tail(value) end
-    value.frame = st_states.resolve_next(match, value, frame(value.frame))
+    local resolved = st_states.resolve_next(match, value, frame(value.frame))
+    if resolved == 0 then return animation.tail(value) end
+    value.frame = resolved
     if value.frame < 0 then
         value.facing = 1 - value.facing
         value.frame = -value.frame

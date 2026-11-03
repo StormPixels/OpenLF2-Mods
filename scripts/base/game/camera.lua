@@ -22,6 +22,7 @@ local world_edge_spawned_character_margin = constants.world_edges.spawned_charac
 local record_kinds = constants.record_kinds
 local record_kinds = constants.record_kinds
 local objects = require("base/game/objects")
+local st_camera = require("base/game/st_camera")
 local camera = {}
 
 local function cdiv(a, b)
@@ -101,6 +102,8 @@ function camera.step(state)
         end
         if count == 0 then sum, count = camera_motion_fallback_focus_x, 1 end
     end
+    local focus = st_camera.focus(state)
+    if focus then sum, count = focus, 1 end
     local width = state.stage.width or screen_width
     local target = cdiv(sum, count) - screen_width / 2
     if target < 0 then target = 0 end

@@ -18,7 +18,7 @@ local control = require("base/game/control")
 local user_options = require("base/game/options")
 -- Layouts that draw the match on a window wider than the classic picture: "expand" follows the window,
 -- the wide layout is a fixed 1333 wide picture.
-local function wider_layout(layout) return layout == "expand" or layout == user_options.wide_layout end
+local function wider_layout(layout) return layout == "expand" or user_options.wide_width(layout) ~= nil end
 local touch_gamepad = require("base/ui/touch_gamepad")
 local quit_dialog = require("base/ui/quit_dialog")
 local flow = {}

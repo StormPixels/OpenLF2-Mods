@@ -31,6 +31,35 @@ function mode_layout.blocks(text)
     return blocks
 end
 
+-- {tag = {{key = value}, ...}}: every block of each tag in file order, read like mode_layout.blocks. mode3.dat has two
+-- <mode> blocks (difficulty, game modes) and two <grid_bg> blocks (a background-mode panel and a stage-like panel);
+-- blocks() keeps only the first of each. [BELUM PASTI] which panel each repeated block belongs to; nothing maps them yet.
+function mode_layout.all_blocks(text)
+    local found, current = {}, nil
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag then
+            if tag:sub(-4) == "_end" then current = nil
+            else
+                current = {}
+                found[tag] = found[tag] or {}
+                found[tag][#found[tag] + 1] = current
+            end
+        elseif current then
+            local key, value = line:match("^%s*([%w_]+)%s*:%s*(.-)%s*$")
+            if key and current[key] == nil then
+                if key == "pic" or key == "small" then
+                    value = value:gsub("\\", "/"):lower()
+                else
+                    value = tonumber(value:match("^(-?%d+)")) or value
+                end
+                current[key] = value
+            end
+        end
+    end
+    return found
+end
+
 -- target key <- block key, per target table of the menu; keys that must be at least 1 are listed apart.
 local maps = {
     menu = {tag = "menu_control", pic = "pic", x = "start_x", y = "start_y", row = "row", step_x = "centerx", step_y = "centery"},

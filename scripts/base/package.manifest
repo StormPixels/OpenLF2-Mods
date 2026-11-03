@@ -65,6 +65,11 @@ module=game/st_frame|game/st_frame.lua
 module=game/st_states|game/st_states.lua
 module=game/fx_constants|game/fx_constants.lua
 module=game/fx_itr|game/fx_itr.lua
+module=game/ui_modes|game/ui_modes.lua
+module=game/ui_hud|game/ui_hud.lua
+module=game/st_camera|game/st_camera.lua
+module=game/st_fa|game/st_fa.lua
+module=game/timestop|game/timestop.lua
 # Fonts for the translated languages (see i18n/i18n.lua); their licenses are next to them.
 asset=mods/base/onscreen/up.bmp|onscreen/up.bmp
 asset=mods/base/onscreen/down.bmp|onscreen/down.bmp

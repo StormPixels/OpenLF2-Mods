@@ -8,6 +8,7 @@ local battle_strategies = constants.battle_strategies
 local objects = require("base/game/objects")
 local options = require("base/game/options")
 local mode_layout = require("base/game/mode_layout")
+local ui_modes = require("base/game/ui_modes")
 local battle = {}
 
 local function cdiv(a, b)
@@ -35,9 +36,15 @@ end
 set_troop_ids(nil)
 -- What a game gives (the module keeps it for the battle that follows); the file is read for the wide layout only.
 local function load_troops()
-    local ok, text = pcall(engine.read_resource, "game/mode_file")
-    local wide = options.current().battlefield_layout == options.wide_layout
-    set_troop_ids(ok and wide and mode_layout.battle_ids(text) or nil)
+    local layout = options.current().battlefield_layout
+    local wide = layout == options.wide_layout or (options.wide_width and options.wide_width(layout)) ~= nil
+    local text = wide and ui_modes.layout_text(layout) or nil
+    if wide and not text then
+        -- Older hosts and test stubs only have the mode4.dat resource.
+        local ok, raw = pcall(engine.read_resource, "game/mode_file")
+        text = ok and raw or nil
+    end
+    set_troop_ids(text and mode_layout.battle_ids(text) or nil)
 end
 battle.set_troop_ids = set_troop_ids
 function battle.troop_ids() local copy = {} for kind = 0, type_count - 1 do copy[kind] = types[kind] end return copy end

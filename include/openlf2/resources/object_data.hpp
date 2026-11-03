@@ -17,9 +17,26 @@ namespace openlf2::object_data {
 // Frames 0-998, as in the Darkfiren LF2 mod. 999 and 1000 keep their original meaning in `next:`.
 inline constexpr std::int32_t frame_count = 999;
 inline constexpr std::size_t max_sheets = 10;
-inline constexpr std::size_t max_frame_blocks = 5;
+// itr and bdy blocks per frame: 5 in LF2 2.0a, 100 in Darkfiren.
+inline constexpr std::size_t max_frame_blocks = 100;
+inline constexpr std::size_t max_object_points = 20;
+inline constexpr std::size_t max_body_points = 5;
+inline constexpr std::size_t max_frame_sounds = 20;
+inline constexpr std::size_t max_header_list = 100;
 inline constexpr std::size_t strength_entries = 10;
 inline constexpr std::int32_t max_sheet_cells = 500;
+
+// Darkfiren tags that LF2 2.0a lacks. They are kept as ordered key/value items and handed to
+// scripts under the tag's own name, so a tag absent from the file is absent (nil) in Lua.
+struct ExtraItem {
+    enum class Kind : std::uint8_t { integer, list, text, groups };
+    std::string key;
+    Kind kind = Kind::integer;
+    std::vector<std::int32_t> values; // one value for `integer`
+    std::string text;
+    std::vector<std::vector<std::int32_t>> groups; // `groups`: one entry per occurrence of the tag
+};
+using Extras = std::vector<ExtraItem>;
 
 struct Rectangle {
     std::int32_t x = 0;
@@ -55,18 +72,22 @@ struct Interaction {
     std::int32_t bdefend = 0;
     std::int32_t injury = 0;
     std::int32_t zwidth = 0;
+    Extras extra; // Darkfiren-only fields (dvz, drain, poison, ...)
 };
 
 struct Body {
     std::int32_t kind = 0;
     Rectangle area;
+    Extras extra; // zwidth, respond
 };
 
 struct ObjectPoint {
     std::int32_t kind = 0, x = 0, y = 0, action = 0, dvx = 0, dvy = 0, oid = 0, facing = 0;
+    Extras extra;
 };
 struct BodyPoint {
     std::int32_t x = 0, y = 0;
+    Extras extra; // w, h, rect, respond
 };
 struct CatchPoint {
     std::int32_t kind = 0, x = 0, y = 0;
@@ -77,6 +98,7 @@ struct CatchPoint {
     // Not initialized by the original record constructor.
     std::optional<std::int32_t> throwinjury;
     std::optional<std::int32_t> throwvz;
+    Extras extra;
 };
 struct WeaponPoint {
     std::int32_t kind = 0, x = 0, y = 0, weaponact = 0, attacking = 0, cover = 0;
@@ -95,7 +117,15 @@ struct Frame {
     std::int32_t mp = 0;
     // hit_a hit_d hit_j hit_Fa hit_Ua hit_Da hit_Fj hit_Uj hit_Dj hit_ja, in that order.
     std::array<std::int32_t, 10> hits{};
-    std::optional<std::string> sound;
+    std::optional<std::string> sound; // first of `sounds`
+    // Up to 20 sound, 20 opoint and 5 bpoint blocks; opoint/bpoint above mirror element 0.
+    std::vector<std::string> sounds;
+    std::vector<ObjectPoint> opoints;
+    std::vector<BodyPoint> bpoints;
+    Extras extra; // dx, dy, dz, hp, chp, cmp, caught, loop, amount, shadow, bound, center_z, ...
+    Extras hold;  // hold_a/d/j/f/b/uz/dz
+    Extras hit_ext; // hit_f/b/uz/dz/g/Faj/Uaj/Daj and the raw pdk aliases
+    std::optional<Extras> ppoint;
     ObjectPoint opoint;
     BodyPoint bpoint;
     CatchPoint cpoint;
@@ -123,11 +153,47 @@ struct Movement {
     std::optional<double> rowing_height, rowing_distance;
 };
 
+// <weapon_piece>: `team` plus up to five numbered pieces.
+struct WeaponPiece {
+    Extras fields;
+    std::array<std::optional<Extras>, 5> pieces;
+};
+// <pic>: `random`, `sound` and up to ten skins.
+inline constexpr std::size_t max_skins = 10;
+inline constexpr std::size_t max_commands = 10;
+struct Skins {
+    Extras fields;
+    std::vector<Extras> entries;
+};
+
+// Display blocks (<hp_bar>, <minibar>, ...): the block's own tags plus its `layer:` records.
+struct DisplayBlock {
+    Extras fields;
+    std::vector<Extras> layers;
+};
+inline constexpr std::size_t max_display_layers = 100; // minibar, bossbar and menu_face are tighter, see the parser
+inline constexpr std::size_t max_stats_counts = 10;
+inline constexpr std::size_t max_phase_ids = 100;
+struct Display {
+    std::optional<DisplayBlock> hp_bar, mp_bar, minibar, bossbar, effect, menu_face;
+    std::optional<std::vector<Extras>> stats_count;
+    std::optional<Extras> team_flag, name;
+};
+
 struct ObjectData {
     std::string name = "none";
     std::string head = "none";
     std::optional<std::string> small;
     Movement movement;
+    Extras header; // Darkfiren <bmp_begin> tags
+    std::optional<Extras> stats;  // <stats>
+    std::optional<Extras> armor;  // <armor>
+    std::optional<WeaponPiece> weapon_piece;
+    std::vector<Extras> sound_list; // weapon <sound> (layout not documented, see parser)
+    std::optional<Skins> skins;
+    std::vector<Extras> command;  // <command>, up to ten entries
+    std::optional<Extras> phase;  // <phase> (transformation grid)
+    std::optional<Display> display;
     std::int32_t weapon_hp = 0;
     std::int32_t weapon_drop_hurt = 0;
     std::optional<std::string> weapon_hit_sound, weapon_drop_sound, weapon_broken_sound;

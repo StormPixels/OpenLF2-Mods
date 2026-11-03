@@ -46,6 +46,7 @@ local catalog = require("base/game/catalog")
 local recording = require("base/game/recording")
 local unlock = require("base/game/unlock")
 local st_states = require("base/game/st_states")
+local st_fa = require("base/game/st_fa")
 local match = {}
 
 local function cdiv(a, b)
@@ -369,7 +370,7 @@ end
 local function read_input(state, held)
     for index = 0, 7 do
         local value = state.items[index]
-        if value and value.human then
+        if value and value.human and not st_states.takes_over(value) then
             for _, key in ipairs(item.keys) do value.previous_keys[key] = value.keys[key] end
             -- The original reads the keys every second time unit (2tu); LF2 Darkfiren's 1tu mode reads them every one.
             if state.input_phase == 0 or state.tu1 then
@@ -384,6 +385,7 @@ local function read_input(state, held)
             end
         end
     end
+    st_states.run_takeover(state, ai)
     local scan
     for index = 10, item_slots - 1 do
         local value = state.items[index]
@@ -392,7 +394,7 @@ local function read_input(state, held)
                 if not scan and ai.prepare then scan = ai.prepare(state) end
                 ai.control(state, index, state.mode, scan)
             elseif value.record.frame(value.frame).hits.Fa > 0 then
-                objects.update(state, index)
+                if not st_fa.update(state, index) then objects.update(state, index) end
                 scan = nil
             end
         end
@@ -745,11 +747,13 @@ function_keys = function(state)
 end
 
 local function control_item(state, index, value)
+    if frame_rules.frozen(state, index, value) then return end
     control.step(state, value)
     frame_rules.after_control(state, index, value)
 end
 
 local function physics_item(state, index, value)
+    if frame_rules.frozen(state, index, value) then return end
     physics.step(state, value)
     if value.record.frame(value.frame).state == constants.frame_states.removed then objects.remove(state, index) end
     frame_rules.after_physics(state, index, value)
@@ -764,6 +768,7 @@ local function apply_object_hit(state, index, value)
 end
 
 local function advance_item(state, index, value)
+    if frame_rules.frozen(state, index, value) then return end
     frame_rules.before_advance(state, index, value)
     regenerate(state, value)
     animation.advance(state, value, index)
@@ -873,6 +878,7 @@ function match.step(state, held)
         if state.recording and not state.recording.saved then save_recording(state) end
         if state.replay then state.replay_ended = true end
     end
+    st_states.begin_tick(state)
     each_item(state, control_item)
     each_item(state, physics_item)
     weapons.carry(state)

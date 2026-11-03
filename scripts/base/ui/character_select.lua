@@ -25,6 +25,7 @@ local computer_phase, computer_team_phase, computer_done = slot_phases.computer_
 local mode_layout = require("base/game/mode_layout")
 local stage_levels = require("base/game/stage_levels")
 local menu_small = require("base/game/menu_small")
+local ui_modes = require("base/game/ui_modes")
 local layout_targets = {}
 -- The options panel as LF2 Darkfiren draws it: the <menu_small> layers of mode4.dat (game/menu_small.lua).
 local small_layers = {}
@@ -45,8 +46,10 @@ local function origin(slot)
 end
 local wide_known = {}
 -- The wide menu needs the wide battlefield layout and a game that has the picture (LF2 Darkfiren).
-local function wide_wanted()
-    if user_options.current().battlefield_layout ~= user_options.wide_layout then return false end
+-- Only the 1333 layout may do without a mode file (the built-in values are mode4.dat's); the other widths need theirs.
+local function wide_wanted(width, mode_text)
+    if not width then return false end
+    if width ~= constants.screen.wide_width and not mode_text then return false end
     if wide_known[menu.pic] == nil then wide_known[menu.pic] = pcall(engine.read_resource, menu.pic) end
     return wide_known[menu.pic]
 end
@@ -126,20 +129,24 @@ function selection.create(options)
     time_list, time_type = {}, 1
     cost_settings = {kind = 100, pools = {}, groups = {}}
     small_layers = {}
-    if user_options.current().battlefield_layout == user_options.wide_layout then
-        local ok, text = pcall(engine.read_resource, "game/mode_file")
-        if ok and text then
-            mode_layout.apply(text, layout_targets)
-            time_type, time_list = mode_layout.time_limits(text)
-            cost_settings = mode_layout.cost_settings(text)
-            small_layers = menu_small.parse(text)
+    local mode_text
+    local layout_name = user_options.current().battlefield_layout
+    local width = user_options.wide_width(layout_name)
+    if width then
+        mode_text = ui_modes.layout_text(layout_name)
+        if mode_text then
+            mode_layout.apply(mode_text, layout_targets)
+            time_type, time_list = mode_layout.time_limits(mode_text)
+            cost_settings = mode_layout.cost_settings(mode_text)
+            small_layers = menu_small.parse(mode_text)
         end
     end
     local state = {mode = mode, fighters = catalog.load(), backgrounds = catalog.backgrounds(),
         slots = slots, menu = menus.human_slots, last_menu = menus.human_slots, options = options,
         countdown = idle_countdown, computers = previous.computers or -100,
-        order = {}, cursor = 0, previous_random = false, blink = 0, display = {}, wide = wide_wanted()}
-    state.random_pool = state.wide and load_random_pool() or nil
+        order = {}, cursor = 0, previous_random = false, blink = 0, display = {}, wide = wide_wanted(width, mode_text)}
+    state.width = state.wide and width or nil
+    state.random_pool = state.wide and (ui_modes.random_pool(mode_text) or load_random_pool()) or nil
     return state
 end
 
@@ -375,7 +382,7 @@ end
 
 local function computer_count_menu(state, previous_menu)
     -- The dialog is laid out for the classic 794-wide picture; the wide menu moves it to the middle of its picture.
-    local dx = state.wide and math.floor((constants.screen.wide_width - constants.screen.width) / 2 + 0.5) or 0
+    local dx = state.wide and math.floor(((state.width or constants.screen.wide_width) - constants.screen.width) / 2 + 0.5) or 0
     image(state, "pe/cmc", 218 + dx, 215)
     local free, sides, teams = 0, 0, {}
     for index = 0, 7 do
@@ -1419,7 +1426,7 @@ function selection.update(state, held, context)
     state.blink = (state.blink + 1) % 30
     local previous_menu = state.menu
     use_layout(state)
-    fill(state, 0, 0, state.wide and constants.screen.wide_width or constants.screen.width, constants.screen.height, 0)
+    fill(state, 0, 0, state.wide and (state.width or constants.screen.wide_width) or constants.screen.width, constants.screen.height, 0)
     if state.wide then
         roster_panel(state)
         image(state, menu.pic, menu.x, menu.y)
@@ -1444,7 +1451,7 @@ function selection.update(state, held, context)
 end
 
 function selection.draw(state, context)
-    context.viewport(state.wide and constants.screen.wide_width or constants.screen.width, constants.screen.height, 0, 0, 0)
+    context.viewport(state.wide and (state.width or constants.screen.wide_width) or constants.screen.width, constants.screen.height, 0, 0, 0)
     for _, command in ipairs(state.display) do
         if command[1] == "image" then context.image(command[2], command[3], command[4], command[5] == true)
         elseif command[1] == "sprite" then

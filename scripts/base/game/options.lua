@@ -11,7 +11,15 @@ local options = {}
 -- "wide 1333" is the expanded battlefield on a fixed 1333 wide picture (LF2 Darkfiren's 8P super widescreen),
 -- where "expand" takes the window's own shape.
 options.wide_layout = "wide 1333"
-options.battlefield_layouts = {"classic", "expand", options.wide_layout}
+-- "wide 1018" is LF2 Darkfiren's 8P widescreen (mode2.dat) on a fixed 1018 wide picture.
+options.wide_layout_1018 = "wide 1018"
+options.battlefield_layouts = {"classic", "expand", options.wide_layout, options.wide_layout_1018}
+-- The width of the fixed picture a wide layout draws on; nil for classic and expand.
+function options.wide_width(layout)
+    if layout == options.wide_layout then return require("base/game/constants").screen.wide_width end
+    if layout == options.wide_layout_1018 then return 1018 end
+    return nil
+end
 local function valid_layout(value)
     for _, layout in ipairs(options.battlefield_layouts) do
         if value == layout then return true end

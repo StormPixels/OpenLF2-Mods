@@ -36,6 +36,10 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: raised the object slot capacity from 400 to 1000 and spawn up to 20 opoints per frame.
 - LF2 Darkfiren: itr tags dvz, drain, gain (17xxx heals HP), recover, dbdefend 1-4 and spark (-1 / image set index).
 
+- UI: layout baru "wide 1018" (mode2.dat); pemilihan berkas mode dan lebar dari `data/mode/mode.dat` (`game/ui_modes.lua`).
+- UI: HUD membaca gaya dari `data/frame.dat` (`game/ui_hud.lua`); bar dan flag per objek dari `record.display` bila ada.
+- UI: tag frame `shadow`, `bound`, `amount`/`loop`, `center_z` dan state tak terlihat (`value.st.invisible`) digambar oleh `match_screen`.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

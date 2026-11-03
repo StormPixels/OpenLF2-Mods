@@ -45,7 +45,7 @@ function catalog.load()
                 fighters[#fighters + 1] = {id = id, record = record, name = name,
                     portrait = canonical(portrait), small = small and canonical(small) or nil, path = path,
                     hidden = family == 3 or family == 5}
-                assert(#fighters <= 400, "too many character records")
+                assert(#fighters <= 1000, "too many character records")
             end
         elseif line:find("%S") and not id then error("invalid object catalog line") end
     end
@@ -114,7 +114,7 @@ function catalog.objects()
         local entry = {id = tonumber(id), kind = tonumber(kind), path = canonical(path)}
         objects[#objects + 1] = entry
         if not by_id[entry.id] then by_id[entry.id] = entry end
-        assert(#objects <= 500, "too many object records")
+        assert(#objects <= 1000, "too many object records")
     end
     cached_objects = {list = objects, by_id = by_id}
     return cached_objects

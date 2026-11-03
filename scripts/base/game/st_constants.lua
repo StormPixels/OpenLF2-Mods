@@ -44,5 +44,30 @@ local st_constants = {
         move_to_center = 405,      -- moves the object to the middle of the map [UNCERTAIN: x only or x and z]
     },
     heal_default = 100,
+    -- Round 2 states (the number is the whole frame `state`).
+    branch = {
+        hp_first = 1000000, hp_last = 1999999,   -- 1xxxyyy: hp > xxx goes to yyy, else to next
+        mp_first = 2000000, mp_last = 2999999,   -- 2xxxyyy: see mp_swapped
+        -- [UNCERTAIN] The notes disagree on the mp branch. txt/readme swaps yyy and the frame's next compared with hp:
+        -- mp > xxx goes to next, otherwise to yyy. Set false to use the same direction as hp.
+        mp_swapped = true,
+    },
+    timestop = {
+        first = 3000000, last = 3999999,         -- 3xxyzzz: xx chance (0 = 100%), y kind, zzz duration
+        unit_ticks = 1,                          -- [UNCERTAIN] one duration unit is this many ticks
+    },
+    charge = {first = 6000, last = 6999},        -- 6XXX
+    ai_takeover = {first = 7000, last = 7999, unit_ticks = 1},    -- 7XXX [UNCERTAIN: unit]
+    transform = {first = 80000, last = 89999},   -- 8XXXX: record id = state - 80000
+    landing = {first = 9000, last = 9399},       -- 9xxx: frame to go to when landing
+    camera = {first = 99000, last = 99999},      -- 99XXX (XXX ticks, 0 = while in the frame)
+    quake = {first = 50000, last = 59999, base = 50},  -- 5XXYY: x = XX-50, y = YY-50 (the rule, not the 55200 example)
+    -- Background switches. [UNCERTAIN] 9XX = row XX; 9XXYY = row XX and mode YY (9XXYY = 90000-98999, 99XXX is the camera);
+    -- 7XX = mode XX; 7XXYY = mode XX and row YY. The call is background.switch(state, row, mode), made with pcall.
+    background = {row = {first = 900, last = 999}, row_mode = {first = 90000, last = 98999},
+        mode = {first = 700, last = 799}, mode_row = {first = 70000, last = 79999}},
+    -- hit_Fa values on attack objects that are new in Darkfiren.
+    fa = {fire_chase = 24, ice_chase = 25, firen_explosion = 26, angel_first = 5000, demon_first = 6000, bat_first = 8000,
+        range = 1000, chase_min = 4, chase_max = 10, demon_max = 7},
 }
 return st_constants

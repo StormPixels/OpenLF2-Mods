@@ -8,6 +8,7 @@ local merge = require("base/game/merge")
 local cost = require("base/game/cost")
 local unlock = require("base/game/unlock")
 local st_states = require("base/game/st_states")
+local timestop = require("base/game/timestop")
 local frame_rules = {}
 
 local function cdiv(a, b)
@@ -53,6 +54,11 @@ local function teleport(state, index, mode)
         me.x, me.y, me.z = me.x_int, me.y_int, me.z_int
     end
     me.vz, me.vy, me.vx = 0.0, 0.0, 0.0
+end
+
+-- True while a time stop freezes the item (LF2 Darkfiren state 3xxyzzz).
+function frame_rules.frozen(state, index, value)
+    return timestop.frozen(state, index, value)
 end
 
 function frame_rules.round_end(state)
