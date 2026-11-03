@@ -13,7 +13,6 @@ fx.frame_base = constants.body_kinds.frame_base
 -- 55); 55 is treated as "no restriction" here.
 fx.kind_same_team, fx.kind_same_owner, fx.kind_any_team = 53, 54, 55
 
--- Plain cache: the module sandbox has no setmetatable (see runtime/bootstrap evaluate()), so no weak keys.
 local team_flags = {}
 
 -- Bodies of kind 53/54/55 can be touched by their own team (the original team immunity is lifted for them).
