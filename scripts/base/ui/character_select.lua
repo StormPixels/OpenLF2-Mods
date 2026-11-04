@@ -582,6 +582,18 @@ local function background_name(state, row)
     return entry and background.load(entry.path).name or ""
 end
 
+-- Next track number in the given direction: -1 (OFF), 0 (Random), then the tracks the unlock rules allow.
+local function next_track(index, direction, count)
+    local allowed = {}
+    for _, number in ipairs(music.selectable()) do allowed[number] = true end
+    for _ = 1, count + 2 do
+        index = index + direction
+        if index > count then index = -1 elseif index < -1 then index = count end
+        if index <= 0 or allowed[index] then return index end
+    end
+    return index
+end
+
 local function music_option(state, left, right)
     local options = state.options
     local index = options.music
@@ -590,15 +602,17 @@ local function music_option(state, left, right)
         if left or right then index = index == -1 and 0 or -1 end
         label = index == -1 and "OFF" or "ON"
     else
-        if right then index = index + 1 end
-        if index > 8 then index = -1 end
-        if left then index = index - 1 end
-        if index < -1 then index = 8 end
-        if index == 0 then options.track = engine.random(8) + 1
+        -- The list, its names and the hidden/unlock rules come from bgm.dat (music.tracks/names/selectable); without the
+        -- file they are the original eight tracks.
+        local count = #music.tracks
+        if right then index = next_track(index, 1, count) end
+        if left then index = next_track(index, -1, count) end
+        if index == 0 then options.track = music.random_index() or engine.random(count) + 1
         elseif index > 0 then options.track = index
         else options.track = nil end
         music.selected = options.track and music.tracks[options.track] or nil
-        label = index == -1 and "OFF" or music_names[index]
+        local name = index > 0 and music.names[index] or nil
+        label = index == -1 and "OFF" or (name and name ~= "" and name) or music_names[index] or tostring(index)
     end
     options.music = index
     if index == -1 then

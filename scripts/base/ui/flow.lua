@@ -8,6 +8,12 @@ local title = require("base/ui/title")
 local speed = require("base/game/speed")
 local controls = require("base/ui/controls")
 local music = require("base/game/music")
+
+-- Menu music: <menu_bgm1> of bgm.dat or system.dat (music.menu_track), bgm/main.wma without them; "[MU]" means silence.
+local function play_menu_music()
+    local track = music.menu_track(1)
+    if track then music.play(track) else music.stop() end
+end
 local recording = require("base/game/recording")
 local catalog = require("base/game/catalog")
 local font = require("base/ui/font")
@@ -64,7 +70,7 @@ function flow.create(options)
         touch_gamepad = touch_gamepad.create(user_options.current().onscreen), mouse_touch = false,
         -- Optional mouse input can stand in for touch while testing the on-screen gamepad.
         mouse_touch_enabled = options.mouse_touch == true}
-    music.play("bgm/main.wma")
+    play_menu_music()
     -- A startup recording is already queued by the host; route consumes it on the first frame.
     if options.start_screen == "replay" then state.active = "title" end
     -- Developer entry points requested by the host; not part of the original flow.
@@ -125,7 +131,7 @@ end
 local function leave_replay(state)
     controls.replace_names(nil)
     unlock.end_replay()
-    music.play("bgm/main.wma")
+    play_menu_music()
     speed.fast = false
     state.active = "title"
     state.wait_release = true
@@ -181,7 +187,7 @@ local function route(state, input, context)
         recording.status = nil
         music.enabled, music.selected = true, nil
         speed.fast = false
-        music.play("bgm/main.wma")
+        play_menu_music()
     elseif requested == "launch" then
         state.active = "launch"
         state.session = nil
@@ -231,7 +237,7 @@ local function route(state, input, context)
     elseif requested == "demo" or (requested == "round_over" and state.match.match.mode == constants.modes.demo) then
         if requested == "round_over" and not state.match.match.random_game then
             speed.fast = false
-            music.play("bgm/main.wma")
+            play_menu_music()
             state.active = "title"
         else
             music.play_selected()
@@ -263,14 +269,14 @@ local function route(state, input, context)
         end
         state.wait_release = true
     elseif requested == "game_start" then
-        music.play("bgm/main.wma")
+        play_menu_music()
         state.active = "title"
         if title.latch_input then title.latch_input(state.title, input)
         else state.wait_release = true end
     elseif requested == "title" then
         if not state.session then controls.replace_names(nil) end
         unlock.end_replay()
-        music.play("bgm/main.wma")
+        play_menu_music()
         state.active = "title"
         -- Do not turn the key returning to the title into a new title action.
         state.wait_release = true
@@ -321,7 +327,7 @@ local function disconnect(state, message)
     state.characters, state.championship, state.championship_options, state.battle_config = nil, nil, nil, nil
     state.launch.message = message
     speed.fast = false
-    music.play("bgm/main.wma")
+    play_menu_music()
 end
 -- Whether Escape (and Android's back button, which the platform reports as Escape) is free to ask about leaving
 -- the game: not in a network game, where it disconnects, and not on the launch screen's pages that use it.
