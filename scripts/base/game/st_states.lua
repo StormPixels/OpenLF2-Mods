@@ -138,7 +138,10 @@ function st_states.after_control(match, index, value)
     elseif kind == "background" then st_states.switch_background(match, s)
     elseif kind == "team" then value.team = s - S.team_first
     elseif kind == "reserve" then
-        if value.record.kind == constants.record_kinds.character then value.lives = s - S.reserve_first end
+        if value.record.kind == constants.record_kinds.character then
+            value.lives = s - S.reserve_first
+            st.reserve = true
+        end
     elseif kind == "heal" then
         local amount = s - S.heal_first
         if amount == 0 then amount = st_constants.heal_default end

@@ -61,7 +61,7 @@ local st_constants = {
     transform = {first = 80000, last = 89999},   -- 8XXXX: record id = state - 80000
     landing = {first = 9000, last = 9399},       -- 9xxx: frame to go to when landing
     camera = {first = 99000, last = 99999},      -- 99XXX (XXX ticks, 0 = while in the frame)
-    quake = {first = 50000, last = 59999, base = 50},  -- 5XXYY: x = XX-50, y = YY-50 (the rule, not the 55200 example)
+    quake = {first = 50000, last = 59999, base = 50},  -- 5XXYY: x = XX-50, y = YY-50; an axis written 00 does not move (55200 = x +2 only)
     -- Background switches. [UNCERTAIN] 9XX = row XX; 9XXYY = row XX and mode YY (9XXYY = 90000-98999, 99XXX is the camera);
     -- 7XX = mode XX; 7XXYY = mode XX and row YY. The call is background.switch(state, row, mode), made with pcall.
     background = {row = {first = 900, last = 999}, row_mode = {first = 90000, last = 98999},

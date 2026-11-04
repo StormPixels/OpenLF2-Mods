@@ -195,7 +195,8 @@ local function record_targets(state, a_entry, b_entry)
                     -- Weak attacks do not touch a falling victim.
                     local skip = b_frame.state == state_falling and itr.fall < 41
                         and fx_itr.base_kind(itr.kind) ~= attack_kinds.whirlwind and itr.kind ~= attack_kinds.conditional_whirlwind
-                    if state.mode == constants.modes.stage and body.kind >= body_kind_frame_base then
+                    -- Only the criminal's own bodies (1xxx) are protected; Darkfiren bdy 1xxx / 2xxx / 1xxyyyzzzw work on every object.
+                    if state.mode == constants.modes.stage and body.kind >= body_kind_frame_base and defender.record.id == constants.record_ids.criminal then
                         local record = attacker.record
                         local protected = (record.kind == record_kinds.character or record.id == object_henry_arrow or record.id == object_rudolf_weapon)
                             and attacker.team ~= constants.teams.enemies

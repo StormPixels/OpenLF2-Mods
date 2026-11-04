@@ -149,7 +149,8 @@ function frame_rules.after_physics(state, index, value)
         end
         return true
     end
-    if state_of(value) == constants.frame_states.lying and value.hp <= 0 and (value.follow >= 0 or value.team == constants.teams.enemies or index >= 20)
+    if state_of(value) == constants.frame_states.lying and value.hp <= 0 and (value.follow >= 0 or value.team == constants.teams.enemies or index >= 20
+           or (value.st ~= nil and value.st.reserve == true and value.lives >= 2))
        and value.blink > 0 and value.blink < 5 then
         if value.join_hp > 0 then
             -- A beaten stage enemy with `join:` hp gets up for the players' team 1.

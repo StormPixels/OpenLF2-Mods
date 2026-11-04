@@ -27,8 +27,10 @@ function st_camera.quake(match, s)
     local cfg = st_constants.quake
     local rest = s - cfg.first
     local st = st_of(match)
-    st.quake_x = math.floor(rest / 100) - cfg.base
-    st.quake_y = rest % 100 - cfg.base
+    -- Base 50 per axis; 00 means "no movement on that axis" (so the notes' example 55200 shakes only along x).
+    local x, y = math.floor(rest / 100), rest % 100
+    st.quake_x = x == 0 and 0 or x - cfg.base
+    st.quake_y = y == 0 and 0 or y - cfg.base
 end
 
 -- An item is in a 99XXX frame: the camera follows it for XXX ticks (0: for as long as it stays in the frame).

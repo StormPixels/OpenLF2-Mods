@@ -46,6 +46,13 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: kind.dat, fusion.dat and stage damage modifier files parsed (`sd_global`).
 - LF2 Darkfiren: background mode tags width, zboundary and dvy take effect; centery and attacking are exposed as `state.bg_area`.
 
+- LF2 Darkfiren: `hold_*` frame tags now count the key held down (about 2 seconds) across frame changes instead of inside one frame.
+- LF2 Darkfiren: `hit_g` and `9xxx` landing frames also work when the previous height was less than one unit above the ground.
+- LF2 Darkfiren: a fighter whose lives were set by a `4xxx` frame gets up again and uses one life when beaten.
+- LF2 Darkfiren: `5XXYY` earthquake axes written `00` do not move (so `55200` shakes along x only).
+
+- LF2 Darkfiren: bdy kinds 1xxx / 2xxx / 1xxyyyzzzw now also work in stage mode on ordinary objects (only the criminal keeps its protection).
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

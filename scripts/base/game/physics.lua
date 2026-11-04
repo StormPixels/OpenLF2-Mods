@@ -123,7 +123,7 @@ function physics.step(match, value)
     end
     if value.weapon < 0 then return end
     if frame(value.frame).cpoint.kind == cpoint_kinds.caught then return end
-    local air_frame, was_airborne = value.frame, value.y_int < 0
+    local air_frame, was_airborne = value.frame, value.y < -0.0001
     if not ((value.vx > 0.0 and value.blocked_right) or (value.vx < 0.0 and value.blocked_left)) then
         value.x = value.x + value.vx
     end

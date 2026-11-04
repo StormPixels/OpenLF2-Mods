@@ -64,3 +64,25 @@ Batas 20 suara bersamaan ada di `sounds.lua` (milik AI 5): lihat Permintaan peru
 | `join` | korban pindah ke tim penyerang selama durasi lalu kembali; dengan `effect: 364` tetap di tim penyerang. Hanya t0 | dokumen |
 | `mimic` | hanya bila penyerang t0 dan korban t0; peniruan gerakan dikerjakan kode kontrol lewat `active` (belum disambung) | dokumen |
 | `manacle`, `delay`, `confus`, `bound`, `facing` | hanya status dan timernya; pemakainya (kontrol, MP) adalah berkas lain | di luar lingkup berkas AI 3 |
+
+
+## Jalur data -> efek (putaran 4, diperiksa dengan parser C++ asli)
+Cara memeriksa: `object_data.cpp` dikompilasi dengan `g++ -std=c++23`, `.dat` uji dilewatkan `object_data::parse` lalu
+`to_script_value`, dan tabelnya dicetak sebagai Lua (hasilnya jadi fixture di `RESULT/tests/fixtures/`).
+Pemuat: nama berkas berakhiran `dat` di-decode (`data_file.cpp`: awalan 123 byte, kunci 37 karakter); nama lain dibaca polos.
+
+| Teks `.dat` | Kunci tabel Lua dari C++ | Dibaca oleh | Dipanggil dari | Terlihat |
+|---|---|---|---|---|
+| `bdy: kind: 1110 respond: -1` | `frame.bodies[i].kind` (int32, maks 2147483647), `.respond` | `fx_body.frame_hit` lewat `fx.hit_body[posisi]` dari `record_targets` | `plain_hit` <- `combat.apply` <- `match.lua` (apply_character_hit / apply_object_hit) | korban pindah frame, ganti tim, tanpa damage |
+| `bdy: kind: 1002200953` | sama (10 digit muat int32) | `fx_body.complex` | `plain_hit` | korban ke frame 220, penyerang ke frame 95, damage bila W&2 |
+| `bdy: kind: 53/54/55` | `bodies[i].kind` | `fx_body.has_team_body/allows` | `record_targets` (eligible kedua dengan `force_friendly`) | tim sama / pemilik sama / semua |
+| `bdy: zwidth: 30`, `respond: 102` | `bodies[i].zwidth`, `.respond` (extras) | `fx_body.depth_ok`; `combat.apply` (pick_up) | `record_targets`, `apply` | jendela kedalaman; frame pemungut |
+| `itr: recover/dbdefend/spark/drain/gain/dvz/poison/weak/join/...` | `interactions[i].<nama>` (extras) | `fx_itr`, `fx_status` | `combat.eligible`, `apply`, `reset_lists` | lihat PANDUAN_UJI.md |
+| `itr: kind: 17/18/14 respond: N` | `interactions[i].kind`, `.respond` (inti) | `fx_itr.whirl_matches/obstacle_matches` | `combat.eligible` | penyaringan jenis korban |
+| `opoint:` (banyak blok) | `frame.opoints[1..n]` + `frame.opoint` (pertama) | `objects.spawn_from_frame`, `fx_point.extend` | `frame_rules` / `objects` | objek baru |
+| `wpoint: cover: 2` | `frame.wpoint.cover` | `weapons.carry` | `match.lua` (`weapons.carry`) | z senjata = z pemegang |
+
+Titik putus pertama yang ditemukan: gerbang mode stage di `combat.record_targets` memblokir SEMUA `bdy.kind >= 1000` dari penyerang
+non-"protected" (aturan asli untuk si kriminal), sehingga bdy 1xxx / 1xxyyyzzzw pada objek biasa di mode stage tidak pernah mengenai
+penyerang tim musuh. Diperbaiki: gerbang hanya berlaku bila korbannya `record_ids.criminal`.
+Selain itu tidak ditemukan ketidakcocokan nama kunci; tes `realdata_test.lua` dan `testpack_test.lua` memakai tabel nyata dari C++.

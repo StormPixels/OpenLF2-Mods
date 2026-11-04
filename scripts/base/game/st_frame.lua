@@ -77,7 +77,7 @@ end
 -- hit_g: the frame a fighter or object lands into, replacing the default landing frame. `air_frame` is the frame before
 -- the physics step, `was_airborne` whether it was in the air then.
 function st_frame.landing(value, air_frame, was_airborne)
-    if not was_airborne or value.y_int ~= 0 then return end
+    if not was_airborne or value.y < 0 or value.y_int ~= 0 then return end
     local air = value.record.frame(air_frame)
     local ext = air.hit_ext
     local target = ext and ext.g
