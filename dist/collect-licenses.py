@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import tarfile
 import tempfile
+import time
 from urllib.request import urlopen
 
 
@@ -28,14 +29,28 @@ def manifest():
     return entries
 
 
+def download(url):
+    """Fetch a notice source, retrying a few times: the build runners reach some hosts slowly or not at all."""
+    attempts = int(os.environ.get("OPENLF2_LICENSE_ATTEMPTS", "4"))
+    delay = float(os.environ.get("OPENLF2_LICENSE_RETRY_DELAY", "10"))
+    for attempt in range(1, attempts + 1):
+        try:
+            with urlopen(url, timeout=60) as response:
+                return response.read()
+        except OSError as error:  # URLError, timeouts and connection errors
+            if attempt == attempts:
+                raise
+            print(f"collect-licenses: {url}: {error}; retry {attempt}/{attempts - 1}", flush=True)
+            time.sleep(delay * attempt)
+
+
 def checked_archive(key, entry, cache):
     kind, url, digest, members = entry
     suffix = next((ending for ending in (".tar.xz", ".tar.gz", ".tar.bz2")
                    if url.endswith(ending)), ".txt")
     cached = cache / (digest + suffix)
     if not cached.exists() or hashlib.sha256(cached.read_bytes()).hexdigest() != digest:
-        with urlopen(url, timeout=90) as response:
-            data = response.read()
+        data = download(url)
         if hashlib.sha256(data).hexdigest() != digest:
             raise ValueError(f"{key}: upstream SHA-256 differs from notice-sources.txt")
         with tempfile.NamedTemporaryFile(dir=cache, delete=False) as temporary:
@@ -86,7 +101,16 @@ def main():
         else:
             if key not in sources:
                 raise ValueError(f"unknown notice key: {key}")
-            data = checked_archive(key, sources[key], cache)
+            try:
+                data = checked_archive(key, sources[key], cache)
+            except OSError as error:
+                # Development builds only (OPENLF2_LICENSES_BEST_EFFORT=1): a download that keeps failing must not stop the
+                # build. A checksum mismatch is never tolerated (that is a ValueError, not an OSError).
+                if os.environ.get("OPENLF2_LICENSES_BEST_EFFORT") != "1":
+                    raise
+                print(f"collect-licenses: WARNING {key}: download failed ({error}); placeholder written", flush=True)
+                data = (f"The license text for {key} could not be downloaded while this development build was made.\n"
+                        f"This build must not be redistributed. Upstream source: {sources[key][1]}\n").encode()
             origin = sources[key][1]
         if not data:
             raise ValueError(f"{key}: empty license file")

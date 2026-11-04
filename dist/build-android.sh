@@ -126,6 +126,8 @@ cp -R "$root/build/android/icons/android/res" "$root/build/android/res"
 if [ -d "$root/dist/android/icons" ]; then cp -R "$root/dist/android/icons/." "$root/build/android/res/"; fi
 rm -rf "$root/build/android/assets/scripts"
 cp -R "$root/scripts" "$root/build/android/assets/scripts"
+# Debug builds (the default) tolerate a license download that keeps failing; release builds never do.
+if [[ "${OPENLF2_ANDROID_BUILD_TYPE:-debug}" == "debug" ]]; then export OPENLF2_LICENSES_BEST_EFFORT=1; fi
 python3 dist/collect-licenses.py "$root/build/android/assets/licenses" \
     --key ffmpeg --key ffmpeg-notes --key sdl3 --key sdl3-ttf --key freetype --key luajit --key zlib --key bzip2 \
     --key openssl --key libcurl --local "ndk-runtime=$ndk/NOTICE"
