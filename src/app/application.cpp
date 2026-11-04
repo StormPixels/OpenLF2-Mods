@@ -27,6 +27,7 @@
 #include "openlf2/resources/bitmap.hpp"
 #include "openlf2/resources/installer.hpp"
 #include "openlf2/resources/data_file.hpp"
+#include "openlf2/resources/global_dat_text.hpp"
 #include "openlf2/resources/resource_names.hpp"
 #include "openlf2/resources/object_data.hpp"
 #include <algorithm>
@@ -547,6 +548,8 @@ public:
             if (!file) return std::unexpected(file.error());
             return read_file(*file, 16 * 1024 * 1024);
         }
+        // LF2 Darkfiren: decrypted text of any data file ("game/dat_text/<path>") and of mode1..mode4.dat.
+        if (auto text = read_dat_text_resource(archive_, *normalized)) return std::move(*text);
         if (*normalized == "game/spark_block") {
             // LF2 Darkfiren: one spark block is spark_w x spark_h (system.dat) plus a one pixel separator.
             // Empty text means the original's sheet layout.

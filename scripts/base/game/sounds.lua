@@ -2,6 +2,8 @@
 -- Copyright (c) 2026 OpenLF2 contributors
 
 local constants = require("base/game/constants")
+local sd_text = require("base/game/sd_text")
+local system_data = require("base/game/system_data")
 local spatialization = constants.sound_spatialization
 local sounds = {}
 
@@ -26,6 +28,51 @@ sounds.menu = {join = "data/m_join.wav", ok = "data/m_ok.wav", cancel = "data/m_
 -- Data files write Windows paths; resources use lowercase forward slashes.
 function sounds.canonical(path)
     return (path:lower():gsub("\\", "/"))
+end
+
+-- LF2 Darkfiren's data\sound.dat: the `file:` lines of its <sound> block replace the built-in list of the eighteen
+-- fixed sound buffers (index 0 first). Loaded on first use; without the file the built-in list stays.
+local max_fixed = 1000
+local settled = false
+
+function sounds.parse_list(text)
+    local list = {}
+    for _, block in ipairs(sd_text.scan(text).blocks) do
+        if block.name == "sound" then
+            for _, line in ipairs(block.lines) do
+                for _, pair in ipairs(sd_text.pairs_of_line(line)) do
+                    if pair[1] == "file" and pair[2] ~= "" and #list < max_fixed then list[#list + 1] = sounds.canonical(pair[2]) end
+                end
+            end
+        end
+    end
+    return list
+end
+
+-- Loads sound.dat now (from `text` when given, else through the engine). The shared table sounds.fixed_files is
+-- refilled in place. Returns true when the file's list is in use.
+function sounds.load(text)
+    local message
+    if text == nil then text, message = sd_text.read("data/sound.dat") end
+    if text == nil then
+        if not sd_text.not_ready(message) then settled = true end
+        return false
+    end
+    settled = true
+    local list = sounds.parse_list(text)
+    if #list == 0 then return false end
+    for key in pairs(fixed) do fixed[key] = nil end
+    for index, path in ipairs(list) do fixed[index - 1] = path end
+    return true
+end
+
+local function ensure()
+    if not settled then sounds.load() end
+end
+
+-- system.dat <sound>: ids whose sounds play at the centre of the screen and ignore the boundaries (id 998, etc).
+function sounds.ignores_bounds(id)
+    return system_data.ids("sound")[id] == true
 end
 
 local function hear(distance)
@@ -61,10 +108,12 @@ function sounds.item(state, x, path)
 end
 
 function sounds.effect(state, x, channel)
+    ensure()
     if fixed[channel] then queue(state, "fixed", channel, x) end
 end
 
 function sounds.buffer_play(channel)
+    ensure()
     local resource = fixed[channel]
     return {resource = resource, volume = last_volume[resource] or 0, pan = last_pan[resource] or 0}
 end
@@ -76,6 +125,7 @@ function sounds.direct(state, name)
 end
 
 function sounds.flush(state, master)
+    ensure()
     master = master or require("base/game/music").master
     local output = {}
     for _, resource in ipairs(state.direct_sounds or {}) do

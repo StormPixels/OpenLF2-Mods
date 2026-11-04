@@ -40,6 +40,12 @@ All notable changes to this project are documented in this file.
 - UI: HUD membaca gaya dari `data/frame.dat` (`game/ui_hud.lua`); bar dan flag per objek dari `record.display` bila ada.
 - UI: tag frame `shadow`, `bound`, `amount`/`loop`, `center_z` dan state tak terlihat (`value.st.invisible`) digambar oleh `match_screen`.
 
+- LF2 Darkfiren: generic `game/dat_text/<path>` and `game/mode_file/<k>` resources give scripts the decrypted text of data files.
+- LF2 Darkfiren: system.dat lists and settings (`system_data`), hidden/unlock rules with saves keys (`unlock.allows`).
+- LF2 Darkfiren: bgm.dat track list (hidden, boss, hex, mode, respond) and sound.dat sound list.
+- LF2 Darkfiren: kind.dat, fusion.dat and stage damage modifier files parsed (`sd_global`).
+- LF2 Darkfiren: background mode tags width, zboundary and dvy take effect; centery and attacking are exposed as `state.bg_area`.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

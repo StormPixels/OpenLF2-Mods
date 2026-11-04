@@ -28,7 +28,15 @@ end
 -- Layers are copied one by one because drawing writes their grouping into them. Without a filter the very same
 -- data comes back.
 function background.filtered(data, filters)
-    if not filters or (filters.respond == nil and filters.arest == nil) or data == nil or data.layers == nil then return data end
+    if not filters or data == nil or data.layers == nil then return data end
+    local area = filters.area
+    if filters.respond == nil and filters.arest == nil then
+        if not (area and (area.width or area.zboundary)) then return data end
+        -- Only the area changes: the layers and opoints stay the original's own, as without any filter.
+        local same = {}
+        for key, value in pairs(data) do same[key] = value end
+        return background.with_area(same, area)
+    end
     local copy = {}
     for key, value in pairs(data) do copy[key] = value end
     copy.layers, copy.opoints = {}, {}
@@ -45,6 +53,15 @@ function background.filtered(data, filters)
         if filters.arest == nil or filters.arest[opoint.arest or 0] == true then copy.opoints[#copy.opoints + 1] = opoint end
     end
     copy.groups_ready = nil
+    return background.with_area(copy, area)
+end
+
+-- LF2 Darkfiren: a background mode's `width`, `zboundary` take priority over the same tags of the bg.dat, and
+-- width -1 means the window width. Changes and returns `copy` (never the cached original).
+function background.with_area(copy, area)
+    if not area then return copy end
+    if area.width then copy.width = area.width == -1 and screen_width or area.width end
+    if area.zboundary then copy.zboundary = {area.zboundary[1], area.zboundary[2]} end
     return copy
 end
 -- Mutable per-view state: the original keeps one animation counter per layer slot.

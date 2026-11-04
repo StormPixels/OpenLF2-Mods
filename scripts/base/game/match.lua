@@ -103,6 +103,7 @@ function match.create(options)
     local filters = state.bg_mode and state.bg_mode.filters
     if not filters and row ~= constants.background_rows.lee_on_road then filters = bg_modes.default_filters(row) end
     state.stage = background.filtered(state.stage, filters)
+    state.bg_area = filters and filters.area or nil  -- HOOK(AI5): mode area tags (dvy, centery, attacking) for the round
     state.view = background.create_state(state.stage)
     local width = state.stage.width or constants.screen.width
     local near, far = state.stage.zboundary[1] or 0, state.stage.zboundary[2] or 0
@@ -128,8 +129,9 @@ function match.create(options)
                 value.x_int = engine.random(math.floor(width / 2)) + math.floor(width / 4)
                 value.z_int = engine.random(far - near) + near
             end
-            value.y_int = 0
-            value.x, value.z, value.y = value.x_int, value.z_int, 0.0
+            local start_y = state.bg_area and state.bg_area.dvy or 0  -- HOOK(AI5): mode `dvy` start height
+            value.y_int = start_y
+            value.x, value.z, value.y = value.x_int, value.z_int, start_y + 0.0
             local high_mp_mode = options.mode == mode_stage
                 or options.mode == mode_championship
                 or options.mode == mode_team_championship

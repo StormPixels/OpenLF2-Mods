@@ -202,7 +202,8 @@ endif()
 add_library(openlf2_resources STATIC src/resources/installer.cpp src/resources/pe_bitmap.cpp
     src/resources/data_file.cpp src/resources/object_data.cpp src/resources/background_data.cpp
     src/resources/stage_data.cpp src/resources/recording.cpp
-    src/resources/bitmap.cpp src/resources/resource_names.cpp)
+    src/resources/bitmap.cpp src/resources/resource_names.cpp
+    src/resources/global_dat_text.cpp)
 openlf2_target(openlf2_resources)
 target_link_libraries(openlf2_resources PRIVATE openlf2_core)
 

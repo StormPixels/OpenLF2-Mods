@@ -31,16 +31,44 @@ local function value_set(text)
     return set
 end
 
+-- The tags of a mode that change the background's area or the round's start: `width` (the battlefield's width,
+-- -1 = the window width), `zboundary` ("near far"), `dvy` (the start height of every fighter, below 0), `centery`
+-- (the height weapons, criminals and battle-mode armies drop from, below 0) and `attacking` (the damage percent
+-- of every hit, 0 or more). Returns nil when the mode carries none of them. A value the readme does not allow
+-- (a dvy or centery of 0 or more, a negative attacking, a zboundary without two numbers) is dropped.
+function bg_modes.area(mode)
+    if mode == nil then return nil end
+    local area = {}
+    local width = tonumber(mode.width)
+    if width and (width == -1 or width > 0) then area.width = math.floor(width) end
+    local near, far = tostring(mode.zboundary or ""):match("^%s*(-?%d+)[%s,]+(-?%d+)")
+    if near then area.zboundary = {tonumber(near), tonumber(far)} end
+    local dvy = tonumber(mode.dvy)
+    if dvy and dvy < 0 then area.dvy = math.floor(dvy) end
+    local centery = tonumber(mode.centery)
+    if centery and centery < 0 then area.centery = math.floor(centery) end
+    local attacking = tonumber(mode.attacking)
+    if attacking and attacking >= 0 then area.attacking = math.floor(attacking) end
+    return next(area) and area or nil
+end
+
 -- The filters of a mode: `respond` chooses the background layers, `arest` the opoints. A filter is a set of the
 -- values the mode lists, or nil (no filter, everything counts) when the mode does not carry the key. A layer or
 -- opoint that has no value of its own has value 0, so a mode that lists 1 and 2 only leaves out the plain ones.
+-- `area` (see bg_modes.area) travels with them: background.filtered applies its width and zboundary, and the
+-- round reads the rest as state.bg_area.
 function bg_modes.filters(mode)
-    return {respond = value_set(mode.respond), arest = value_set(mode.arest)}
+    return {respond = value_set(mode.respond), arest = value_set(mode.arest), area = bg_modes.area(mode)}
 end
 
--- True when the mode has a respond or arest key at all.
+-- True when the mode has a respond or arest key, or one of the area tags, at all.
 function bg_modes.has_filters(mode)
-    return mode.respond ~= nil or mode.arest ~= nil
+    return mode.respond ~= nil or mode.arest ~= nil or bg_modes.area(mode) ~= nil
+end
+
+-- The percent every hit's damage is scaled to (`attacking`); 100 when the mode has none.
+function bg_modes.damage_percent(area)
+    return area and area.attacking or 100
 end
 
 -- Does an item (layer.respond, opoint.arest) pass a filter set?

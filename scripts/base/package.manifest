@@ -73,6 +73,9 @@ module=game/timestop|game/timestop.lua
 module=game/fx_body|game/fx_body.lua
 module=game/fx_point|game/fx_point.lua
 module=game/fx_status|game/fx_status.lua
+module=game/sd_text|game/sd_text.lua
+module=game/system_data|game/system_data.lua
+module=game/sd_global|game/sd_global.lua
 # Fonts for the translated languages (see i18n/i18n.lua); their licenses are next to them.
 asset=mods/base/onscreen/up.bmp|onscreen/up.bmp
 asset=mods/base/onscreen/down.bmp|onscreen/down.bmp
