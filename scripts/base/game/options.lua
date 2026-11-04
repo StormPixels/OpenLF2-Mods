@@ -75,7 +75,7 @@ local gamepad_defaults = {
 local defaults = {battlefield_layout = "classic", gamepad = gamepad_defaults, onscreen = onscreen.defaults(), unlock_characters = false, upscaling_filter = "linear", fullscreen = false, digipad = true, show_fps = false,
     rumble = false, show_gamepad = false, language = "default", font_antialiasing = true,
     character_shading = false, projected_shadows = false,
-    light_azimuth = -50, light_elevation = 70, shadow_blur = 2, shadow_opacity = 0.275}
+    light_azimuth = -50, light_elevation = 70, shadow_blur = 2, shadow_opacity = 0.275, hud_style = "Default"}
 local current
 
 local function valid_filter(value)
@@ -102,6 +102,10 @@ local function angle(value, default, low, high)
     if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge then return default end
     return math.max(low, math.min(high, value))
 end
+-- The name of a HUD style of data/frame.dat ("Default" is the built-in HUD); whether the game has it is checked where it is used.
+local function valid_hud_style(value)
+    return type(value) == "string" and #value >= 1 and #value <= 40 and value:find("^[%w_%-]+$") ~= nil
+end
 local function copy(values)
     return {battlefield_layout = valid_layout(values.battlefield_layout) and values.battlefield_layout or defaults.battlefield_layout,
         gamepad = copy_gamepad(values.gamepad), onscreen = onscreen.normalize(values.onscreen), unlock_characters = values.unlock_characters,
@@ -114,7 +118,8 @@ local function copy(values)
         light_elevation = angle(values.light_elevation, defaults.light_elevation, 12, 89),
         shadow_blur = math.floor(angle(values.shadow_blur, defaults.shadow_blur, 0, 8)),
         shadow_opacity = angle(values.shadow_opacity, defaults.shadow_opacity, 0, 1),
-        language = i18n.is_language(values.language) and values.language or defaults.language}
+        language = i18n.is_language(values.language) and values.language or defaults.language,
+        hud_style = valid_hud_style(values.hud_style) and values.hud_style or defaults.hud_style}
 end
 
 -- The saved options, or the defaults for anything missing or invalid.
@@ -162,6 +167,7 @@ function options.load()
     if type(saved) == "table" and valid_layout(saved.battlefield_layout) then
         values.battlefield_layout = saved.battlefield_layout
     end
+    if type(saved) == "table" and valid_hud_style(saved.hud_style) then values.hud_style = saved.hud_style end
     current = values
     return copy(values)
 end

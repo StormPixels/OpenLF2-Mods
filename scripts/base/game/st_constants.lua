@@ -56,7 +56,8 @@ local st_constants = {
         first = 3000000, last = 3999999,         -- 3xxyzzz: xx chance (0 = 100%), y kind, zzz duration
         unit_ticks = 1,                          -- [UNCERTAIN] one duration unit is this many ticks
     },
-    charge = {first = 6000, last = 6999},        -- 6XXX
+    charge = {first = 6000, last = 6999,         -- 6XXX
+        grace_ticks = 8},                        -- a key released this soon after entering (a tap) is forgotten; the next press starts the charge
     ai_takeover = {first = 7000, last = 7999, unit_ticks = 1},    -- 7XXX [UNCERTAIN: unit]
     transform = {first = 80000, last = 89999},   -- 8XXXX: record id = state - 80000
     landing = {first = 9000, last = 9399},       -- 9xxx: frame to go to when landing

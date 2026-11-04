@@ -51,6 +51,12 @@ local function wide_wanted(width, mode_text)
     if not width then return false end
     if width ~= constants.screen.wide_width and not mode_text then return false end
     if wide_known[menu.pic] == nil then wide_known[menu.pic] = pcall(engine.read_resource, menu.pic) end
+    -- The classic menu picture is in the game's resources, not always a file of its own: the classic layout draws it
+    -- as pe/charmenu, and mode2.dat names the same picture.
+    if not wide_known[menu.pic] and menu.pic:match("charmenu%.bmp$") then
+        menu.pic = "pe/charmenu"
+        if wide_known[menu.pic] == nil then wide_known[menu.pic] = pcall(engine.read_resource, menu.pic) end
+    end
     return wide_known[menu.pic]
 end
 local function use_layout(state)
@@ -129,11 +135,11 @@ function selection.create(options)
     time_list, time_type = {}, 1
     cost_settings = {kind = 100, pools = {}, groups = {}}
     small_layers = {}
-    local mode_text
+    local mode_text, mode_source
     local layout_name = user_options.current().battlefield_layout
     local width = user_options.wide_width(layout_name)
     if width then
-        mode_text = ui_modes.layout_text(layout_name)
+        mode_text, mode_source = ui_modes.layout_text(layout_name)
         if mode_text then
             mode_layout.apply(mode_text, layout_targets)
             time_type, time_list = mode_layout.time_limits(mode_text)
@@ -146,6 +152,11 @@ function selection.create(options)
         countdown = idle_countdown, computers = previous.computers or -100,
         order = {}, cursor = 0, previous_random = false, blink = 0, display = {}, wide = wide_wanted(width, mode_text)}
     state.width = state.wide and width or nil
+    -- The mode file's <name> block: the mode's title at its own position, in a wide layout.
+    state.title = state.wide and ui_modes.title(mode_text) or nil
+    -- The player cannot read the log: a wide layout that is not drawn as chosen says so on the screen.
+    if width and not state.wide then state.layout_note = "Wide " .. width .. ": layout files not found, classic menu"
+    elseif width and mode_source == "builtin" then state.layout_note = "Wide " .. width .. ": built-in layout (mode2.dat not read)" end
     state.random_pool = state.wide and (ui_modes.random_pool(mode_text) or load_random_pool()) or nil
     return state
 end
@@ -1449,6 +1460,13 @@ function selection.update(state, held, context)
     end
     slots_pass(state, held)
     if state.wide then roster_pass(state, held) end
+    if state.layout_note then text(state, state.layout_note, 6, 536, 0xffd34c) end
+    if state.title then
+        -- hexf is the text colour, hexb the shadow colour (0xRRGGBB).
+        local title = state.title
+        if title.hexb then text(state, title.name, title.x + 1, title.y + 1, title.hexb) end
+        text(state, title.name, title.x, title.y, title.hexf or white)
+    end
     state.last_menu = state.menu
     if state.menu == menus.computer_count then computer_count_menu(state, previous_menu) end
     if state.menu == menus.computer_slots or state.menu == menus.options then computer_menu(state, previous_menu) end

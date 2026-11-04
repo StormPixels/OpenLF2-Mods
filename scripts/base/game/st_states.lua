@@ -232,13 +232,20 @@ end
 -- `next`; every tick of holding costs the frame's mp. When a target cannot be paid for, or the mp runs out, the frame's
 -- `caught` is used (or the target's own). [UNCERTAIN] The notes only call that frame "XXX".
 function st_states.charge(match, value, st, frame, entered)
+    local grace = st_constants.charge.grace_ticks
     if entered then
-        local held = held_keys(value)
-        st.charge = held and {held = held, count = 0} or nil
+        -- held may be nil: the player may press the key a moment after the frame starts (see grace_ticks).
+        st.charge = {held = held_keys(value), count = 0, age = 0}
         return
     end
     local charge = st.charge
     if not charge then return end
+    charge.age = charge.age + 1
+    if not charge.held then
+        if charge.age > grace then st.charge = nil return end
+        charge.held = held_keys(value)
+        if not charge.held then return end
+    end
     local control = require("base/game/control")
     local function go(target)
         st.charge = nil
@@ -251,6 +258,11 @@ function st_states.charge(match, value, st, frame, entered)
     end
     for name in pairs(charge.held) do
         if not key_still_down(value, name) then
+            if charge.age <= grace and charge.count == 0 then
+                -- A tap right after entering: forget it and wait for the key to be pressed and held.
+                charge.held = nil
+                return
+            end
             if frame.next ~= 0 then go(frame.next) else st.charge = nil end
             return
         end

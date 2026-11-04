@@ -6,9 +6,12 @@
 -- columns per row, where the small face goes, the bar colours), <hp_bar>, <mp_bar> and <team_flag>. A value a style
 -- does not give keeps the built-in one, which is what the classic HUD draws. Compatible with Lua 5.1/LuaJIT.
 local mode_layout = require("base/game/mode_layout")
+local data_text = require("base/game/data_text")
+local constants = require("base/game/constants")
 local ui_hud = {}
 
-local list_path = "game/dat_text/data/frame.dat"
+local list_path = "data/frame.dat"
+local classic_width = constants.screen.width
 
 -- The classic HUD: 4 boxes of 198 x 54 per row, bars of 124 x 10 read from the BARS sheet at the `col_*` rows.
 function ui_hud.default_style()
@@ -94,19 +97,44 @@ local function readable(path)
     return ok and bytes ~= nil
 end
 
--- The HUD style of a battlefield layout: the built-in one in the classic layout, else the default style of
--- data/frame.dat for that width (the built-in one when the game has none). A picture the game does not have keeps the
--- built-in picture. `width` is the picture width.
-function ui_hud.current(layout, width)
-    local key = tostring(layout) .. ":" .. tostring(width)
+local names_cache
+-- The style names of the game's data/frame.dat the player may choose from (not hidden, for 8 players), "Default" first.
+-- {"Default"} alone when the game has no frame.dat.
+function ui_hud.names()
+    if names_cache then return names_cache end
+    local names, seen = {"Default"}, {Default = true}
+    local listing = data_text.read(list_path)
+    for _, entry in ipairs(listing and ui_hud.list(listing) or {}) do
+        if (entry.hidden or 0) == 0 and (entry.facing or 8) == 8 and entry.name and not seen[entry.name] then
+            seen[entry.name] = true
+            names[#names + 1] = entry.name
+        end
+    end
+    names_cache = names
+    return names
+end
+
+-- The HUD style of a battlefield layout and the style the player chose (`name`, "Default" or nil: the built-in HUD, which
+-- is what data/frame/8/default.dat describes). A chosen style is read from data/frame.dat and its file; one the game does
+-- not have, hidden, for another picture width or for 10 players keeps the built-in HUD. A picture the game does not have
+-- keeps the built-in picture. `width` is the picture width (the classic 794 when nil).
+function ui_hud.current(layout, width, name)
+    local key = tostring(layout) .. ":" .. tostring(width) .. ":" .. tostring(name)
     if cache[key] then return cache[key] end
     local style
-    if layout ~= "classic" and layout ~= "expand" and width then
-        local ok, listing = pcall(engine.read_resource, list_path)
-        local entry = ok and ui_hud.pick(ui_hud.list(listing), width) or nil
-        local ok_file, text = false, nil
-        if entry then ok_file, text = pcall(engine.read_resource, "game/dat_text/" .. entry.file) end
-        if ok_file and type(text) == "string" then
+    if name and name ~= "Default" then
+        local listing = data_text.read(list_path)
+        local picture_width = width or classic_width
+        local chosen
+        for _, entry in ipairs(listing and ui_hud.list(listing) or {}) do
+            if entry.name == name and (entry.hidden or 0) == 0 and (entry.facing or 8) == 8
+               and (entry.respond == nil or entry.respond == picture_width) then
+                chosen = entry
+                break
+            end
+        end
+        local text = chosen and data_text.read(chosen.file)
+        if text and text:find("<frame>", 1, true) then
             style = ui_hud.parse(text)
             if style.frame_file and readable(style.frame_file) then style.frame_pic = style.frame_file end
             if style.bars_file and readable(style.bars_file) then style.bars_pic = style.bars_file end
@@ -118,6 +146,6 @@ function ui_hud.current(layout, width)
 end
 
 -- Forgets the styles read so far (a host that reloads its game data, tests).
-function ui_hud.reset() cache = {} end
+function ui_hud.reset() cache = {}; names_cache = nil end
 
 return ui_hud

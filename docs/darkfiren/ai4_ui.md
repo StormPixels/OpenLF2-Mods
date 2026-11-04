@@ -9,8 +9,8 @@ Tampilan hanya bisa dinilai pengguna di ponsel; yang diuji di sini adalah logika
 |---|---|---|---|
 | `classic` | 794 | (menu bawaan kode) | tidak berubah |
 | `expand` | 794 | (menu bawaan kode) | tidak berubah |
-| `wide 1333` | 1333 | `mode4.dat` (lewat `mode.dat`, `respond: 1333`) | tidak berubah; teks dari `game/dat_text/data/mode/mode4.dat`, cadangan `game/mode_file` |
-| `wide 1018` (BARU) | 1018 | `mode2.dat` (`respond: 1018`) | didukung; tanpa `mode.dat`/`mode2.dat` jatuh ke menu klasik 794 |
+| `wide 1333` | 1333 | `mode4.dat` (lewat `mode.dat`, `respond: 1333`) | tidak berubah; sumber teks: `game/dat_text`, lalu `game/mode_file`, lalu berkas game didekode di Lua |
+| `wide 1018` | 1018 | `mode2.dat` (`respond: 1018`) | didukung. Sumber teks berurutan: `game/dat_text` (AI 5) -> berkas game `data/mode.dat` + `data/mode/mode2.dat` didekode di Lua (`game/data_text.lua`) -> salinan blok layout di `game/mode2_builtin.lua` (dengan catatan kuning di Opsi dan di layar pilih karakter). Tidak pernah jatuh ke classic tanpa catatan |
 | (mode3, 10 pemain) | 1018 | `mode3.dat` | belum; lihat rencana di bagian 5 |
 
 - `game/ui_modes.lua`: `parse(mode.dat)`, `for_width`, `layout_width`, `text(entry)`, `layout_text(layout)`, `random_pool`, `title`, `combo`.
@@ -25,7 +25,7 @@ Tampilan hanya bisa dinilai pengguna di ponsel; yang diuji di sini adalah logika
 | `<menu_control>`, `<grid_char>`, `<grid_bg>`, `<grid_bg_mode>`, `<grid_stage>`, `<misc>` | dibaca (`mode_layout.apply`); mode1/2/4 diuji |
 | `<menu_small>`, `<time>`, `<cost>`, `<battle>` | dibaca per mode (tes `small_menu_modes_test`) |
 | `<random>` | dibaca dari berkas mode, cadangan `game/random_pool` |
-| `<name>` | dibaca (`ui_modes.title`), belum digambar |
+| `<name>` | judul mode digambar di pojok kiri atas layar pilih karakter pada layout lebar (teks `hexf`, bayangan `hexb` 1 px) |
 | `<combo>` | dibaca (`ui_modes.combo`), belum digambar: match belum punya penghitung combo |
 | `<frame>` (mode3/mode4) | belum dipakai |
 | `<menu_wait>`, `<background>`, `<bmp_begin>` | belum dipakai |
@@ -38,7 +38,8 @@ Tampilan hanya bisa dinilai pengguna di ponsel; yang diuji di sini adalah logika
 - Gambar gaya (`sprite/frame/...`) dipakai bila ada di game; jika tidak, tetap `pe/frame` dan `pe/bars`.
 - Cadangan: angka bawaan (198x54, 4 kolom, bar 124x10 di (57,16) dan (57,36)) ada di `ui_hud.default_style()` dan salinan `fallback_hud` di `match_screen.lua` (untuk host/tes tanpa modul).
 - Per objek (I8): `record.display.hp_bar` / `mp_bar` (hanya tipe 1 atau tanpa tipe, dengan `x`,`y`,`w`) dan `team_flag{x,y}` bila ada; selain itu gaya.
-- Belum: pemilihan gaya oleh pemain (Radar, Crazy_Ui1-4, Widescreen_*), `stats_count`, `name`, `minibar`, `bossbar`, `effect`; gaya `facing: 10`.
+- Pemain memilih gaya di Opsi (baris "HUD style", opsi tersimpan `hud_style`, muncul bila game punya `data/frame.dat`): hanya gaya tidak tersembunyi, untuk 8 pemain, dengan `respond` kosong atau sama dengan lebar gambar; Default = HUD bawaan (tidak membaca berkas). Gaya `hidden` belum bisa dipilih (butuh `unlock.allows`).
+- Belum: `stats_count`, `name`, `minibar`, `bossbar`, `effect`; gaya `facing: 10`.
 - [BELUM PASTI] arti `type` bar selain 1 dan `col_*` untuk gaya non-default.
 
 ## 3. Tag gambar frame (§2, I10) — `match_screen.lua`
@@ -49,7 +50,7 @@ Tampilan hanya bisa dinilai pengguna di ponsel; yang diuji di sini adalah logika
 | `bound: 1` | tanpa nama di bawah karakter di frame itu |
 | `value.st.invisible` | gambar tidak digambar (state 20/21) |
 | `amount`, `loop` | gambar diulang `amount` kali (maks 64), berjarak `loop` px (lebar gambar bila tanpa `loop`) — **tebakan**, meniru layer background |
-| `center_z` 10000..29999 | menggantikan `z` sebagai urutan gambar (digambar di depan nilai yang lebih kecil) — **tebakan** |
+| `center_z` | koreksi urutan gambar: `z + (center_z - 20000)` untuk 10000..29999, `z + (center_z - 200000)` untuk 100000..299999 (dokumentasi Darkfiren: yang z-nya terkecil digambar lebih dulu; 10000 = di belakang semua, 29999 = di depan semua). Hanya urutan, gambar tidak bergeser |
 | skin `<pic>` / tombol D | belum: perlu `record.skins` (I1) dan perubahan di `character_select` |
 
 Field snapshot baru `entry.invisible` dan `entry.depth` diisi ulang di setiap `screen.snapshot` (entri dipakai ulang; lihat A4-3). Tanpa tag, gambar sama dengan sebelumnya.
@@ -86,3 +87,10 @@ Usulan bertahap (tidak dikerjakan di putaran ini):
 
 `bash RESULT/tests/run.sh` dari akar repo: `ui_modes_test`, `layout_modes_test`, `match_layout_test`, `small_menu_modes_test`, `ui_hud_test`, `frame_tags_test`.
 Data contoh ada di `RESULT/tests/data` (salinan `mode.dat`, `mode1-4.dat`, `frame.dat`, dua berkas gaya HUD dari `darkfiren-knowledge`).
+
+## 7. Putaran 2 (perbaikan)
+
+- **Layout 1018 jadi classic (akar masalah)**: tiga sebab berurutan: (1) `game/dat_text` belum ada di C++ sehingga `mode.dat` tidak terbaca; (2) jalur `mode.dat` yang saya pakai salah (`data/mode/mode.dat`; yang benar `data/mode.dat`); (3) gambar menu mode2 `sprite/ui/charmenu.bmp` bukan berkas tersendiri (layout classic menggambar `pe/charmenu`). Perbaikan: `game/data_text.lua` membaca berkas game apa adanya dan mendekode `.dat` seperti `src/resources/data_file.cpp` (lewati 123 byte, kurangi kunci 37 huruf dari awal berkas); `character_select` memakai `pe/charmenu` bila berkas gambarnya tidak ada; salinan bawaan di `game/mode2_builtin.lua`; catatan di layar bila tidak membaca berkas game.
+- **Gempa layar**: `match.st.quake_x/quake_y` (piksel, dibatasi +-50) menggeser seluruh arena (latar, objek, spark) lewat pembungkus `context` di `match_screen.lua`; HUD, perintah stage, dan gambar jeda tidak ikut. Positif = ke kanan/bawah (arah itu pilihan saya).
+- **center_z**: aturan diperbaiki sesuai dokumentasi (lihat bagian 3).
+- **Judul mode** (`<name>`) digambar; **gaya HUD pilihan pemain** ditambahkan (bagian 2).

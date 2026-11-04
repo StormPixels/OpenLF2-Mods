@@ -6,6 +6,8 @@ local font = require("base/ui/font")
 local i18n = require("base/i18n/i18n")
 local sounds = require("base/game/sounds")
 local options = require("base/game/options")
+local ui_modes = require("base/game/ui_modes")
+local ui_hud = require("base/game/ui_hud")
 local navigation = require("base/ui/navigation")
 local constants = require("base/game/constants")
 local virtual_keys = constants.virtual_keys
@@ -191,6 +193,9 @@ local option_rows = {
     {key = "unlock_characters", label = "Unlock hidden characters"},
     {key = "upscaling_filter", label = "Upscaling filter", choices = options.available_filters},
     {key = "battlefield_layout", label = "Battlefield layout", choices = function() return options.battlefield_layouts end},
+    -- The HUD styles of the game (data/frame.dat); the row is only there when the game has more than the built-in one.
+    {key = "hud_style", label = "HUD style", choices = ui_hud.names, display = function(value) return value end,
+        available = function() return #ui_hud.names() > 1 end},
     {key = "fullscreen", label = "Fullscreen", available = function(features) return features.window end},
     {key = "show_fps", label = "Show FPS"},
     {key = "rumble", label = "Rumble"},
@@ -198,10 +203,15 @@ local option_rows = {
     {key = "projected_shadows", label = "Projected shadows"},
 }
 local function options_layout(features, values)
-    local panel = {x = 0x93, y = 0x90, width = 0x1f4}
-    local rows = {}
+    local visible = {}
     for _, option in ipairs(option_rows) do
-        if not option.available or option.available(features or {}, values or {}) then
+        if not option.available or option.available(features or {}, values or {}) then visible[#visible + 1] = option end
+    end
+    -- With more rows than the screen has room for (the page is 10 rows high at most as it was), the panel moves up.
+    local panel = {x = 0x93, y = 0x90 - math.max(0, #visible - 10) * 0x1a, width = 0x1f4}
+    local rows = {}
+    for _, option in ipairs(visible) do
+        do
             local y = panel.y + 0x46 + #rows * 0x1a
             local box = option.choices
                 and {x = panel.x + 0xf3, y = y, width = 0xc0, height = 18}
@@ -287,6 +297,11 @@ local function options_page(state, input)
     add(state, {"fill", panel.x + 2, panel.y + 2, panel.width - 4, panel.height - 4, 0x10, 0x20, 0x50})
     bold(state, i18n.tr("Options"), panel.x + 0x1e, panel.y + 0x14, constants.font_variants.blue)
     local values = state.options
+    -- The player cannot read the log: a wide layout that runs on OpenLF2's own layout data (the game's mode file could
+    -- not be read) says so here.
+    if ui_modes.layout_source(values.battlefield_layout) == "builtin" then
+        bold(state, i18n.tr("Wide layout: the game's mode2.dat was not read, built-in layout used"), panel.x + 0x1e, panel.y + 0x2e, constants.font_variants.yellow)
+    end
     -- Alt+Enter (handled by the flow) changed the saved option: the page follows.
     if input.fullscreen_set ~= nil then values.fullscreen = input.fullscreen_set end
     local was_open = state.option_open

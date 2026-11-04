@@ -117,13 +117,19 @@ function screen.snapshot(state, snapshot)
             entry.pic_offset, entry.weapon, entry.team = value.pic_offset, value.weapon, value.team
             entry.hp, entry.max_hp, entry.human = value.hp, value.max_hp, value.human
             entry.lives = value.lives
-            -- I10: state 20/21 hide the object; the frame tag center_z (10000..29999) replaces z as the drawing
-            -- order [BELUM PASTI: assumed to put the object in front of everything of a smaller value]. Entries are
-            -- reused, so every field is set on every snapshot.
+            -- I10: state 20/21 hide the object. The frame tag center_z corrects the z the drawing order uses by
+            -- (center_z - 20000), or by (center_z - 200000) in the 100000..299999 range (Darkfiren: "the object with the
+            -- smallest z is drawn first", so 10000 puts it behind everything, 29999 in front). It is a drawing order
+            -- only: the picture stays where it is. Entries are reused, so every field is set on every snapshot.
             local frame = value.record.frame and value.record.frame(value.frame)
             local priority = frame and frame.center_z
+            local correction = 0
+            if type(priority) == "number" then
+                if priority >= 10000 and priority <= 29999 then correction = priority - 20000
+                elseif priority >= 100000 and priority <= 299999 then correction = priority - 200000 end
+            end
             entry.invisible = value.st ~= nil and value.st.invisible == true
-            entry.depth = type(priority) == "number" and priority >= 10000 and priority <= 29999 and priority or value.z_int
+            entry.depth = value.z_int + correction
             advance_sparks(value.sparks, entry.sparks)
             order[count] = entry
         end
@@ -362,6 +368,35 @@ local function bar_of(value, name, style)
     return style[name]
 end
 
+-- Earthquake (frame state 5XXYY, game/st_camera.lua): match.st.quake_x/quake_y are pixel offsets, zero when no frame asks
+-- for one. The arena (background, objects, sparks) moves by them: positive x to the right, positive y down; the HUD, the
+-- stage commands and the pause picture stay.
+local function quake_offsets(current)
+    local st = current.st
+    if type(st) ~= "table" then return 0, 0 end
+    local function clamp(value)
+        if type(value) ~= "number" or value ~= value then return 0 end
+        return math.max(-50, math.min(50, math.floor(value)))
+    end
+    return clamp(st.quake_x), clamp(st.quake_y)
+end
+local shifted_calls = {"viewport", "overlay", "render_area", "clip", "sound", "rumble", "music", "speed", "render_filter",
+    "text_input", "replay_drop", "fullscreen", "action"}
+-- `context` with every drawing call moved by (dx, dy).
+local function shifted(context, dx, dy)
+    local moved = {}
+    for _, name in ipairs(shifted_calls) do moved[name] = context[name] end
+    function moved.sprite(resource, source, x, y, ...) return context.sprite(resource, source, x + dx, y + dy, ...) end
+    function moved.world_sprite(resource, source, x, y, mirrored, ground_y, ...)
+        return context.world_sprite(resource, source, x + dx, y + dy, mirrored, ground_y and ground_y + dy, ...)
+    end
+    function moved.image(resource, x, y, ...) return context.image(resource, x + dx, y + dy, ...) end
+    function moved.icon(resource, x, y, ...) return context.icon(resource, x + dx, y + dy, ...) end
+    function moved.fill(x, y, ...) return context.fill(x + dx, y + dy, ...) end
+    function moved.text(text, x, y, ...) return context.text(text, x + dx, y + dy, ...) end
+    return moved
+end
+
 local function draw_status(context, state, style)
     style = style or fallback_hud
     for slot = 0, 7 do
@@ -570,16 +605,18 @@ function screen.draw(state, context, window_bounds)
         context.clip(passable_bounds.left, window_bounds.top,
             passable_bounds.right - passable_bounds.left, window_bounds.bottom - window_bounds.top)
     end
+    local quake_x, quake_y = quake_offsets(current)
+    local arena = (quake_x ~= 0 or quake_y ~= 0) and shifted(context, quake_x, quake_y) or context
     if current.background_row == constants.background_rows.lee_on_road then
-        background.paint_lee_on_road(context, view.camera, bounds)
+        background.paint_lee_on_road(arena, view.camera, bounds)
     else
-        background.paint(context, current.stage, current.view, view.camera, bounds, wide)
+        background.paint(arena, current.stage, current.view, view.camera, bounds, wide)
     end
     context.clip(passable_bounds and passable_bounds.left or 0, 128,
         passable_bounds and passable_bounds.right - passable_bounds.left or constants.screen.width, constants.screen.height - 128)
     local lighting = options.current()
     for _, entry in ipairs(view.items) do
-        draw_item(context, current.stage, view, entry, passable_bounds, lighting)
+        draw_item(arena, current.stage, view, entry, passable_bounds, lighting)
     end
     context.clip()
     for _, command in ipairs(view.stage or {}) do
@@ -605,7 +642,7 @@ function screen.draw(state, context, window_bounds)
     end
     do
         local layout = options.current().battlefield_layout
-        draw_status(context, current, ui_hud.current(layout, options.wide_width(layout)))
+        draw_status(context, current, ui_hud.current(layout, options.wide_width(layout), options.current().hud_style))
     end
     if view.time_left then
         -- The time limit's clock: the time left, in the middle under the HP frames.

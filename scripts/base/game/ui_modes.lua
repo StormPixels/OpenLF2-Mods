@@ -7,9 +7,10 @@
 -- only mode4.dat has the older game/mode_file as a fallback. Compatible with Lua 5.1/LuaJIT.
 local constants = require("base/game/constants")
 local mode_layout = require("base/game/mode_layout")
+local data_text = require("base/game/data_text")
 local ui_modes = {}
 
-local list_path = "game/dat_text/data/mode/mode.dat"
+local list_path = "data/mode.dat"
 local classic_width = constants.screen.width
 -- LF2 Darkfiren's 8P widescreen (mode2.dat, `respond: 1018` in mode.dat).
 local wide_1018_width = 1018
@@ -56,27 +57,51 @@ function ui_modes.for_width(list, width)
     return nil
 end
 
--- The text of a mode file, or nil. mode4.dat falls back on the game/mode_file resource.
+-- The text of a mode file and where it came from ("host", "file"), or nil. mode4.dat also falls back on the older
+-- game/mode_file resource.
 function ui_modes.text(entry)
     if not entry or not entry.file then return nil end
-    local ok, text = pcall(engine.read_resource, "game/dat_text/" .. entry.file)
-    if ok and type(text) == "string" and text ~= "" then return text end
+    local text, source = data_text.read(entry.file)
+    if text then return text, source end
     if entry.file:match("mode4%.dat$") then
-        ok, text = pcall(engine.read_resource, "game/mode_file")
-        if ok and type(text) == "string" and text ~= "" then return text end
+        local ok, legacy = pcall(engine.read_resource, "game/mode_file")
+        if ok and type(legacy) == "string" and legacy ~= "" then return legacy, "host" end
     end
     return nil
 end
 
--- The mode file text of a battlefield layout: nil in the classic layout (the built-in menu stands) and for a layout
--- without a mode. Without game/dat_text the wide 1333 layout still gets mode4.dat from game/mode_file.
+-- A wide layout's mode file when mode.dat does not name one that fits (or cannot be read).
+local default_files = {[constants.screen.wide_width] = "data/mode/mode4.dat", [wide_1018_width] = "data/mode/mode2.dat"}
+
+local sources = {}
+-- The mode file text of a battlefield layout and where it came from: "host" or "file" (the game's own file) or
+-- "builtin" (the layout blocks that are part of OpenLF2, used when the game's file cannot be read; only for the 1018
+-- layout). nil in the classic layouts (the built-in menu stands) and when there is nothing to read.
 function ui_modes.layout_text(layout)
     local width = ui_modes.layout_width(layout)
     if not width or width == classic_width then return nil end
-    local ok, listing = pcall(engine.read_resource, list_path)
-    local entry = ok and ui_modes.for_width(ui_modes.parse(listing), width) or nil
-    if not entry and width == constants.screen.wide_width then entry = {file = "data/mode/mode4.dat"} end
-    return ui_modes.text(entry)
+    local listing = data_text.read(list_path)
+    local entry = listing and ui_modes.for_width(ui_modes.parse(listing), width) or nil
+    local text, source = ui_modes.text(entry)
+    if not text and default_files[width] then text, source = ui_modes.text({file = default_files[width]}) end
+    -- A file that is not a mode file (a wrong decode that still looks like text) is not used.
+    if text and source == "file" and not text:find("<menu_control>", 1, true) then text = nil end
+    if not text and width == wide_1018_width then text, source = require("base/game/mode2_builtin"), "builtin" end
+    sources[layout] = source or false
+    return text, source
+end
+
+-- "host", "file", "builtin" or nil: where the layout's mode text comes from (remembered by layout_text; read once for a
+-- layout it has not seen). For the notice on the options page.
+function ui_modes.layout_source(layout)
+    if sources[layout] == nil then ui_modes.layout_text(layout) end
+    return sources[layout] or nil
+end
+
+-- Forgets what layout_source knows and the files decoded (tests, a host that reloads the game data).
+function ui_modes.reset()
+    sources = {}
+    data_text.reset()
 end
 
 -- The ids of the <random> block of a mode file (the fighters a random pick may give), as a set; nil when empty.
