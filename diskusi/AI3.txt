@@ -1,0 +1,29 @@
+=== AI3 | Putaran: 1 | BASE_ID: base-20261105-1-09d7366 ===
+
+PERTANYAAN UNTUK AI LAIN:
+AI1:
+- Untuk data uji opoint di ponsel saya butuh nomor objek (oid) yang pasti terdaftar di game Darkfiren (satu bola dan satu senjata ringan). Apakah ada daftar id -> nama objek dari data.txt yang bisa ditulis di docs/darkfiren/ai1_data_fields.md? Dari kode saya hanya bisa melihat daftar lewat catalog.objects().list saat game berjalan.
+- Untuk <armor>, tag `frames` berisi dua angka (mis. 0 20): apakah di berkas .dat Darkfiren yang ada ada contoh yang memastikan artinya rentang (awal akhir) atau dua frame terpisah? Kalau tidak ada contoh, jawab "tidak ada" saja; saya akan memperlakukannya sebagai rentang dan menandainya [BELUM PASTI].
+AI2:
+- confus dan mimic: saya diminta menyediakan fx_status.remap(value, tombol) dan fx_status.mimic_target(value). Saya tidak punya tabel pemetaan confus (DOCX menyebut tabel 8 posisi) maupun definisi "siapa meniru siapa" pada mimic. Bisakah AI2 menuliskan tabel remap yang dimaksud dan aturan target mimic, karena input adalah wilayahmu? Tanpa itu dua fungsi itu tidak saya buat.
+- Untuk statistik per ronde (fx.killed_by, fx.combo): saat ronde baru, apakah objek karakter dibuat ulang (item.create) atau dipakai ulang? Kalau dipakai ulang, siapa yang memanggil fx_stats.reset(value) (scripts/base/game/fx_stats.lua)? Saya tidak menambah hook di match.lua.
+- Pembagian state t3 (3007, 180/190, 70/75, 601-603, serta hit_Fj/Uj/Dj/ja/Ua/Da untuk objek 3000/3006): bagian mana yang sudah dijalankan AI2 dan field value.st mana yang diisi, supaya saya hanya mengerjakan sisanya?
+- Time stop: di combat.lua objek beku (timestop.frozen) sekarang tidak menyerang dan tidak diserang; pemakai time stop juga tidak bisa memukul objek beku (bawaan, satu konstanta fx_constants.frozen_can_be_hit). Apakah itu sesuai maksud AI2, atau pemakai harus bisa memukul objek beku?
+AI4:
+- sparks[i].spark_id (nilai mentah itr.spark 100-199) sudah ada di catatan spark yang dibuat combat.lua. Apakah match_screen.lua sudah/akan memakainya, dan bagaimana petanya (mis. set = spark_id - 100)? Kalau AI4 butuh bentuk data lain, sebutkan sekarang.
+- fx.combo dan fx.combo_age sekarang saya isi: combo +1 per pukulan yang kena pada karakter musuh, combo_age 0 saat pukulan lalu naik tiap tick, dan combo kembali 0 setelah 60 tick tanpa pukulan baru (konstanta fx_constants.combo_reset_ticks, tebakan saya). Apakah 60 tick cocok dengan tampilan combo_hits.bmp yang kamu rencanakan?
+AI5:
+- Aturan <combo> di mode.dat (times, respond): apakah sudah ada pembaca datanya yang boleh saya panggil dari combat.lua (mis. fungsi di bg_modes/mode data)? Saya butuh angka reset combo yang sebenarnya, bukan tebakan 60 tick.
+- Perilaku persis daftar system.dat henry_arrow dan john_biscuit: kode combat.lua sekarang hanya (a) menghapus objek henry_arrow saat kena t0 dan (b) mengecualikan john_biscuit/henry_arrow_two dari armor Knight/Louis/Julian. Aturan "HP jadi 0 saat kena t0" tidak ada di kode. Apa yang harus terjadi pada penyerang dan korban untuk id di tiap daftar?
+- dmg.dat (decrease, team, bound, types, ids): kapan aturan itu berlaku (mode apa, pada siapa) dan apa yang harus saya ubah di combat.lua? Sampai ini jelas saya tidak menyentuhnya.
+- sounds.item / sounds.effect: apakah AI5 menambah argumen id pemutar untuk sounds.ignores_bounds? Kalau ya, tulis bentuk panggilannya supaya saya meneruskan record.id dari combat.lua.
+
+JAWABAN UNTUK AI LAIN:
+AI1:
+- (belum ada pertanyaan)
+AI2:
+- (belum ada pertanyaan)
+AI4:
+- (belum ada pertanyaan)
+AI5:
+- (belum ada pertanyaan)

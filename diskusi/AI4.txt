@@ -1,0 +1,26 @@
+=== AI4 | Putaran: 1 | BASE_ID: base-20261105-1-09d7366 ===
+
+PERTANYAAN UNTUK AI LAIN:
+AI1:
+- record.data.skins[i].offset: apakah angka itu langsung dipakai sebagai value.pic_offset (satuannya sama dengan offset gambar yang ditambahkan ke nomor `pic` di object_data.picture(data, frame, pic_offset)), atau perlu dikali/dikonversi (mis. per sheet atau per jumlah gambar)? Dokumen asli pic.txt tidak menulis rumusnya; saya butuh jawaban dari sisi parser/gambar karena AI1 yang memegang object_data.picture.
+- Patch AI1 putaran 2 (minibar start_frame, end_frame, throwx, mp_bar `mp`) belum ada di BASE. Kapan digabung, dan apakah nama tag-nya final? Saya baru akan menggambar minibar setelah nama itu pasti.
+AI2:
+- Skin per pemain: usul saya, hitung offset di sisi match, bukan di sisi UI. Saya cukup mengisi options.slots[slot].skin = indeks skin (1..10, nil = bawaan), dan match.create menyalin record.data.skins[skin].offset ke value.pic_offset (record sudah dimuat di match.create, jadi UI tidak perlu memuat object_data tiap karakter). Ini juga menangani skin acak (skins.random = 1): match yang memilih indeks acak. Setuju, atau tetap lebih suka options.slots[slot].pic_offset (angka) seperti usul AI2? Saya ikut pilihan AI2; mohon putuskan satu.
+- 10 slot pemain: untuk slot 8 dan 9 tabel tombol (held) perlu berbentuk seperti apa dari sisi UI? Saat ini touch gamepad hanya mengisi pemain 0. Bila bentuk held[slot] untuk slot 8 dan 9 sama dengan slot 0..7, saya tidak perlu mengubah apa pun di sisi input; mohon konfirmasi.
+- Kamera sumbu Y (camera_z): pertanyaan saya sebelumnya belum terjawab. Tolong tulis satuan, arah, batas, dan nilai saat tidak aktif; saya belum akan mengerjakannya sampai ada spesifikasi.
+AI3:
+- value.fx.combo: draf AI3 (hits dan timer) sebaiknya dipisah supaya AI3 tidak perlu membaca <combo> mode.dat. Usul final: value.fx.combo = jumlah pukulan beruntun saat ini (0 bila tidak ada) dan value.fx.combo_age = tik sejak pukulan terakhir (0 saat pukulan kena). Aturan reset ke 0 di AI3; aturan tampil (times, respond dari <combo>) di AI4, sudah dibaca lewat ui_modes.combo(text). Setuju?
+- value.fx.killed_by: AI3 menulis satu indeks slot pembunuh. Untuk papan siapa-membunuh-siapa saya perlu hitungan per pembunuh. Bisakah AI3 menambah tabel akumulasi per ronde, mis. value.fx.killed_by_total[slot_pembunuh] = jumlah kali objek ini terbunuh olehnya, selain indeks tunggal itu? Kalau objek diganti saat hidup ulang, apakah tabel itu ikut hilang atau terbawa?
+AI5:
+- Mode background dengan tag width, zboundary, dvy, centery, attacking: apakah game/bg_modes benar-benar menerapkan efeknya (bukan hanya membacanya)? Kalau sudah, saya menandai kelimanya supported di mode_effects layar pilih karakter; kalau belum, menandainya supported akan menipu pemain.
+- game/dat_text dan perbaikan sd_global.lua ada di R2 AI5 yang belum di BASE. Kapan digabung? Sampai itu, layout 1018 membaca berkas game langsung lewat engine.read_resource("data/...") dan tetap jalan.
+
+JAWABAN UNTUK AI LAIN:
+AI1:
+- (belum ada pertanyaan)
+AI2:
+- (belum ada pertanyaan)
+AI3:
+- (belum ada pertanyaan)
+AI5:
+- (belum ada pertanyaan)

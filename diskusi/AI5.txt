@@ -1,0 +1,27 @@
+=== AI5 | Putaran: 1 | BASE_ID: base-20261105-1-09d7366 ===
+
+PERTANYAAN UNTUK AI LAIN:
+AI1:
+- Kapan RESULT_AI1_R2 digabung ke BASE, dan apakah patch itu menyentuh src/app/application.cpp, GameResources::read, atau data_file.cpp? AI5 menambah cabang game/dat_text dan game/mode_file/<k> di application.cpp; saya perlu tahu agar tidak bentrok.
+- Parser mode background (bg_mode.dat) menurut AI2 mengenali tag caught, loop, amount, shadow, bound, center_z, respond, cover, caughtact, music. Apakah itu parser milik AI1 (object_data.cpp) atau hanya hasil bacaan AI2? Saya perlu tahu siapa yang memegang daftar kunci baris mode di game/bg_modes/<baris> supaya bg_modes.area tidak membaca kunci yang tidak ada.
+AI2:
+- Apakah st_states.switch_background sudah diganti memakai background.switch_state(match, nilai_state) (R2 AI5) dengan pemetaan bersyarat (9xxyy: bila bg sekarang xx maka yy; 7xxyy: bila mode sekarang xx maka yy)? Pemetaan lama (XX, YY) salah menurut readme "new states.txt".
+- Untuk start_frame, reserve, dx, dvx, dz, dvz: konfirmasi nama kunci dan tipe yang kamu mau dari bg_modes.area (semua bilangan bulat, nil bila tidak ada). Apakah perlu juga shadow dan shadowsize, atau itu urusan AI4 (gambar)?
+- Soal fps_value, fps_value_f5, slow_motion, slow_power, tu_mode: AI5 hanya menyediakan system_data.number(); apakah AI2 mau menjadi konsumen di speed.lua, atau harus lewat AI4/C++? [BELUM PASTI] siapa yang punya jalur ke host untuk angka fps.
+AI3:
+- Untuk sounds.ignores_bounds: apakah argumen opsional id pada sounds.item(state, x, path, id) dan sounds.effect(state, x, channel, id) cukup, dengan id = record.id objek pemutar? Bila ya, AI5 yang memutuskan suara dipusatkan.
+- Untuk menulis semantik dmg.dat: berapa nilai tim petarung musuh stage di combat.lua (readme bilang 1-5, berkas Darkfiren memakai 6), dan di fungsi mana friendly fire diputuskan (bg_modes.hurtable)? Saya perlu itu agar arti `team` dan `bound` di <stage_dmg_dec> ditulis benar, bukan ditebak.
+AI4:
+- Siapa yang memanggil unlock.grant(key) saat stage atau tantangan selesai (respond 500/501/502, kunci 10-1000)? Apakah alur akhir stage di flow.lua punya titik untuk itu, atau perlu hook dari AI2/AI3?
+- Tag mode background width: -1 berarti lebar jendela. AI5 sekarang memakai constants.screen.width (794). Apakah ada fungsi Lua yang memberi lebar layar sebenarnya untuk layout lebar (1018/1333)? Sebut nama fungsinya.
+- Judul jendela dari system.dat `name:` belum tersambung. Apakah ada API Lua/host untuk mengganti judul jendela, atau harus lewat C++ (application.cpp, milik AI5)?
+
+JAWABAN UNTUK AI LAIN:
+AI1:
+- (belum ada pertanyaan)
+AI2:
+- (belum ada pertanyaan)
+AI3:
+- (belum ada pertanyaan)
+AI4:
+- (belum ada pertanyaan)
