@@ -56,13 +56,17 @@ local function chase_balls(state, me, id_for)
     until full or #enemies == 0 or spawned >= maximum or spawned >= minimum
 end
 
+-- 26: both the blast and the six ground fires are made on the ground, whatever the height of the object. Firen's own
+-- explosion frame (289: centery 79, opoint y 81, oid 211, action 109) puts the blast 2 below its ground line, and the
+-- older explosion mode puts the ground fires at y -1; neither takes the object's vertical speed.
+local blast_y = 2
 local function ground_fire(state, me)
     local fire = ids.firen_flame
     local c = objects.create
-    c(state, fire, me.owner, 109, me.team, me.x_int, me.y_int, me.z_int, me.vx, me.vy, me.vz, me.facing)
+    c(state, fire, me.owner, 109, me.team, me.x_int, blast_y, me.z_int, me.vx, 0.0, me.vz, me.facing)
     local spots = {{-30, -5, 1}, {30, -5, 1}, {-30, 2, 0}, {30, 2, 0}, {0, -9, 1}, {0, 6, 0}}
     for _, s in ipairs(spots) do
-        c(state, fire, me.owner, 50, me.team, me.x_int + s[1], me.y_int - 1, me.z_int + s[2], me.vx, me.vy, me.vz, s[3])
+        c(state, fire, me.owner, 50, me.team, me.x_int + s[1], -1, me.z_int + s[2], me.vx, 0.0, me.vz, s[3])
     end
 end
 
