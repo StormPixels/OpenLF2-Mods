@@ -39,6 +39,7 @@ Tampilan hanya bisa dinilai pengguna di ponsel; yang diuji di sini adalah logika
 - Cadangan: angka bawaan (198x54, 4 kolom, bar 124x10 di (57,16) dan (57,36)) ada di `ui_hud.default_style()` dan salinan `fallback_hud` di `match_screen.lua` (untuk host/tes tanpa modul).
 - Per objek (I8): `record.display.hp_bar` / `mp_bar` (hanya tipe 1 atau tanpa tipe, dengan `x`,`y`,`w`) dan `team_flag{x,y}` bila ada; selain itu gaya.
 - Pemain memilih gaya di Opsi (baris "HUD style", opsi tersimpan `hud_style`, muncul bila game punya `data/frame.dat`): hanya gaya tidak tersembunyi, untuk 8 pemain, dengan `respond` kosong atau sama dengan lebar gambar; Default = HUD bawaan (tidak membaca berkas). Gaya `hidden` belum bisa dipilih (butuh `unlock.allows`).
+- Radar (`<radar>` di berkas gaya, gaya Radar dan Widescreen_Radar): gambar dasar, satu titik per objek bertipe/berstate yang terdaftar (gambar per tim untuk petarung, per tipe untuk lainnya, `dead` bila hp habis), berkedip bila `fall: 1` dan objek sedang berkedip, dan bingkai kamera (`cover`, warna `rect`). Posisi titik: lebar stage -> `width` dikurangi 2x`offset_x`, `zboundary` -> `height` dikurangi 2x`offset_y`, dari `start_x/start_y` [BELUM PASTI: pemetaan persis aslinya]. Gaya berukuran classic digeser ke tengah pada layout lebar; Widescreen_Radar (respond 1018) tidak digeser. Gambar yang tidak ada di game dibuang; tanpa gambar dasar tidak ada radar. Belum: kotak centang radar saat jeda (`action`), `pic_hidden`/`pic_clone`/`pic_heal`, senjata yang dipegang (`facing`), `shadow`, `transparency`.
 - Belum: `stats_count`, `name`, `minibar`, `bossbar`, `effect`; gaya `facing: 10`.
 - [BELUM PASTI] arti `type` bar selain 1 dan `col_*` untuk gaya non-default.
 
@@ -94,3 +95,4 @@ Data contoh ada di `RESULT/tests/data` (salinan `mode.dat`, `mode1-4.dat`, `fram
 - **Gempa layar**: `match.st.quake_x/quake_y` (piksel, dibatasi +-50) menggeser seluruh arena (latar, objek, spark) lewat pembungkus `context` di `match_screen.lua`; HUD, perintah stage, dan gambar jeda tidak ikut. Positif = ke kanan/bawah (arah itu pilihan saya).
 - **center_z**: aturan diperbaiki sesuai dokumentasi (lihat bagian 3).
 - **Judul mode** (`<name>`) digambar; **gaya HUD pilihan pemain** ditambahkan (bagian 2).
+- **Radar** digambar (lihat bagian 2); sebelumnya memilih gaya Radar hanya mengubah kotak HUD.

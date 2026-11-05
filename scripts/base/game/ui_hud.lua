@@ -47,6 +47,7 @@ function ui_hud.parse(text)
             end
         end
     end
+    style.radar = ui_hud.parse_radar(text)
     local flag = blocks.team_flag
     if flag then
         if type(flag.team_flag_x) == "number" then style.team_flag.x = flag.team_flag_x end
@@ -89,6 +90,56 @@ function ui_hud.pick(list, width)
         end
     end
     return nil
+end
+
+-- The <radar> block of a style file (readme/frame dat.txt): the base picture and where it goes, the area the dots move
+-- in, which object types and frame states show, and the dot pictures. nil when the block is missing, switched off
+-- (`bound: 0`) or lacks its picture or size. Picture paths are lower case with forward slashes.
+function ui_hud.parse_radar(text)
+    local radar, inside = {types = {}, states = {}, team_pics = {}, type_pics = {}}, false
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag == "radar" then inside = true
+        elseif tag == "radar_end" then break
+        elseif inside then
+            local key, value = line:match("^%s*([%w_]+)%s*:%s*(%S+)")
+            if key then
+                local number = tonumber(value)
+                if key == "type" and number then radar.types[number] = true
+                elseif key == "state" and number then radar.states[number] = true
+                elseif key:match("^pic_team%d$") then radar.team_pics[tonumber(key:sub(-1))] = path_of(value)
+                elseif key:match("^pic_type%d$") then radar.type_pics[tonumber(key:sub(-1))] = path_of(value)
+                elseif key == "pic" or key == "pic_dead" or key == "pic_heal" or key == "pic_hidden" or key == "pic_clone" then
+                    radar[key] = path_of(value)
+                elseif number and radar[key] == nil then radar[key] = number end
+            end
+        end
+    end
+    if radar.bound ~= 1 or not radar.pic or not radar.width or not radar.height or radar.width < 1 or radar.height < 1 then return nil end
+    radar.pic_x, radar.pic_y = radar.pic_x or 0, radar.pic_y or 0
+    radar.start_x, radar.start_y = radar.start_x or radar.pic_x, radar.start_y or radar.pic_y
+    radar.offset_x, radar.offset_y = radar.offset_x or 0, radar.offset_y or 0
+    return radar
+end
+
+-- The picture of an object's dot: the team picture for a fighter (type 0), the type picture otherwise, the `dead` picture
+-- for a fighter without hp. nil when the style has none.
+function ui_hud.radar_icon(radar, kind, team, hp)
+    if kind == 0 then
+        if hp ~= nil and hp <= 0 and radar.pic_dead then return radar.pic_dead end
+        return radar.team_pics[math.max(1, math.min(5, math.floor(team or 1)))] or radar.type_pics[0]
+    end
+    return radar.type_pics[kind]
+end
+
+-- Where the top left corner of a dot picture goes for an object at (x, z) on a stage `stage_width` wide whose z runs from
+-- z_min to z_max: the dots move over the radar area less the offsets. [BELUM PASTI] the exact mapping of the original.
+function ui_hud.radar_position(radar, x, z, stage_width, z_min, z_max)
+    local across = math.max(0, radar.width - 2 * radar.offset_x)
+    local down = math.max(0, radar.height - 2 * radar.offset_y)
+    local fx = stage_width > 0 and math.max(0, math.min(1, x / stage_width)) or 0
+    local fz = z_max > z_min and math.max(0, math.min(1, (z - z_min) / (z_max - z_min))) or 0
+    return radar.start_x + math.floor(fx * across + 0.5), radar.start_y + math.floor(fz * down + 0.5)
 end
 
 local cache = {}
@@ -138,6 +189,17 @@ function ui_hud.current(layout, width, name)
             style = ui_hud.parse(text)
             if style.frame_file and readable(style.frame_file) then style.frame_pic = style.frame_file end
             if style.bars_file and readable(style.bars_file) then style.bars_pic = style.bars_file end
+            local radar = style.radar
+            if radar then
+                -- Only pictures the game has are drawn; without the base picture there is no radar.
+                local function keep(path) if path and readable(path) then return path end end
+                radar.pic = keep(radar.pic)
+                for index, path in pairs(radar.team_pics) do radar.team_pics[index] = keep(path) end
+                for index, path in pairs(radar.type_pics) do radar.type_pics[index] = keep(path) end
+                radar.pic_dead = keep(radar.pic_dead)
+                radar.centered = chosen.respond == nil
+                if not radar.pic then style.radar = nil end
+            end
         end
     end
     style = style or ui_hud.default_style()

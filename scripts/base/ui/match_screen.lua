@@ -397,6 +397,43 @@ local function shifted(context, dx, dy)
     return moved
 end
 
+-- The radar of a HUD style (frame.dat <radar>): the base picture, a dot per object of the listed types and frame states
+-- (pictures by team or type), blinking while `fall` says the fighter is down or invincible, and the camera outline.
+local function draw_radar(context, view, current, radar, center, picture_width)
+    local shift = radar.centered and center or 0
+    context.image(radar.pic, radar.pic_x + shift, radar.pic_y, false)
+    local stage = current.stage or {}
+    local stage_width = stage.width or constants.screen.width
+    local bounds = stage.zboundary or {}
+    local z_min, z_max = bounds[1] or 0, bounds[2] or 0
+    for _, entry in ipairs(view.items) do
+        local record = entry.record
+        local frame = record.frame and record.frame(entry.frame)
+        if radar.types[record.kind] and frame and radar.states[frame.state] and not entry.invisible
+           and not (radar.fall == 1 and entry.blink and entry.blink > 0 and entry.blink % 4 >= 2) then
+            local picture = ui_hud.radar_icon(radar, record.kind, entry.team, entry.hp)
+            if picture then
+                local x, y = ui_hud.radar_position(radar, entry.x, entry.z, stage_width, z_min, z_max)
+                context.image(picture, x + shift, y, true)
+            end
+        end
+    end
+    if radar.cover == 1 then
+        -- The camera outline: the window's share of the stage across the radar area.
+        local across = math.max(0, radar.width - 2 * radar.offset_x)
+        local window = picture_width
+        local left = radar.start_x + shift + math.floor(math.max(0, math.min(1, (view.camera or 0) / math.max(1, stage_width))) * across + 0.5)
+        local size = math.max(2, math.min(across, math.floor(window / math.max(1, stage_width) * across + 0.5)))
+        local top, height = radar.start_y, math.max(2, radar.height - 2 * radar.offset_y)
+        local rect = radar.rect or 16777215
+        local red, green, blue = math.floor(rect / 65536) % 256, math.floor(rect / 256) % 256, rect % 256
+        context.fill(left, top, size, 1, red, green, blue)
+        context.fill(left, top + height - 1, size, 1, red, green, blue)
+        context.fill(left, top, 1, height, red, green, blue)
+        context.fill(left + size - 1, top, 1, height, red, green, blue)
+    end
+end
+
 local function draw_status(context, state, style)
     style = style or fallback_hud
     for slot = 0, 7 do
@@ -642,7 +679,9 @@ function screen.draw(state, context, window_bounds)
     end
     do
         local layout = options.current().battlefield_layout
-        draw_status(context, current, ui_hud.current(layout, options.wide_width(layout), options.current().hud_style))
+        local style = ui_hud.current(layout, options.wide_width(layout), options.current().hud_style)
+        draw_status(context, current, style)
+        if style and style.radar then draw_radar(context, view, current, style.radar, wide_center(), options.wide_width(layout) or constants.screen.width) end
     end
     if view.time_left then
         -- The time limit's clock: the time left, in the middle under the HP frames.

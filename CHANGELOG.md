@@ -179,3 +179,4 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: opoint hp/team/z/mp/dvz/effect/centerx/centery/centerz/framea/reserve/attacking/pic, holding kinds 3/5/6/7 and wpoint cover 2.
 - LF2 Darkfiren: itr status effects poison, manacle, delay, confus, weak, join, mimic, bound and facing (kind 0 and 9 only).
 - LF2 Darkfiren: the blast and ground fires of `hit_Fa` 26 are placed on the ground even when the exploding object is in the air.
+- LF2 Darkfiren: the Radar HUD style now draws the radar (base picture, one dot per object, blinking, camera frame) from the frame file's `<radar>` block.
