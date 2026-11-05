@@ -103,7 +103,7 @@ end
 -- Reads and parses a data file once: sd_global.kinds(), sd_global.fusions() and sd_global.damage_rules(path)
 -- (the path is the stage's `file:` tag such as "data\\stage\\dmg.dat"). A missing file gives an empty list; data
 -- that is not attached yet is retried on the next call.
-local function load(path, parse)
+local function read_cached(path, parse)
     local key = path:lower():gsub("\\", "/")
     if cache[key] then return cache[key] end
     local text, message = sd_text.read(key)
@@ -115,9 +115,9 @@ local function load(path, parse)
     cache[key] = {}
     return cache[key]
 end
-function sd_global.kinds() return load("data/kind.dat", sd_global.parse_kinds) end
-function sd_global.fusions() return load("data/fusion.dat", sd_global.parse_fusions) end
-function sd_global.damage_rules(path) return load(path, sd_global.parse_damage_rules) end
+function sd_global.kinds() return read_cached("data/kind.dat", sd_global.parse_kinds) end
+function sd_global.fusions() return read_cached("data/fusion.dat", sd_global.parse_fusions) end
+function sd_global.damage_rules(path) return read_cached(path, sd_global.parse_damage_rules) end
 
 -- Forgets the loaded files (tests, a changed game folder).
 function sd_global.reset() cache = {} end

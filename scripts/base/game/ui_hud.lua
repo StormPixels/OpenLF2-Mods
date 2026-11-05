@@ -18,7 +18,7 @@ function ui_hud.default_style()
     return {frame_pic = "pe/frame", bars_pic = "pe/bars", frame_x = 0, frame_y = 0, frame_w = 198, frame_h = 54,
         small_x = 9, small_y = 7, row = 4, col_dhp = 30, col_hp = 20, col_bhp = 40, col_dmp = 10, col_mp = 0,
         hp_bar = {x = 57, y = 16, w = 124, h = 10}, mp_bar = {x = 57, y = 36, w = 124, h = 10},
-        team_flag = {x = 5, y = 0}}
+        team_flag = {x = 5, y = 0}, centered = true}
 end
 
 local function path_of(value)
@@ -187,6 +187,9 @@ function ui_hud.current(layout, width, name)
         local text = chosen and data_text.read(chosen.file)
         if text and text:find("<frame>", 1, true) then
             style = ui_hud.parse(text)
+            -- A style made for this exact width (`respond`) lays its boxes out across the whole picture (the 1018 style has
+            -- its radar right of the 792 wide boxes); one without `respond` is classic sized and is centred.
+            style.centered = chosen.respond == nil
             if style.frame_file and readable(style.frame_file) then style.frame_pic = style.frame_file end
             if style.bars_file and readable(style.bars_file) then style.bars_pic = style.bars_file end
             local radar = style.radar

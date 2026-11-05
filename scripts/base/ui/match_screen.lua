@@ -438,7 +438,7 @@ local function draw_status(context, state, style)
     style = style or fallback_hud
     for slot = 0, 7 do
         local row = math.floor(slot / style.row) * style.frame_h + style.frame_y
-        local column = style.frame_x + (slot % style.row) * style.frame_w + wide_center()
+        local column = style.frame_x + (slot % style.row) * style.frame_w + (style.centered == false and 0 or wide_center())
         context.image(style.frame_pic, column, row, false)
         local value = state.items[slot] or state.items[slot + 10]
         if value then

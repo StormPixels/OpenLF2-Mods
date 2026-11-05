@@ -66,6 +66,13 @@ function sounds.load(text)
     return true
 end
 
+-- The simultaneous sound limit; fx_constants.max_sounds (AI 3) when that module exists, else 20.
+local function max_sounds()
+    local ok, constants_fx = pcall(require, "base/game/fx_constants")
+    local value = ok and type(constants_fx) == "table" and constants_fx.max_sounds or nil
+    return type(value) == "number" and value > 0 and value or 20
+end
+
 local function ensure()
     if not settled then sounds.load() end
 end
@@ -135,11 +142,29 @@ function sounds.flush(state, master)
     end
     state.direct_sounds = nil
     local order = state.sound_order or {}
+    -- At most max_sounds (20, fx_constants) different sounds play at once: when more are audible, the loudest
+    -- (nearest) ones are kept, the earlier queued winning ties; the rest are dropped. Menu sounds do not count.
+    local limit = max_sounds()
+    local heard = {}
+    for _, channel in ipairs(order) do
+        channel.strength = math.min(channel.left + channel.right, 100)
+        if channel.strength > 0 and master > 0 then heard[#heard + 1] = channel end
+    end
+    local dropped = {}
+    if #heard > limit then
+        local ranked = {}
+        for position, channel in ipairs(heard) do ranked[position] = {channel = channel, position = position} end
+        table.sort(ranked, function(a, b)
+            if a.channel.strength ~= b.channel.strength then return a.channel.strength > b.channel.strength end
+            return a.position < b.position
+        end)
+        for rank = limit + 1, #ranked do dropped[ranked[rank].channel] = true end
+    end
     for _, bank in ipairs({"item", "fixed"}) do
         for _, channel in ipairs(order) do
             if channel.bank == bank then
-                local strength = math.min(channel.left + channel.right, 100)
-                if strength > 0 and master > 0 then
+                local strength = channel.strength
+                if strength > 0 and master > 0 and not dropped[channel] then
                     -- Ear totals can exceed 100 each; DirectSound rejects a pan outside +/-10000
                     -- and the buffer keeps the pan it had (assumed from the API contract).
                     local pan = cdiv((channel.right - channel.left) * 1500, 100)

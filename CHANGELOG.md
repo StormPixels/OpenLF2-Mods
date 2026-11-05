@@ -58,6 +58,8 @@ All notable changes to this project are documented in this file.
 - UI: gempa layar (state 5XXYY) menggeser arena di `match_screen`; `center_z` mengikuti aturan Darkfiren (z + center_z - 20000).
 - UI: judul mode digambar di layar pilih karakter (layout lebar); gaya HUD bisa dipilih di Opsi (`hud_style`).
 
+- UI: gaya HUD yang dibuat khusus untuk satu lebar (mis. Widescreen_Radar, 1018) tidak lagi digeser ke tengah, sehingga kotak HUD tidak tertimpa radar.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -180,3 +182,5 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: itr status effects poison, manacle, delay, confus, weak, join, mimic, bound and facing (kind 0 and 9 only).
 - LF2 Darkfiren: the blast and ground fires of `hit_Fa` 26 are placed on the ground even when the exploding object is in the air.
 - LF2 Darkfiren: the Radar HUD style now draws the radar (base picture, one dot per object, blinking, camera frame) from the frame file's `<radar>` block.
+- UI: HUD styles made for one specific width (e.g. Widescreen_Radar, 1018) are no longer shifted to the centre, so the HUD boxes are not covered by the radar.
+- LF2 Darkfiren: `background.switch` and `switch_state` (states 9XX, 9XXYY, 7XX, 7XXYY) exist for background changing, and at most 20 sounds play per flush.

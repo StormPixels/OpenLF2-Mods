@@ -272,4 +272,82 @@ function background.paint_lee_on_road(context, camera_x, bounds)
         context.image("pe/back99_1", x - camera_x + 10, 390, false)
     end
 end
+-- LF2 Darkfiren background changing states (st9xx / st9xxyy) and bg mode changing states (st7xx / st7xxyy).
+-- The unfiltered description of row `row`, or nil when the game has no such background. Row 99 is Lee on Road.
+local function description_of(row)
+    if row == constants.background_rows.lee_on_road then return background.lee_on_road end
+    local ok, catalog = pcall(require, "base/game/catalog")
+    if not ok then return nil end
+    local entry = catalog.backgrounds()[row + 1]
+    return entry and background.load(entry.path) or nil
+end
+
+-- The mode `index` (0 = the background's first mode) of row `row` as a parsed mode table, or nil.
+local function mode_of(row, index)
+    local ok, text = pcall(engine.read_resource, "game/bg_modes/" .. row)
+    if not ok then return nil end
+    return require("base/game/bg_modes").parse(text)[index + 1]
+end
+
+-- Changes the running round's background and/or background mode (interface I3). `row` (0-99) loads that background,
+-- `mode_index` (0-99, 0 = the first mode of the background's mode list) picks the mode of the (new) background; nil
+-- leaves that part alone. A row or mode the game does not have changes nothing. A new row without a mode keeps the
+-- fighters' mode effects (hurtable, recmp, ...) but takes the new background's first-mode filters. Updates
+-- state.stage (width and zboundary follow), state.view, state.bg_area, state.background_row, state.bg_mode and
+-- state.bg_mode_index. Objects the old background's opoints created stay; the new opoints are not spawned.
+-- [UNCERTAIN] whether mode numbers start at 0 or 1 is not documented; 0 is assumed. Returns true when something changed.
+function background.switch(state, row, mode_index)
+    if type(state) ~= "table" or type(state.stage) ~= "table" then return false end
+    local bg_modes = require("base/game/bg_modes")
+    row = tonumber(row) and math.floor(row) or nil
+    mode_index = tonumber(mode_index) and math.floor(mode_index) or nil
+    local target = row or state.background_row
+    local base = description_of(target)
+    if not base then return false end
+    local filters
+    if mode_index ~= nil then
+        local mode = target ~= constants.background_rows.lee_on_road and mode_of(target, mode_index) or nil
+        if not mode then return false end
+        filters = bg_modes.filters(mode)
+    elseif row ~= nil and row ~= state.background_row then
+        filters = target ~= constants.background_rows.lee_on_road and bg_modes.default_filters(target) or nil
+    else
+        return false
+    end
+    local effects = {}
+    for key, value in pairs(state.bg_mode or {}) do effects[key] = value end
+    effects.filters = filters
+    state.bg_mode = effects
+    if row ~= nil then state.background_row = row end
+    state.bg_mode_index = mode_index or (row ~= nil and 0 or state.bg_mode_index)
+    state.stage = background.filtered(base, filters)
+    state.view = background.create_state(state.stage)
+    state.bg_area = filters and filters.area or nil
+    return true
+end
+
+-- Applies one of the states 9xx, 9xxyy, 7xx, 7xxyy by its number (what a frame's `state:` holds):
+--   9xx    (900..999)      background xx
+--   9xxyy  (90000..98999)  if the current background is xx, change to yy
+--   7xx    (700..799)      background mode xx
+--   7xxyy  (70000..79999)  if the current mode is xx, change to yy
+-- 99xxx is the camera state and is not handled here. Returns true when the round changed. A mode never chosen counts as 0.
+function background.switch_state(state, value)
+    value = tonumber(value)
+    if not value or type(state) ~= "table" then return false end
+    value = math.floor(value)
+    if value >= 900 and value <= 999 then return background.switch(state, value - 900, nil) end
+    if value >= 700 and value <= 799 then return background.switch(state, nil, value - 700) end
+    if value >= 90000 and value <= 98999 then
+        local from, to = math.floor(value / 100) % 100, value % 100
+        if state.background_row == from then return background.switch(state, to, nil) end
+        return false
+    end
+    if value >= 70000 and value <= 79999 then
+        local from, to = math.floor(value / 100) % 100, value % 100
+        if (state.bg_mode_index or 0) == from then return background.switch(state, nil, to) end
+        return false
+    end
+    return false
+end
 return background
