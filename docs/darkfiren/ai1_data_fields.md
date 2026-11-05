@@ -22,9 +22,9 @@ Sudah ada: `name, head, small, movement, weapon, sheets, strengths, frames, toke
 | `stats` | `<stats>`: bleed_hp attacking regen_hp regen_mp regen_dhp defend normal_attack1 normal_attack2 jump_attack run_attack dash_attack light_throw heavy_throw sky_light_throw run_heavy_throw weapon_drink respond recmp max_mp ohp omp reserve phase caught caughtact bound y weaponact |
 | `armor` | `<armor>`: type ratio decrease mp fall bdefend injury spark delay hp recover facing action (angka); sound1 sound2 (teks); `ids`, `states`, `effects` (larik dari tag berulang); `frames` (larik grup: tiap `frame: a b` jadi `{a, b}`, atau `{a}` bila satu angka) |
 | `weapon_piece` | `team` dan `[1..5] = {act, framea, dvx, dvy, dvz, oid, amount}`; nomor piece di luar 1-5 dicatat di diagnostics |
-| `sound_list` | `[i] = {bg, mode, weapon_hit, weapon_drop, weapon_broken}` — **[BELUM PASTI]** tata letak blok `<sound>` senjata tidak ada contohnya; asumsi: `bg:` membuka entri baru, `mode:` membuka entri baru bila entri sekarang sudah punya mode |
-| `skins` | `random`, `sound`, `[i] = {pic, head, small, smallb, smallt, offset, respond}`; maks 10, sisanya dicatat dan diabaikan. `pic` = nomor setelah `pic:`; `i` = urutan blok |
-| `command` | `[i] = {bound, type, respond, hp, mp, team, modes = {..}, actions = {..}}`; maks 10 |
+| `sound_list` | suara senjata per background dan mode (readme `sound.txt`): `[i] = {bg, mode, weapon_hit, weapon_drop, weapon_broken}`. Satu entri per blok `bound:` ... `bound_end:` di dalam `<sound>` (maks 100). `bg` dan `mode` adalah HIMPUNAN dari tag `bg:`/`mode:` yang boleh berulang (maks 100 nilai): `entry.bg[n] == true` bila n terdaftar. Nilai mentah (mulai dari 0 atau 1 tidak ditetapkan dokumen). Entri cocok bila bg sekarang ada di `bg` DAN mode sekarang ada di `mode`; bila tidak ada yang cocok dipakai suara bawaan di `header`/`weapon`. Hanya untuk senjata t1, t2, t4, t6. Tag di luar `bound:` dicatat di diagnostics |
+| `skins` | `random`, `sound`, `[i] = {pic, head, small, smallb, smallt, offset, respond}`; maks 10, sisanya dicatat dan diabaikan. `pic` = nomor setelah `pic:` (nil bila `pic:` ditulis tanpa nomor, seperti templat catatan); `i` = urutan blok |
+| `command` | `[i] = {bound, type, respond, hp, mp, team, times, modes = {..}, actions = {..}}`; maks 10 |
 
 | `phase` | `<phase>` (menu transformasi): `respond oid pic_x pic_y start_x start_y rect row centerx centery w h bound caughtact pickedact hidden` (angka), `sound1 sound2 pic` (teks), `ids` (larik dari `id:` berulang, maks 100; sisanya dicatat dan diabaikan) |
 | `display` | blok tampilan, lihat bagian "display" di bawah; ada bila minimal satu blok ada |
@@ -32,7 +32,7 @@ Sudah ada: `name, head, small, movement, weapon, sheets, strengths, frames, toke
 
 ## display (P3)
 Hanya blok yang ada di berkas yang muncul. Bar berlapis memakai `layers[i]` (urutan di berkas).
-- `hp_bar`, `mp_bar`, `minibar`, `bossbar`, `effect`, `menu_face`: tag blok (`type x y w h dx dy facing effect amount loop respond bound transparency max cc c1 c2 centerx cover`, teks `pic`,
+- `hp_bar`, `mp_bar`, `minibar`, `bossbar`, `effect`, `menu_face`: tag blok (`type x y w h dx dy facing effect amount loop respond bound transparency max cc c1 c2 centerx cover mp start_frame end_frame throwx`, teks `pic`,
   `teams` = larik dari `team:` berulang) ditambah `layers[i]` dengan kunci yang sama. Maks layer: minibar 50, bossbar 50, menu_face 30, lainnya 100 (**[BELUM PASTI]** angka 100); kelebihan dicatat dan diabaikan.
   Tiap layer juga punya `layer` (angka setelah `layer:` bila ada) dan `comment` (teks `#...` di sebelahnya, tanpa `#`), mis. `"hit_Fa"`, `"stage bar hpbar"`. Ini tambahan, bukan dari kontrak.
 - `stats_count[i]`: `x y type max respond facing loop` dan `pic` (angka bila tertulis angka, selain itu teks); maks 10.
@@ -67,8 +67,7 @@ Baru (angka, nil bila tidak ada): `dx dy dz hp chp cmp caught loop amount shadow
 ## itr (`interactions[i]`, juga `strengths`)
 Lama: `kind x y width height dvx dvy fall arest vrest respond effect catching_actions caught_actions bdefend injury zwidth`.
 Baru (angka): `dvz drain gain recover dbdefend spark cover z dx dy dz delay poison confus weak manacle join mimic bound facing sound`.
-Pasangan: `pickingact`, `pickedact` = `{kiri[, kanan]}` (satu atau dua angka sesuai berkas). Slot lama `catching_actions[1]`/`[2]`
-tetap diisi oleh `pickingact`/`pickedact` seperti sebelumnya.
+`pickingact` dan `pickedact` = tindakan penangkapan dari sisi KANAN (readme `cpoint.txt`: catchingact/caughtact untuk sisi kiri, pickingact/pickedact untuk sisi kanan; bila pickingact/pickedact tidak ditulis, dipakai catchingact/caughtact; nilai negatif mengganti arah hadap). Nilai disimpan sebagai larik berisi satu atau dua angka persis seperti tertulis. Slot lama `catching_actions[1]`/`[2]` tetap diisi dari `pickingact`/`pickedact` seperti sebelumnya.
 
 ## bdy (`bodies[i]`)
 Lama: `kind x y width height`. Baru: `zwidth`, `respond`. `kind` mentah.
@@ -76,7 +75,7 @@ Lama: `kind x y width height`. Baru: `zwidth`, `respond`. `kind` mentah.
 ## Point
 - `opoint`/`opoints[i]`: lama `kind x y action dvx dvy oid facing`; baru `hp mp team z dvz reserve effect centerx centery centerz framea attacking pic join join_reserve join_pic`.
 - `bpoint`/`bpoints[i]`: `x y`; baru `w h rect respond`.
-- `cpoint`: kunci lama utuh; baru `z faction baction uzaction dzaction respond drain gain recover throwz` dan pasangan `catchingact caughtact pickingact pickedact` (`{kiri[, kanan]}`). `daction` dan `throwinjury` sudah ada sebelumnya.
+- `cpoint`: kunci lama utuh; baru `z faction baction uzaction dzaction respond drain gain recover throwz` dan `catchingact caughtact pickingact pickedact` (larik satu atau dua angka sesuai berkas; arti kiri/kanan seperti pada itr, untuk cpoint belum ada dokumen setara). `daction` dan `throwinjury` sudah ada sebelumnya.
 - `wpoint`: tidak berubah (`cover` dan `weaponact` sudah ada).
 
 ## Perubahan perilaku yang terlihat pada data lama
@@ -84,3 +83,9 @@ Hanya satu: frame dengan lebih dari satu blok `opoint`/`bpoint`/`sound`. Dulu bl
 sekarang tiap blok disimpan di larik, dan kunci lama menunjuk blok pertama (sesuai kontrak). Data LF2 2.0a asli tidak punya kasus ini.
 `token_checksum` data tanpa blok baru tidak berubah; untuk berkas Darkfiren yang punya `<stats>`/`<armor>`/`<pic>`/dst. nilainya
 berubah karena token di dalam blok itu kini dibaca oleh parser blok (bukan dihitung sebagai token tingkat atas).
+
+## Catatan R2
+`mp` (mp_bar), `start_frame`/`end_frame`/`throwx` (minibar), dan `times` (command) ditambahkan setelah dicocokkan dengan dokumen asli `docs/txt/exe/*.txt`. **[BELUM PASTI]** nama tag persis `start_frame`/`end_frame`/`throwx`: dokumen asli hanya menulis "start frame", "end frame", "throwx" di tabel struct, tanpa templat tag.
+
+`start_frame` ada di `header` (dari `<bmp_begin>`), bukan di `stats`: `record.data.header.start_frame` (readme `new in bmp part.txt`; prioritas di atas tag mode background).
+`stats.caughtact` adalah nama field exe untuk hal yang di readme disebut `caught` (frame tujuan bila MP/HP tidak cukup); parser meneruskan kedua nama.

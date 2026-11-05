@@ -7,6 +7,7 @@
 -- performs the ones that belong to combat (poison damage, join team swap, weak damage); the others
 -- (manacle, delay, confus, bound, mimic, facing) are read by the control / MP code through `active`.
 local constants = require("base/game/constants")
+local fx_stats = require("base/game/fx_stats")
 local fx = {}
 
 -- UNCERTAIN (docs/darkfiren/ai3_interactions.md): the notes' examples contradict their own
@@ -57,7 +58,8 @@ function fx.apply(attacker, victim, itr, defended, random)
     if itr.poison and itr.poison ~= 0 then
         local poison = fx.parse_poison(itr.poison)
         if poison.duration > 0 and rolled(poison.chance, random) then
-            bag(victim).poison = {kind = poison.kind, timer = poison.duration, amount = poison.amount, next = fx.poison_interval}
+            bag(victim).poison = {kind = poison.kind, timer = poison.duration, amount = poison.amount, next = fx.poison_interval,
+                by = attacker.owner}
         end
     end
     for _, name in ipairs(fx.timed) do
@@ -116,8 +118,15 @@ function fx.update(state, slots)
                     poison.next = fx.poison_interval
                     local damage = poison_damage(value, poison)
                     if damage > 0 then
+                        local before = value.hp
                         value.hp = value.hp - damage
                         value.hp_spent = value.hp_spent + damage
+                        if before > 0 and value.hp <= 0 then
+                            -- A lethal poison tick counts as a kill for whoever poisoned (same as a killing blow).
+                            fx_stats.record_kill(value, poison.by)
+                            local owner = poison.by and state.items[poison.by]
+                            if owner then owner.kills = owner.kills + 1 end
+                        end
                     end
                 end
                 if poison.timer <= 0 then status.poison = nil end

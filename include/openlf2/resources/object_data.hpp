@@ -29,12 +29,13 @@ inline constexpr std::int32_t max_sheet_cells = 500;
 // Darkfiren tags that LF2 2.0a lacks. They are kept as ordered key/value items and handed to
 // scripts under the tag's own name, so a tag absent from the file is absent (nil) in Lua.
 struct ExtraItem {
-    enum class Kind : std::uint8_t { integer, list, text, groups };
+    enum class Kind : std::uint8_t { integer, list, text, groups, set };
     std::string key;
     Kind kind = Kind::integer;
     std::vector<std::int32_t> values; // one value for `integer`
     std::string text;
     std::vector<std::vector<std::int32_t>> groups; // `groups`: one entry per occurrence of the tag
+    // `set`: `values` is a set of numbers; scripts get {[n] = true}
 };
 using Extras = std::vector<ExtraItem>;
 
@@ -161,6 +162,8 @@ struct WeaponPiece {
 // <pic>: `random`, `sound` and up to ten skins.
 inline constexpr std::size_t max_skins = 10;
 inline constexpr std::size_t max_commands = 10;
+inline constexpr std::size_t max_sound_entries = 100; // `bound:` entries in a weapon <sound> block (sound.txt)
+inline constexpr std::size_t max_sound_values = 100;  // values of one repeated `bg:` or `mode:` tag (sound.txt)
 struct Skins {
     Extras fields;
     std::vector<Extras> entries;

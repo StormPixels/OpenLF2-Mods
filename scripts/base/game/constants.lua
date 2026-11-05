@@ -640,7 +640,7 @@ return {
     },
     -- order_x / order_z of a fighter without a team order; `nearest` of one without a target in reach.
     no_order = -1000,
-    nobody_near = 1000,
+    nobody_near = 10000, -- itr reach on the x axis (Darkfiren: 1000 -> 10000)
     cpoint_kinds = {
         holder = 1,
         caught = 2,

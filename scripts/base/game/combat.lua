@@ -51,6 +51,9 @@ local rumble = require("base/game/rumble")
 local fx_itr = require("base/game/fx_itr")
 local fx_body = require("base/game/fx_body")
 local fx_status = require("base/game/fx_status")
+local fx_stats = require("base/game/fx_stats")
+local fx_constants = require("base/game/fx_constants")
+local timestop = require("base/game/timestop")
 local combat = {}
 
 local function cdiv(a, b)
@@ -105,7 +108,11 @@ end
 -- LF2 Darkfiren background modes (game/bg_modes.lua): `hurtable` friendly fire / no damage, `gain_mp_a/v`.
 -- With no damage the summary box still counts the damage a hit would have done.
 local function dealt(state, damage)
-    return bg_modes.no_damage(state.bg_mode) and 0 or damage
+    if bg_modes.no_damage(state.bg_mode) then return 0 end
+    -- A background mode's `attacking` scales every hit's damage (percent; 100 = unchanged).
+    local percent = bg_modes.damage_percent(state.bg_area)
+    if percent ~= 100 then return cdiv(damage * percent, 100) end
+    return damage
 end
 local function mp_gain(state, attacker, victim, injury)
     local gain_a, gain_v = bg_modes.mp_gain(state.bg_mode, attacker.record.kind == record_kinds.character,
@@ -299,6 +306,11 @@ local function prepare_collision(state)
             entry.index, entry.value, entry.frame = index, value, frame
             entry.has_attack, entry.has_body, entry.rest = has_attack, #frame.bodies ~= 0, value.pair_rest
             entry.can_attack = has_attack and value.timer_ec <= 0
+            -- Time stop: a frozen object neither attacks nor (by default) is attacked.
+            if state.st and state.st.timestop and timestop.frozen(state, index, value) then
+                entry.can_attack = false
+                if not fx_constants.frozen_can_be_hit then entry.has_body = false end
+            end
         end
     end
     -- Ordered suffix lists let each object visit only partners with a possible
@@ -533,6 +545,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
         if victim.hp > 0 and applied >= victim.hp and counted then
             local owner = state.items[attacker.owner]
             if owner then owner.kills = owner.kills + 1 end
+            fx_stats.record_kill(victim, attacker.owner)
             battle.count_kill(state, victim)
         end
         victim.hp = victim.hp - applied
@@ -728,6 +741,7 @@ local function defended_hit(state, p, attacker, victim, itr)
     if victim.hp > 0 and applied >= victim.hp and victim.follow == -1 then
         local owner = state.items[attacker.owner]
         if owner then owner.kills = owner.kills + 1 end
+        fx_stats.record_kill(victim, attacker.owner)
         battle.count_kill(state, victim)
     end
     victim.hp = victim.hp - applied
@@ -995,6 +1009,7 @@ local function freeze_hit(state, p, v, attacker, victim, itr)
     local applied = dealt(state, damage)
     if victim.hp > 0 and applied >= victim.hp and victim.follow == -1 then
         if owner then owner.kills = owner.kills + 1 end
+        fx_stats.record_kill(victim, attacker.owner)
         battle.count_kill(state, victim)
     end
     victim.hp = victim.hp - applied
@@ -1171,6 +1186,7 @@ function combat.apply(state, p)
                     if spark_kind == "stop" then return end
                     if spark_kind ~= "skip" then
                         fx_itr.after_hit(attacker, victim, itr, defended)
+                        if not defended then fx_stats.hit(state, attacker, victim) end
                         if itr.spark ~= -1 then record_spark(state, p, v, attacker, victim, itr, spark_kind) end
                     end
                 end
@@ -1202,6 +1218,7 @@ function combat.reset_lists(state)
             value.nearest, value.nearest_catcher = constants.nobody_near, constants.nobody_near
             value.hit_list_count = 0
             value.hit_this_frame = false
+            fx_stats.tick(value)
         end
     end
 end

@@ -80,7 +80,7 @@ constexpr std::array armor_group_tags{TagKey{"frame", "frames"}};
 constexpr std::array piece_head_tags{same("team")};
 constexpr std::array piece_tags{same("act"), same("framea"), same("dvx"), same("dvy"), same("dvz"), same("oid"),
     same("amount")};
-constexpr std::array sound_int_tags{same("bg"), same("mode")};
+constexpr std::array sound_set_tags{same("bg"), same("mode")};
 constexpr std::array sound_text_tags{TagKey{"weapon_hit_sound", "weapon_hit"},
     TagKey{"weapon_drop_sound", "weapon_drop"}, TagKey{"weapon_broken_sound", "weapon_broken"}};
 constexpr std::array skin_head_int_tags{same("random")};
@@ -88,7 +88,7 @@ constexpr std::array skin_head_text_tags{same("sound")};
 constexpr std::array skin_int_tags{same("offset"), same("respond")};
 constexpr std::array skin_text_tags{same("head"), same("small"), same("smallb"), same("smallt")};
 constexpr std::array command_int_tags{same("bound"), same("type"), same("respond"), same("hp"), same("mp"),
-    same("team")};
+    same("team"), same("times")};
 constexpr std::array command_repeat_tags{TagKey{"mode", "modes"}, TagKey{"action", "actions"}};
 
 constexpr std::array phase_int_tags{same("respond"), same("oid"), same("pic_x"), same("pic_y"), same("start_x"),
@@ -99,7 +99,8 @@ constexpr std::array phase_repeat_tags{TagKey{"id", "ids"}};
 // Fields of the bar blocks and of their layers (one table: layers use a subset of the block tags).
 constexpr std::array bar_int_tags{same("type"), same("x"), same("y"), same("w"), same("h"), same("dx"), same("dy"),
     same("facing"), same("effect"), same("amount"), same("loop"), same("respond"), same("bound"),
-    same("transparency"), same("max"), same("cc"), same("c1"), same("c2"), same("centerx"), same("cover")};
+    same("transparency"), same("max"), same("cc"), same("c1"), same("c2"), same("centerx"), same("cover"),
+    same("mp"), same("start_frame"), same("end_frame"), same("throwx")};
 constexpr std::array bar_text_tags{same("pic")};
 constexpr std::array bar_repeat_tags{TagKey{"team", "teams"}};
 constexpr std::array count_int_tags{same("x"), same("y"), same("type"), same("max"), same("respond"),
@@ -278,6 +279,26 @@ private:
             }
         }
         target.push_back(ExtraItem{std::string(entry->key), ExtraItem::Kind::list, {value}, {}, {}});
+        return true;
+    }
+    // `tag: v` repeated: every occurrence adds one value to a set (duplicates collapse), at most `cap` values.
+    bool extra_set(Extras& target, std::span<const TagKey> table, std::size_t cap) {
+        const auto name = tag_name(false);
+        const auto* entry = name.empty() ? nullptr : find_tag(table, name);
+        if (!entry) return false;
+        std::int32_t value = 0;
+        if (!read_int(value)) return true;
+        ExtraItem* item = nullptr;
+        for (auto& existing : target) {
+            if (existing.key == entry->key && existing.kind == ExtraItem::Kind::set) item = &existing;
+        }
+        if (!item) {
+            target.push_back(ExtraItem{std::string(entry->key), ExtraItem::Kind::set, {}, {}, {}});
+            item = &target.back();
+        }
+        if (std::find(item->values.begin(), item->values.end(), value) != item->values.end()) return true;
+        if (item->values.size() >= cap) note("more than " + std::to_string(cap) + " `" + token_ + "` values; extra value ignored");
+        else item->values.push_back(value);
         return true;
     }
     // `tag: first [second]` repeated: every occurrence appends one group.
@@ -501,21 +522,21 @@ private:
         data_.weapon_piece = std::move(result);
     }
 
-    // [UNCONFIRMED] The notes do not show the layout. Assumed: `bg:` opens a new entry, `mode:` opens one
-    // when the current entry already has a mode, and the three sound tags fill the current entry.
+    // Weapon sounds per background and background mode (readme `sound.txt`): up to 100 `bound:` .. `bound_end:`
+    // entries. `bg:` and `mode:` may repeat (up to 100 values each) and become sets; an entry matches when the current
+    // bg is in `bg` and the current mode is in `mode`. Anything outside a `bound:` entry is not part of the format.
     void sound_block() {
         data_.sound_list.clear();
-        const auto has = [](const Extras& entry, std::string_view key) {
-            return std::any_of(entry.begin(), entry.end(), [&](const auto& item) { return item.key == key; });
-        };
         block("<sound_end>", [&] {
-            const auto name = tag_name(false);
-            if (name.empty()) return false;
-            const bool opens = name == "bg" || (name == "mode" && !data_.sound_list.empty() &&
-                                                has(data_.sound_list.back(), "mode"));
-            if (opens || data_.sound_list.empty()) data_.sound_list.emplace_back();
-            return extra_int(data_.sound_list.back(), sound_int_tags) ||
-                   extra_text(data_.sound_list.back(), sound_text_tags, "<sound>");
+            if (token_ != "bound:") return false;
+            Extras entry;
+            block("bound_end:", [&] {
+                return extra_set(entry, sound_set_tags, max_sound_values) ||
+                       extra_text(entry, sound_text_tags, "bound:");
+            });
+            if (data_.sound_list.size() < max_sound_entries) data_.sound_list.push_back(std::move(entry));
+            else note("more than " + std::to_string(max_sound_entries) + " sound entries; extra entry ignored");
+            return true;
         });
     }
 
@@ -525,10 +546,10 @@ private:
             if (extra_int(result.fields, skin_head_int_tags) ||
                 extra_text(result.fields, skin_head_text_tags, "<pic>")) return true;
             if (token_ != "pic:") return false;
+            // The notes' template writes a bare `pic:`; the sample data numbers each skin.
             std::int32_t number = 0;
-            if (!read_int(number)) return true;
             Extras skin;
-            put(skin, "pic", ExtraItem::Kind::integer, {number});
+            if (stream_.integer(number) == TokenStream::Scan::value) put(skin, "pic", ExtraItem::Kind::integer, {number});
             block("pic_end:", [&] {
                 return extra_int(skin, skin_int_tags) || extra_text(skin, skin_text_tags, "pic:");
             });
@@ -897,6 +918,11 @@ void set_optional(ScriptTable& target, std::string key, const std::optional<std:
 
 ScriptValue extra_value(const ExtraItem& item) {
     if (item.kind == ExtraItem::Kind::text) return text(item.text);
+    if (item.kind == ExtraItem::Kind::set) {
+        ScriptTable members;
+        for (const auto value : item.values) set_field(members, value, ScriptValue{true});
+        return table(std::move(members));
+    }
     if (item.kind == ExtraItem::Kind::integer) return integer(item.values.empty() ? 0 : item.values.front());
     if (item.kind == ExtraItem::Kind::groups) {
         ScriptTable outer;

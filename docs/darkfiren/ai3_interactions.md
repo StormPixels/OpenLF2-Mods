@@ -86,3 +86,17 @@ Titik putus pertama yang ditemukan: gerbang mode stage di `combat.record_targets
 non-"protected" (aturan asli untuk si kriminal), sehingga bdy 1xxx / 1xxyyyzzzw pada objek biasa di mode stage tidak pernah mengenai
 penyerang tim musuh. Diperbaiki: gerbang hanya berlaku bila korbannya `record_ids.criminal`.
 Selain itu tidak ditemukan ketidakcocokan nama kunci; tes `realdata_test.lua` dan `testpack_test.lua` memakai tabel nyata dari C++.
+
+
+## Putaran 7 (keputusan dan perubahan)
+| Hal | Keputusan | Alasan |
+|---|---|---|
+| Jangkauan itr sumbu x | `constants.nobody_near` 1000 -> 10000 (nilai awal `nearest`/`nearest_catcher`); target yang jaraknya >= nilai itu tidak pernah terpilih pada pukulan biasa dan catch | DOCX bagian 1 [P]; AI 1 membenarkan lokasinya |
+| Time stop | objek yang `timestop.frozen` benar tidak menyerang dan (bawaan) tidak diserang; `fx_constants.frozen_can_be_hit = true` membuat korban beku tetap bisa dipukul. Diterapkan di `prepare_collision` | AI 2 meminta keputusan; DOCX: hit spark berhenti saat time stop. Pemakai time stop boleh memukul objek beku atau tidak: [BELUM PASTI] |
+| Damage global mode | `dealt()` mengalikan damage dengan `bg_modes.damage_percent(state.bg_area) / 100` (pembulatan ke nol). Racun tidak dikali | permintaan AI 5; satuan persen asumsi AI 5 |
+| Tinggi jatuh senjata | `weapons.drop_background`: y awal = `state.bg_area.centery` bila ada, selain itu `weapon_spawn.initial_y` | permintaan AI 5 |
+| `fx.killed_by` | tabel `{[slot pemilik penyerang] = jumlah}`; bola/senjata dihitung untuk pemiliknya; dicatat di tiga jalur kematian combat dan pada tick racun yang mematikan | permintaan AI 4 |
+| `fx.last_killer` | slot pembunuh terakhir, nil bila tidak ada | permintaan AI 4 |
+| `fx.combo`, `fx.combo_age` | +1 tiap pukulan yang kena (tidak ditangkis) pada karakter musuh oleh karakter pemilik; `combo_age` 0 pada tick pukulan, naik tiap tick; kembali 0 bila `combo_age` melewati `fx_constants.combo_reset_ticks` (60). Aturan `<combo>` mode.dat (times, respond) belum dibaca | [BELUM PASTI]: aturan reset Darkfiren tidak diketahui; nilai 60 tebakan |
+| Racun mematikan | tick racun yang membuat HP <= 0 mencatat kill untuk penyebar racun (`killed_by`, `last_killer`, `kills`) | konsisten dengan pukulan pembunuh. Kematian itu sendiri tetap ditangani logika lama |
+| Penghitung per ronde | `fx_stats.reset(value)` tersedia; nilai awal diisi saat objek dibuat seperti `kills` | tidak ada hook baru di match.lua |

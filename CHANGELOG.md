@@ -60,6 +60,10 @@ All notable changes to this project are documented in this file.
 
 - UI: gaya HUD yang dibuat khusus untuk satu lebar (mis. Widescreen_Radar, 1018) tidak lagi digeser ke tengah, sehingga kotak HUD tidak tertimpa radar.
 
+- LF2 Darkfiren: itr reach on the x axis raised from 1000 to 10000.
+- LF2 Darkfiren: time stop objects neither attack nor are attacked; a background mode's `attacking` scales hit damage and `centery` sets the height of random weapon drops.
+- LF2 Darkfiren: per-object statistics fx.killed_by, fx.last_killer, fx.combo and fx.combo_age; lethal poison counts as a kill.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -184,3 +188,7 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: the Radar HUD style now draws the radar (base picture, one dot per object, blinking, camera frame) from the frame file's `<radar>` block.
 - UI: HUD styles made for one specific width (e.g. Widescreen_Radar, 1018) are no longer shifted to the centre, so the HUD boxes are not covered by the radar.
 - LF2 Darkfiren: `background.switch` and `switch_state` (states 9XX, 9XXYY, 7XX, 7XXYY) exist for background changing, and at most 20 sounds play per flush.
+- LF2 Darkfiren: itr reach on the x axis raised from 1000 to 10000.
+- LF2 Darkfiren: time stop objects neither attack nor are attacked; a background mode's `attacking` scales hit damage and `centery` sets the height of random weapon drops.
+- LF2 Darkfiren: per-object statistics fx.killed_by, fx.last_killer, fx.combo and fx.combo_age; lethal poison counts as a kill.
+- LF2 Darkfiren: weapon `<sound>` blocks are read one entry per `bound:` block (up to 100), with `bg:` and `mode:` as sets.

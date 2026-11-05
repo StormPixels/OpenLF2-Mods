@@ -207,7 +207,8 @@ function weapons.drop_background(state)
     if slot == -1 or #candidates == 0 then return end
     local value = objects.place(state, slot, candidates[random(#candidates) + 1])
     if not value then return end
-    value.x, value.y, value.z = x, constants.weapon_spawn.initial_y, z
+    -- A background mode's `centery` (< 0) sets the height random drops fall from.
+    value.x, value.y, value.z = x, (state.bg_area and state.bg_area.centery) or constants.weapon_spawn.initial_y, z
     for other = 0, constants.item_slots - 1 do
         local existing = state.items[other]
         if existing then existing.pair_rest[slot] = 0 end
