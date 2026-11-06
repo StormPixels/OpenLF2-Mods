@@ -124,10 +124,20 @@ end
 
 -- The picture of an object's dot: the team picture for a fighter (type 0), the type picture otherwise, the `dead` picture
 -- for a fighter without hp. nil when the style has none.
-function ui_hud.radar_icon(radar, kind, team, hp)
+function ui_hud.radar_icon(radar, kind, team, hp, flags)
+    flags = flags or {}
+    if flags.hidden and radar.pic_hidden then return radar.pic_hidden end
     if kind == 0 then
         if hp ~= nil and hp <= 0 and radar.pic_dead then return radar.pic_dead end
-        return radar.team_pics[math.max(1, math.min(5, math.floor(team or 1)))] or radar.type_pics[0]
+        if flags.clone and radar.pic_clone then return radar.pic_clone end
+        if flags.healing and radar.pic_heal then return radar.pic_heal end
+        team = math.floor(team or 1)
+        -- The radar sheets have five team pictures. Once the stage enemies are team 6, team 5 is an ordinary team and the
+        -- enemies take the fighter picture [BELUM PASTI: the original has no sixth team].
+        if constants.teams.enemies > 5 and team >= constants.teams.enemies then
+            return radar.type_pics[0] or radar.team_pics[5]
+        end
+        return radar.team_pics[math.max(1, math.min(5, team))] or radar.type_pics[0]
     end
     return radar.type_pics[kind]
 end
@@ -199,7 +209,7 @@ function ui_hud.current(layout, width, name)
                 radar.pic = keep(radar.pic)
                 for index, path in pairs(radar.team_pics) do radar.team_pics[index] = keep(path) end
                 for index, path in pairs(radar.type_pics) do radar.type_pics[index] = keep(path) end
-                radar.pic_dead = keep(radar.pic_dead)
+                for _, name in ipairs({"pic_dead", "pic_hidden", "pic_clone", "pic_heal"}) do radar[name] = keep(radar[name]) end
                 radar.centered = chosen.respond == nil
                 if not radar.pic then style.radar = nil end
             end

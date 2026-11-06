@@ -119,6 +119,30 @@ local function queue(state, bank, key, x, id)
     channel.right = channel.right + right
 end
 
+-- The sound path of a weapon's hit, drop or break (kind "hit", "drop" or "broken") in the running round: the
+-- first `data.sound_list` entry (sound.txt `bound:` blocks, interface of the object data) whose `bg` set holds the
+-- round's background row and whose `mode` set holds the background mode's number, else the weapon's own
+-- `data.weapon.<kind>_sound`. An entry that lacks the sound or one of the two sets: a missing set matches
+-- everything, a missing sound falls back to the weapon's own. The mode number is state.bg_mode_index, else
+-- state.bg_mode.index, else 0 (the first mode). [UNCERTAIN] whether the sources count modes from 0 or 1, and
+-- which entry wins when several match (the first does here). Returns nil when there is no sound.
+function sounds.weapon_path(state, data, kind)
+    if type(data) ~= "table" or (kind ~= "hit" and kind ~= "drop" and kind ~= "broken") then return nil end
+    local own = type(data.weapon) == "table" and data.weapon[kind .. "_sound"] or nil
+    local list = data.sound_list
+    if type(list) ~= "table" or type(state) ~= "table" then return own end
+    local row = state.background_row
+    local mode = state.bg_mode_index or (type(state.bg_mode) == "table" and state.bg_mode.index) or 0
+    for _, entry in ipairs(list) do
+        if (type(entry.bg) ~= "table" or entry.bg[row]) and (type(entry.mode) ~= "table" or entry.mode[mode]) then
+            local path = entry["weapon_" .. kind]
+            if type(path) == "string" and path ~= "" then return path end
+            return own
+        end
+    end
+    return own
+end
+
 function sounds.item(state, x, path, id)
     if path then queue(state, "item", sounds.canonical(path), x, id) end
 end

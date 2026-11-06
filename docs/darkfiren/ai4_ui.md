@@ -96,3 +96,12 @@ Data contoh ada di `RESULT/tests/data` (salinan `mode.dat`, `mode1-4.dat`, `fram
 - **center_z**: aturan diperbaiki sesuai dokumentasi (lihat bagian 3).
 - **Judul mode** (`<name>`) digambar; **gaya HUD pilihan pemain** ditambahkan (bagian 2).
 - **Radar** digambar (lihat bagian 2); sebelumnya memilih gaya Radar hanya mengubah kotak HUD.
+
+## 8. Putaran 5 (keputusan pengguna, BASE base-20261106-2-46e3dcd)
+
+- **Lebar jendela pertandingan**: `match_screen.create` memanggil `background.set_window_width(options.wide_width(layout))` sebelum `match.create` setiap pertandingan dibuat (semua titik pembuatan, termasuk replay, demo, dan lanjutan stage, lewat satu fungsi). 1333 dan 1018 untuk layout lebar, nil untuk classic dan expand. [BELUM PASTI] replay yang direkam pada layout lain: lebar jendela hanya memengaruhi mode background bertag `width: -1`.
+- **Kunci buka**: `match_screen.unlock_key(state)` meminta `stage.unlock_key(match)`; `flow.lua` (cabang `round_over`) memanggil `unlock.grant(key)` sekali per pertandingan bila ada kunci. UI tidak menilai kemenangan.
+- **Tim 6**: pilihan tim di layar pilih karakter berputar modulo `constants.teams.enemies` (bukan 5), jadi tim 5 bisa dipilih setelah AI 2 mengubah konstanta; sebelum itu perilakunya sama. Huruf label tim (`pe/words<n>`) untuk tim di atas 4 jatuh ke `pe/words0` bila sheet-nya tidak ada. Radar: bila musuh stage tim 6, tim 5 memakai `pic_team5` dan musuh memakai gambar petarung (`pic_type0`) [BELUM PASTI]; selama musuh tim 5 perilakunya sama seperti sebelumnya.
+- **Radar**: titik khusus `pic_hidden` (value.st.hidden, mengabaikan daftar state), `pic_clone` (value.st.clone), `pic_heal` (petarung yang sedang pulih), `pic_dead` tetap yang utama. Semua nil-safe.
+- **Mode background**: `width`, `zboundary`, `dvy`, `centery` kini ditandai supported di layar pilih karakter (diterapkan oleh background.lua, match.lua, weapons.lua). `attacking` (persen damage mode) belum diterapkan di game, jadi tetap meredupkan mode.
+- Belum: skin per pemain (match.create belum memakai `options.slots[slot].skin`), 10 slot pemain di UI, `record.display` lengkap.

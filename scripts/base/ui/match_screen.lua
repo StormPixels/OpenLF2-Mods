@@ -12,6 +12,7 @@ local sounds = require("base/game/sounds")
 local rumble = require("base/game/rumble")
 local controls = require("base/ui/controls")
 local options = require("base/game/options")
+local user_options = options   -- screen.create() has a parameter named options
 local ui_hud = require("base/game/ui_hud")
 -- The HUD, pause picture and mode line are laid out for the classic 794 wide picture. In LF2 Darkfiren's super
 -- widescreen layout the picture is 1333 wide: wide_gap() is the extra width (for things at the right corner) and
@@ -28,7 +29,16 @@ local screen = {}
 local replay_lines, mode_line
 
 -- options: see base/game/match create().
+-- The picture width a wide layout runs the simulation's background modes on (`width: -1` stands for it): 1333 or 1018 for
+-- those layouts, nil (the classic 794) otherwise. Set before every match is created; idempotent (game/background.lua).
+local function set_window_width()
+    if background.set_window_width then
+        background.set_window_width(user_options.wide_width(user_options.current().battlefield_layout))
+    end
+end
+
 function screen.create(options)
+    set_window_width()
     local state = {match = match.create(options)}
     local snapshots, next_snapshot = {{items = {}}, {items = {}}}, 1
     state.match.capture = function(current)
@@ -129,7 +139,12 @@ function screen.snapshot(state, snapshot)
                 elseif priority >= 100000 and priority <= 299999 then correction = priority - 200000 end
             end
             entry.invisible = value.st ~= nil and value.st.invisible == true
-            entry.depth = value.z_int + correction
+            -- Radar pictures: a hidden object (value.st.hidden, AI 2), a clone (value.st.clone, copied from value.fx.clone) and a
+            -- fighter that is healing (the same test as the HUD bar's flash). nil-safe: absent fields count as false.
+            entry.hidden = value.st ~= nil and value.st.hidden == true
+            entry.clone = value.st ~= nil and value.st.clone == true
+            entry.healing = (value.regen_timer ~= nil and math.floor(value.regen_timer / constants.healing.timer_base) == 1)
+                or (value.heal_timer ~= nil and value.heal_timer > 0)            entry.depth = value.z_int + correction
             advance_sparks(value.sparks, entry.sparks)
             order[count] = entry
         end
@@ -243,9 +258,16 @@ mode_line = function(context, current, replaying)
     if mode_text ~= "" then bold_text(context, mode_text, 0x316 + wide_gap() - font.width(mode_text), replaying and 0x1fe or 0x213) end
 end
 
+local words_known = {}
 local function label_font(team)
-    if team >= constants.teams.player_one and team <= constants.teams.player_four then
-        return "pe/words" .. team
+    if team >= constants.teams.player_one and team < constants.teams.enemies then
+        local sheet = "pe/words" .. team
+        if team > constants.teams.player_four then
+            -- A team the original did not have: its letter sheet may not exist in the game's resources.
+            if words_known[sheet] == nil then words_known[sheet] = pcall(engine.read_resource, sheet) end
+            if not words_known[sheet] then return "pe/words0" end
+        end
+        return sheet
     end
     return "pe/words0"
 end
@@ -409,9 +431,11 @@ local function draw_radar(context, view, current, radar, center, picture_width)
     for _, entry in ipairs(view.items) do
         local record = entry.record
         local frame = record.frame and record.frame(entry.frame)
-        if radar.types[record.kind] and frame and radar.states[frame.state] and not entry.invisible
+        local shown = frame and (radar.states[frame.state] or (entry.hidden and radar.pic_hidden))
+        if radar.types[record.kind] and shown and not entry.invisible
            and not (radar.fall == 1 and entry.blink and entry.blink > 0 and entry.blink % 4 >= 2) then
-            local picture = ui_hud.radar_icon(radar, record.kind, entry.team, entry.hp)
+            local picture = ui_hud.radar_icon(radar, record.kind, entry.team, entry.hp,
+                {hidden = entry.hidden, clone = entry.clone, healing = entry.healing})
             if picture then
                 local x, y = ui_hud.radar_position(radar, entry.x, entry.z, stage_width, z_min, z_max)
                 context.image(picture, x + shift, y, true)
@@ -567,6 +591,14 @@ function screen.describe(state)
         end
     end
     return table.concat(parts, " ")
+end
+
+-- The unlock key (stage.dat `respond:`) the match just ended with, or nil: only a cleared stage earns one. The decision
+-- belongs to game/stage.lua; nothing here judges a win. nil-safe when the game has no such function.
+function screen.unlock_key(state)
+    local ok, stage = pcall(require, "base/game/stage")
+    if not ok or type(stage) ~= "table" or not stage.unlock_key then return nil end
+    return stage.unlock_key(state.match)
 end
 
 function screen.outcome(state)

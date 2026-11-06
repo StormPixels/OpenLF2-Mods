@@ -40,7 +40,7 @@ function background.filtered(data, filters)
     end
     local copy = {}
     for key, value in pairs(data) do copy[key] = value end
-    copy.layers, copy.opoints = {}, {}
+    copy.layers, copy.opoints, copy.team_frames = {}, {}, {}
     for _, layer in ipairs(data.layers) do
         if filters.respond == nil or filters.respond[layer.respond or 0] == true then
             local entry = {}
@@ -52,6 +52,10 @@ function background.filtered(data, filters)
     end
     for _, opoint in ipairs(data.opoints or {}) do
         if filters.arest == nil or filters.arest[opoint.arest or 0] == true then copy.opoints[#copy.opoints + 1] = opoint end
+    end
+    -- A team HP bar image follows its `respond:` like a layer does.
+    for _, frame in ipairs(data.team_frames or {}) do
+        if filters.respond == nil or filters.respond[frame.respond or 0] == true then copy.team_frames[#copy.team_frames + 1] = frame end
     end
     copy.groups_ready = nil
     return background.with_area(copy, area)
@@ -69,6 +73,32 @@ function background.window_width()
     return window_width
 end
 
+-- LF2 Darkfiren team HP bar (bg.dat `frame:` blocks, data.team_frames). The part of a bar image to paint for a team
+-- that has `value` of `maximum` (the caller adds up the team: [UNCERTAIN] the readme does not say how): returns
+-- {sx, sy, sw, sh, x, y}, the source rectangle of the image and the screen position, or nil when nothing is to be
+-- painted. Frames (type 0) are painted whole. Bars (type 1 hp, 2 dark hp) fill from the left (facing 0) or, facing 1,
+-- from the right; `dx`, `dy` are where the image is read from.
+function background.team_bar_rect(frame, value, maximum)
+    if type(frame) ~= "table" or (frame.w or 0) <= 0 or (frame.h or 0) <= 0 then return nil end
+    local width = frame.w
+    if frame.type == 1 or frame.type == 2 then
+        local fraction = (tonumber(maximum) and maximum > 0) and (tonumber(value) or 0) / maximum or 0
+        fraction = math.max(0, math.min(1, fraction))
+        width = math.floor(frame.w * fraction)
+        if width <= 0 then return nil end
+    end
+    local shift = frame.facing == 1 and (frame.w - width) or 0
+    return {sx = (frame.dx or 0) + shift, sy = frame.dy or 0, sw = width, sh = frame.h, x = frame.x + shift, y = frame.y}
+end
+
+-- Is the frame shown at this tick? `cc`, `c1`, `c2` blink it like a layer (hidden outside c1..c2 of every cc ticks).
+function background.team_frame_visible(frame, tick)
+    local period = frame.cc or 0
+    if period <= 0 then return true end
+    local phase = (tonumber(tick) or 0) % period
+    return phase >= (frame.c1 or 0) and phase <= (frame.c2 or 0)
+end
+
 -- LF2 Darkfiren: a background mode's `width`, `zboundary` take priority over the same tags of the bg.dat, and
 -- width -1 means the window width. Changes and returns `copy` (never the cached original).
 function background.with_area(copy, area)
@@ -81,7 +111,24 @@ end
 function background.create_state(data)
     local counters = {}
     for index = 1, #data.layers do counters[index] = 0 end
-    return {counters = counters}
+    return {counters = counters, phase = 0, front_drawn = false}
+end
+
+-- LF2 Darkfiren layer `state:`: 1 is shown only while the round starts, 2 only after it ends. The round sets the
+-- phase of the view (0 = playing). Layers without `state:` are always shown.
+function background.set_phase(view, phase)
+    if type(view) == "table" then view.phase = tonumber(phase) and math.floor(phase) or 0 end
+end
+
+-- Does this pass paint the layer? `state:` layers need the matching phase; `transparency: -1` layers (drawn above
+-- the characters) are left to background.paint_front once the screen has said it paints that pass
+-- (view.front_drawn), so a screen that does not call it keeps them in the ordinary pass.
+local function shown(layer, view, front)
+    local own = layer.state or 0
+    if own ~= 0 and own ~= (view.phase or 0) then return false end
+    local above = layer.transparency == -1
+    if front then return above end
+    return not (above and view.front_drawn)
 end
 -- C integer division truncates toward zero.
 local function truncate(value)
@@ -200,10 +247,12 @@ local function continue_layer(context, layer, origin, wide)
 end
 -- Paints every layer in file order for a camera at world x `camera_x`; `bounds` (the visible part of the window on
 -- the battlefield) and `wide` are given together for the widescreen layout.
-function background.paint(context, data, state, camera_x, bounds, wide)
+local function paint_layers(context, data, state, camera_x, bounds, wide, front)
     local stage_width = assert(data.width, "background has no width")
     for index, layer in ipairs(data.layers) do
-        if layer.color == 0 and layer.loop == 0 then
+        if not shown(layer, state, front) then
+            -- left out of this pass
+        elseif layer.color == 0 and layer.loop == 0 then
             if visible(layer, state, index) then
                 if wide then
                     if not data.groups_ready then prepare_groups(data) end
@@ -250,6 +299,20 @@ function background.paint(context, data, state, camera_x, bounds, wide)
                 math.floor(color / 65536), math.floor(color / 256) % 256, color % 256)
         end
     end
+end
+function background.paint(context, data, state, camera_x, bounds, wide)
+    paint_layers(context, data, state, camera_x, bounds, wide, false)
+end
+
+-- The second pass, painted after the characters and objects: only the layers marked `transparency: -1` (an image or
+-- colour above them). A screen that calls it sets view.front_drawn = true (background.enable_front) before
+-- the first ordinary pass.
+function background.paint_front(context, data, state, camera_x, bounds, wide)
+    paint_layers(context, data, state, camera_x, bounds, wide, true)
+end
+
+function background.enable_front(view)
+    if type(view) == "table" then view.front_drawn = true end
 end
 background.lee_on_road = {name = "Lee On Road", width = 2400, zboundary = {350, 470},
     shadow = "pe/shadow1", shadow_size = {37, 9}, layers = {}}

@@ -31,6 +31,7 @@ struct Layer {
     std::int32_t c1 = 0;           // first visible counter value
     std::int32_t c2 = 0;           // last visible counter value
     std::int32_t respond = 0;      // LF2 Darkfiren: drawn only when the background mode lists this value
+    std::int32_t state = 0;        // LF2 Darkfiren: 0 always, 1 only when the round starts, 2 only when it ends
 };
 
 // LF2 Darkfiren `opoint:` ... `opoint_end:` of a background: an object put on the stage when the round begins.
@@ -52,6 +53,46 @@ struct Opoint {
     std::int32_t arest = 0;
 };
 
+inline constexpr std::size_t max_team_frames = 50;
+inline constexpr std::size_t max_quests = 5;
+
+// LF2 Darkfiren `frame:` ... `frame_end:` of a background: one image of a team HP bar (readme background.txt).
+// `type` 0 frame, 1 hp bar, 2 dark hp bar; `facing` 0 fills left to right, 1 right to left; `respond` is the value the
+// background mode must list (like a layer's); `effect`, `cc`, `c1`, `c2` animate it like a layer; `wait` is read
+// and kept (its meaning is not documented).
+struct TeamFrame {
+    std::string path;
+    std::int32_t team = 0;
+    std::int32_t type = 0;
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+    std::int32_t w = 0;
+    std::int32_t h = 0;
+    std::int32_t dx = 0;
+    std::int32_t dy = 0;
+    std::int32_t facing = 0;
+    std::int32_t respond = 0;
+    std::int32_t wait = 0;
+    std::int32_t effect = 0;
+    std::int32_t cc = 0;
+    std::int32_t c1 = 0;
+    std::int32_t c2 = 0;
+};
+
+// LF2 Darkfiren `quest:` ... `quest_end:` of a background (up to 5): a goal checked in loops.
+struct Quest {
+    std::string sound;        // played when the goal is reached
+    std::int32_t type = 0;    // 1 kill, 2 total attack, 3 mp usage, 4 hp lost
+    std::int32_t respond = 0; // 1..12: what the reward is
+    std::int32_t amount = 0;
+    std::int32_t start = 0;   // first check, in units of 1/30 s
+    std::int32_t recover = 0; // time between checks, in units
+    std::int32_t times = 0;   // number of checks
+    std::int32_t bound = 0;   // game mode: 0 vs, 1 stage, 4 battle
+    std::int32_t fall = 0;    // layer shown when the goal is reached
+    std::int32_t next = 0;    // what the goal grows by after each reward
+};
+
 // Values the original never resets are absent until the file sets them.
 struct Background {
     std::optional<std::string> name; // display form: 29 characters, underscores as spaces
@@ -62,6 +103,8 @@ struct Background {
     std::array<std::optional<std::int32_t>, 2> shadow_size;
     std::vector<Layer> layers;
     std::vector<Opoint> opoints;
+    std::vector<TeamFrame> team_frames;
+    std::vector<Quest> quests;
     std::int32_t token_checksum = 0;
     std::vector<std::string> diagnostics;
 };

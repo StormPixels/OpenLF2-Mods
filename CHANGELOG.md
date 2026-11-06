@@ -64,6 +64,8 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: time stop objects neither attack nor are attacked; a background mode's `attacking` scales hit damage and `centery` sets the height of random weapon drops.
 - LF2 Darkfiren: per-object statistics fx.killed_by, fx.last_killer, fx.combo and fx.combo_age; lethal poison counts as a kill.
 
+- UI: lebar jendela pertandingan (`background.set_window_width`) diatur dari layout tiap pertandingan dibuat; kunci buka stage diberikan di akhir stage; pilihan tim mengikuti `constants.teams.enemies`; radar memakai gambar hidden/clone/heal; mode background width, zboundary, dvy, centery ditandai didukung.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -195,3 +197,6 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: background mode tag `width: -1` uses the window width; mode areas also carry dicontrol, start_frame, reserve, dx, dvx, dz and dvz.
 - LF2 Darkfiren: finishing a stage can unlock the next stage or level (respond key); the combo settings are read from `mode1.dat`.
 - LF2 Darkfiren: sounds of items and effects outside the screen are still heard, played at the edge of the hearing area.
+- LF2 Darkfiren: `sounds.weapon_path` picks a weapon sound per background and mode from the weapon `<sound>` blocks, falling back to the weapon default sound.
+- UI: the match window width follows the layout, a stage's unlock key is granted when the stage ends, team choices follow the number of enemy teams, and the radar shows hidden, clone and healing marks.
+- LF2 Darkfiren: background `state:` layers and `transparency: -1` paths are read; background modes can carry the team HP bar and quest settings (new module `sd_quest`).

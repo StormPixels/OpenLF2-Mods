@@ -34,7 +34,9 @@ public:
             } else if (word_ == "shadow:") shadow();
             else if (word_ == "layer:") layer();
             else if (word_ == "opoint:") opoint();
-            else if (word_ != "layer_end" && word_ != "opoint_end:") note("ignored word `" + word_ + "`");
+            else if (word_ == "frame:") team_frame();
+            else if (word_ == "quest:") quest();
+            else if (word_ != "layer_end" && word_ != "opoint_end:" && word_ != "frame_end:" && word_ != "quest_end:") note("ignored word `" + word_ + "`");
         }
         return std::move(data_);
     }
@@ -108,6 +110,7 @@ private:
             else if (word_ == "c1:") read_int(layer.c1);
             else if (word_ == "c2:") read_int(layer.c2);
             else if (word_ == "respond:") read_int(layer.respond);
+            else if (word_ == "state:") read_int(layer.state);
             else note("ignored layer word `" + word_ + "`");
             next_word();
         }
@@ -139,6 +142,72 @@ private:
         }
         if (data_.opoints.size() < max_opoints) data_.opoints.push_back(item);
         else note("opoint beyond the fiftieth dropped");
+    }
+    // LF2 Darkfiren `frame:` ... `frame_end:`: `key: value` words (`pic:` takes a path). As for opoints the keys
+    // count for the checksum and the values do not. Frames beyond the fiftieth are read and dropped.
+    void team_frame() {
+        TeamFrame item;
+        next_block_word("frame:");
+        while (word_ != "frame_end:") {
+            scanning::add_token_checksum(data_.token_checksum, word_);
+            if (word_ == "pic:") {
+                std::string path;
+                if (!stream_.word(path, 60)) unterminated_block("frame:");
+                item.path = std::move(path);
+            }
+            else if (word_ == "team:") read_int(item.team);
+            else if (word_ == "type:") read_int(item.type);
+            else if (word_ == "x:") read_int(item.x);
+            else if (word_ == "y:") read_int(item.y);
+            else if (word_ == "w:") read_int(item.w);
+            else if (word_ == "h:") read_int(item.h);
+            else if (word_ == "dx:") read_int(item.dx);
+            else if (word_ == "dy:") read_int(item.dy);
+            else if (word_ == "facing:") read_int(item.facing);
+            else if (word_ == "respond:") read_int(item.respond);
+            else if (word_ == "wait:") read_int(item.wait);
+            else if (word_ == "effect:") read_int(item.effect);
+            else if (word_ == "cc:") read_int(item.cc);
+            else if (word_ == "c1:") read_int(item.c1);
+            else if (word_ == "c2:") read_int(item.c2);
+            else note("ignored frame word `" + word_ + "`");
+            next_block_word("frame:");
+        }
+        if (data_.team_frames.size() < max_team_frames) data_.team_frames.push_back(std::move(item));
+        else note("team bar frame beyond the fiftieth dropped");
+    }
+
+    // LF2 Darkfiren `quest:` ... `quest_end:` (up to 5 per background; the rest is read and dropped).
+    void quest() {
+        Quest item;
+        next_block_word("quest:");
+        while (word_ != "quest_end:") {
+            scanning::add_token_checksum(data_.token_checksum, word_);
+            if (word_ == "sound:") {
+                std::string path;
+                if (!stream_.word(path, 60)) unterminated_block("quest:");
+                item.sound = std::move(path);
+            }
+            else if (word_ == "type:") read_int(item.type);
+            else if (word_ == "respond:") read_int(item.respond);
+            else if (word_ == "amount:") read_int(item.amount);
+            else if (word_ == "start:") read_int(item.start);
+            else if (word_ == "recover:") read_int(item.recover);
+            else if (word_ == "times:") read_int(item.times);
+            else if (word_ == "bound:") read_int(item.bound);
+            else if (word_ == "fall:") read_int(item.fall);
+            else if (word_ == "next:") read_int(item.next);
+            else note("ignored quest word `" + word_ + "`");
+            next_block_word("quest:");
+        }
+        if (data_.quests.size() < max_quests) data_.quests.push_back(std::move(item));
+        else note("quest beyond the fifth dropped");
+    }
+    [[noreturn]] static void unterminated_block(const char* what) {
+        throw ParseFailure{ErrorCode::format, std::string("unterminated ") + what + " at end of file"};
+    }
+    void next_block_word(const char* what) {
+        if (!stream_.word(word_, word_capacity)) unterminated_block(what);
     }
     void next_opoint_word() {
         if (!stream_.word(word_, word_capacity)) {
@@ -205,7 +274,7 @@ ScriptValue to_script_value(const Background& background) {
                       {"height", integer(layer.height)}, {"color", integer(layer.color)},
                       {"loop", integer(layer.loop)}, {"cc", integer(layer.cc)},
                       {"c1", integer(layer.c1)}, {"c2", integer(layer.c2)},
-                      {"respond", integer(layer.respond)}}});
+                      {"respond", integer(layer.respond)}, {"state", integer(layer.state)}}});
     }
     ScriptTable opoints;
     for (std::size_t index = 0; index < background.opoints.size(); ++index) {
@@ -219,6 +288,28 @@ ScriptValue to_script_value(const Background& background) {
         if (item.mp) set_field(entry, "mp", integer(*item.mp));
         set_field(opoints, static_cast<std::int32_t>(index + 1), ScriptValue{std::move(entry)});
     }
+    ScriptTable team_frames;
+    for (std::size_t index = 0; index < background.team_frames.size(); ++index) {
+        const auto& item = background.team_frames[index];
+        set_field(team_frames, static_cast<std::int32_t>(index + 1),
+                  ScriptValue{ScriptTable{{"path", ScriptValue{item.path}}, {"team", integer(item.team)},
+                      {"type", integer(item.type)}, {"x", integer(item.x)}, {"y", integer(item.y)},
+                      {"w", integer(item.w)}, {"h", integer(item.h)}, {"dx", integer(item.dx)},
+                      {"dy", integer(item.dy)}, {"facing", integer(item.facing)},
+                      {"respond", integer(item.respond)}, {"wait", integer(item.wait)},
+                      {"effect", integer(item.effect)}, {"cc", integer(item.cc)},
+                      {"c1", integer(item.c1)}, {"c2", integer(item.c2)}}});
+    }
+    ScriptTable quests;
+    for (std::size_t index = 0; index < background.quests.size(); ++index) {
+        const auto& item = background.quests[index];
+        set_field(quests, static_cast<std::int32_t>(index + 1),
+                  ScriptValue{ScriptTable{{"sound", ScriptValue{item.sound}}, {"type", integer(item.type)},
+                      {"respond", integer(item.respond)}, {"amount", integer(item.amount)},
+                      {"start", integer(item.start)}, {"recover", integer(item.recover)},
+                      {"times", integer(item.times)}, {"bound", integer(item.bound)},
+                      {"fall", integer(item.fall)}, {"next", integer(item.next)}}});
+    }
     ScriptTable diagnostics;
     for (std::size_t index = 0; index < background.diagnostics.size(); ++index) {
         set_field(diagnostics, static_cast<std::int32_t>(index + 1), ScriptValue{background.diagnostics[index]});
@@ -227,6 +318,8 @@ ScriptValue to_script_value(const Background& background) {
                                                                {2, integer(background.perspective[1])}}}},
                        {"layers", ScriptValue{std::move(layers)}},
                        {"opoints", ScriptValue{std::move(opoints)}},
+                       {"team_frames", ScriptValue{std::move(team_frames)}},
+                       {"quests", ScriptValue{std::move(quests)}},
                        {"token_checksum", integer(background.token_checksum)},
                        {"diagnostics", ScriptValue{std::move(diagnostics)}}};
     if (background.name) set_field(result, "name", ScriptValue{*background.name});

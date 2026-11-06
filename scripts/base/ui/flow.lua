@@ -247,6 +247,12 @@ local function route(state, input, context)
         state.wait_release = true
     elseif requested == "round_over" then
         local outcome = require("base/ui/match_screen").outcome(state.match)
+        -- A cleared stage may earn an unlock key (stage.dat `respond:`); once per match.
+        if state.unlocked_match ~= state.match.match then
+            state.unlocked_match = state.match.match
+            local key = require("base/ui/match_screen").unlock_key(state.match)
+            if key then require("base/game/unlock").grant(key) end
+        end
         local selection = require("base/ui/character_select")
         if state.match.match.mode == constants.modes.championship
            or state.match.match.mode == constants.modes.team_championship then

@@ -224,13 +224,13 @@ end
 local function normalize_team(state, slot, avoid)
     while slot.team == avoid or (state.mode == constants.modes.battle
            and (slot.team == constants.teams.independent or slot.team >= constants.teams.player_three)) do
-        slot.team = (slot.team + 1) % 5
+        slot.team = (slot.team + 1) % constants.teams.enemies
     end
 end
 local function previous_team(state, slot, avoid)
     repeat
         slot.team = slot.team - 1
-        if slot.team < 0 then slot.team = constants.teams.player_four end
+        if slot.team < 0 then slot.team = constants.teams.enemies - 1 end
     until slot.team ~= avoid and not (state.mode == constants.modes.battle
         and (slot.team == constants.teams.independent or slot.team > constants.teams.player_two))
 end
@@ -305,7 +305,7 @@ local function team_slot(state, index, slot, keys, col, row)
     if pressed(keys, "r") then
         if trigger(slot) then
             repeat
-                repeat slot.team = (slot.team + 1) % 5 until slot.team ~= avoid
+                repeat slot.team = (slot.team + 1) % constants.teams.enemies until slot.team ~= avoid
             until not (state.mode == constants.modes.battle
                 and (slot.team == constants.teams.independent or slot.team > constants.teams.player_two))
         end
@@ -557,8 +557,8 @@ local function computer_menu(state, previous_menu)
         normalize_team(state, slot, avoid)
         draw_team(state, slot, col, row)
         if actions.next then
-            slot.team = (slot.team + 1) % 5
-            if slot.team == avoid then slot.team = (slot.team + 1) % 5 end
+            slot.team = (slot.team + 1) % constants.teams.enemies
+            if slot.team == avoid then slot.team = (slot.team + 1) % constants.teams.enemies end
         end
         if actions.previous then previous_team(state, slot, avoid) end
         if state.mode == constants.modes.championship then
@@ -693,7 +693,10 @@ local grid_mode = {panel_x = 1, panel_y = 1, panel_w = 790, panel_h = 547, x = 3
     panel_pic = "sprite/ui/grid/box_bgmode.bmp"}
 layout_targets.grid_mode = grid_mode
 local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp = true, regen_mp = true,
-    hurtable = true, gain_mp_a = true, gain_mp_v = true}
+    hurtable = true, gain_mp_a = true, gain_mp_v = true,
+    -- Applied through the chosen mode's area (game/bg_modes.lua): width and zboundary by game/background.lua, dvy by
+    -- match.lua, centery by game/weapons.lua. `attacking` (the mode's damage percent) is read but not applied yet.
+    width = true, zboundary = true, dvy = true, centery = true}
 local mode_neutral = {name = true, hex = true, small = true, smallb = true, hidden = true, spark = true,
     bg_pause = true, cam_pause = true, id = true, oid = true, drop = true, etc_width = true, etc_mode = true,
     dicontrol = true}
