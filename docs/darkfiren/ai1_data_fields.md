@@ -22,7 +22,7 @@ Sudah ada: `name, head, small, movement, weapon, sheets, strengths, frames, toke
 | `stats` | `<stats>`: bleed_hp attacking regen_hp regen_mp regen_dhp defend normal_attack1 normal_attack2 jump_attack run_attack dash_attack light_throw heavy_throw sky_light_throw run_heavy_throw weapon_drink respond recmp max_mp ohp omp reserve phase caught caughtact bound y weaponact |
 | `armor` | `<armor>`: type ratio decrease mp fall bdefend injury spark delay hp recover facing action (angka); sound1 sound2 (teks); `ids`, `states`, `effects` (larik dari tag berulang); `frames` (larik grup: tiap `frame: a b` jadi `{a, b}`, atau `{a}` bila satu angka) |
 | `weapon_piece` | `team` dan `[1..5] = {act, framea, dvx, dvy, dvz, oid, amount}`; nomor piece di luar 1-5 dicatat di diagnostics |
-| `sound_list` | suara senjata per background dan mode (readme `sound.txt`): `[i] = {bg, mode, weapon_hit, weapon_drop, weapon_broken}`. Satu entri per blok `bound:` ... `bound_end:` di dalam `<sound>` (maks 100). `bg` dan `mode` adalah HIMPUNAN dari tag `bg:`/`mode:` yang boleh berulang (maks 100 nilai): `entry.bg[n] == true` bila n terdaftar. Nilai mentah (mulai dari 0 atau 1 tidak ditetapkan dokumen). Entri cocok bila bg sekarang ada di `bg` DAN mode sekarang ada di `mode`; bila tidak ada yang cocok dipakai suara bawaan di `header`/`weapon`. Hanya untuk senjata t1, t2, t4, t6. Tag di luar `bound:` dicatat di diagnostics |
+| `sound_list` | suara senjata per background dan mode (readme `sound.txt`): `[i] = {bg, mode, weapon_hit, weapon_drop, weapon_broken}`. Satu entri per blok `bound:` ... `bound_end:` di dalam `<sound>` (maks 100). `bg` dan `mode` adalah HIMPUNAN dari tag `bg:`/`mode:` yang boleh berulang (maks 100 nilai): `entry.bg[n] == true` bila n terdaftar. Nilai mentah (mulai dari 0 atau 1 tidak ditetapkan dokumen). Entri cocok bila bg sekarang ada di `bg` DAN mode sekarang ada di `mode`; bila tidak ada yang cocok dipakai suara bawaan (`weapon.hit_sound` dkk). Bila BEBERAPA entri cocok, sumber (readme `sound.txt`) tidak menentukan prioritas; AI5 memakai entri pertama menurut urutan berkas **[BELUM PASTI]**, parser menyimpan urutan berkas apa adanya. Hanya untuk senjata t1, t2, t4, t6. Tag di luar `bound:` dicatat di diagnostics |
 | `skins` | `random`, `sound`, `[i] = {pic, head, small, smallb, smallt, offset, respond}`; maks 10, sisanya dicatat dan diabaikan. `pic` = nomor setelah `pic:` (nil bila `pic:` ditulis tanpa nomor, seperti templat catatan); `i` = urutan blok |
 | `command` | `[i] = {bound, type, respond, hp, mp, team, times, modes = {..}, actions = {..}}`; maks 10 |
 
@@ -57,7 +57,7 @@ Baru (angka, nil bila tidak ada): `dx dy dz hp chp cmp caught loop amount shadow
 | Kunci | Isi |
 |---|---|
 | `hold` | `a d j f b uz dz` dari `hold_a` dst. |
-| `hit_ext` | `f b uz dz g Faj Uaj Daj`; alias pdk `hit_aj hit_jj hit_aa` disimpan mentah sebagai `aj jj aa` (artinya belum pasti). `hit_Fa` dkk tetap di `hits` |
+| `hit_ext` | `f b uz dz g Faj Uaj Daj`; alias nama mode pdk `hit_aj hit_jj hit_aa` disimpan terpisah sebagai `aj jj aa` (slot yang sama dengan Faj/Uaj/Daj di exe; yang dipakai ditentukan flag `dicontrol` mode background, jadi pemilihan ada di sisi skrip). `hit_Fa` dkk tetap di `hits` |
 | `ppoint` | `{kind, x, y, z}` bila blok `ppoint:` ada |
 | `opoints[1..20]` | larik opoint; `opoint` lama = `opoints[1]` |
 | `bpoints[1..5]` | larik bpoint; `bpoint` lama = `bpoints[1]` |
@@ -89,3 +89,9 @@ berubah karena token di dalam blok itu kini dibaca oleh parser blok (bukan dihit
 
 `start_frame` ada di `header` (dari `<bmp_begin>`), bukan di `stats`: `record.data.header.start_frame` (readme `new in bmp part.txt`; prioritas di atas tag mode background).
 `stats.caughtact` adalah nama field exe untuk hal yang di readme disebut `caught` (frame tujuan bila MP/HP tidak cukup); parser meneruskan kedua nama.
+
+## Catatan R2 (revisi)
+- `hit_aj/jj/aa` tetap terpisah di `hit_ext.aj/jj/aa` (keputusan AI2: pemilihan menurut `dicontrol` di sisi skrip).
+- `strengths[i]`: `catching_actions` dan `caught_actions` tetap `{0, 0}` (strength list 2.0a tidak membawanya; tidak berubah). `caughtact` di strengths adalah kunci baru berisi SATU angka (`strengths[i].caughtact`). `pickingact`/`pickedact` hanya dibaca di itr, bukan di strengths.
+- Offset skin: `skins[i].offset` dipakai langsung sebagai `pic_offset` di `object_data.picture(data, frame, offset)` (menghitung `frame.picture + offset`). Dari data contoh, offset sama dengan `first_picture` sheet pertama skin itu (dennis: 210; woody: 210, 420, 630, 840). **[BELUM PASTI]** sampai diuji di game.
+- Suara bawaan senjata: `record.data.weapon.hit_sound`, `.drop_sound`, `.broken_sound` (teks, nil bila tag tidak ada); salinan di `record.data.header.weapon_hit_sound` dkk. `sound_list[i]` adalah penggantinya per bg dan mode.

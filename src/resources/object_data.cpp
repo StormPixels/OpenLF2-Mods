@@ -47,8 +47,9 @@ constexpr std::array frame_tags{same("dx"), same("dy"), same("dz"), same("hp"), 
     same("respond"), same("cover"), same("attacking"), same("caughtact"), same("music")};
 constexpr std::array hold_tags{TagKey{"hold_a", "a"}, TagKey{"hold_d", "d"}, TagKey{"hold_j", "j"},
     TagKey{"hold_f", "f"}, TagKey{"hold_b", "b"}, TagKey{"hold_uz", "uz"}, TagKey{"hold_dz", "dz"}};
-// hit_aj/hit_jj/hit_aa are the pdk names for hit_Faj/hit_Uaj/hit_Daj; their meaning is not documented,
-// so they are kept under their own keys.
+// hit_aj/hit_jj/hit_aa are the pdk-control names of the same slots as hit_Faj/hit_Uaj/hit_Daj (docs/txt/exe/frame.txt).
+// They are kept under their own keys (aj, jj, aa): which name applies depends on the `dicontrol` flag of the background
+// mode, so the script side chooses (decision of AI2, discussion round 3).
 constexpr std::array hit_ext_tags{TagKey{"hit_f", "f"}, TagKey{"hit_b", "b"}, TagKey{"hit_uz", "uz"},
     TagKey{"hit_dz", "dz"}, TagKey{"hit_g", "g"}, TagKey{"hit_Faj", "Faj"}, TagKey{"hit_Uaj", "Uaj"},
     TagKey{"hit_Daj", "Daj"}, TagKey{"hit_aj", "aj"}, TagKey{"hit_jj", "jj"}, TagKey{"hit_aa", "aa"}};
