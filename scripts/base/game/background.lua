@@ -6,6 +6,7 @@ local constants = require("base/game/constants")
 local background = {}
 local cache = {}
 local screen_width = constants.screen.width
+local window_width  -- set by set_window_width; nil = the classic width
 -- The painter's fixed replacements for four converted rect: colors.
 local remapped = {[0x175317] = 0x104f10, [0x575347] = 0x5a4e4b, [0x977757] = 0x9a6e5a, [0x473f1f] = 0x423818}
 local function canonical(path)
@@ -56,11 +57,23 @@ function background.filtered(data, filters)
     return background.with_area(copy, area)
 end
 
+-- The width a background mode's `width: -1` stands for (the window's width): 1333 or 1018 for those layouts, nil
+-- (the classic 794) otherwise. Idempotent; nil, 0, a negative number or a non-number goes back to the default.
+-- Call it before the round is created (background.filtered / background.switch read it).
+function background.set_window_width(width)
+    width = tonumber(width)
+    window_width = (width and width > 0) and math.floor(width) or nil
+end
+
+function background.window_width()
+    return window_width
+end
+
 -- LF2 Darkfiren: a background mode's `width`, `zboundary` take priority over the same tags of the bg.dat, and
 -- width -1 means the window width. Changes and returns `copy` (never the cached original).
 function background.with_area(copy, area)
     if not area then return copy end
-    if area.width then copy.width = area.width == -1 and screen_width or area.width end
+    if area.width then copy.width = area.width == -1 and (window_width or screen_width) or area.width end
     if area.zboundary then copy.zboundary = {area.zboundary[1], area.zboundary[2]} end
     return copy
 end

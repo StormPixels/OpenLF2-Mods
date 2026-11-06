@@ -119,6 +119,39 @@ function sd_global.kinds() return read_cached("data/kind.dat", sd_global.parse_k
 function sd_global.fusions() return read_cached("data/fusion.dat", sd_global.parse_fusions) end
 function sd_global.damage_rules(path) return read_cached(path, sd_global.parse_damage_rules) end
 
+-- The `<combo>` block of the mode file data\mode\mode1.dat (the three mode files carry the same one):
+-- {times = display ticks, respond = ticks without a hit before the count returns to 0, facing = 1 (above the
+-- attacker) / 0 (above the victim), caughtact = 1 (hits while catching count), effect = who sees it: 8 humans,
+-- 20 humans and menu-chosen computers, 1000 everyone}. nil when the game has no such block.
+function sd_global.parse_combo(text)
+    for _, block in ipairs(sd_text.scan(text).blocks) do
+        if block.name == "combo" then
+            local combo = {}
+            for _, line in ipairs(block.lines) do
+                for _, pair in ipairs(sd_text.pairs_of_line(line)) do
+                    local number = sd_text.int(pair[2])
+                    if number then combo[pair[1]] = number end
+                end
+            end
+            return combo
+        end
+    end
+    return nil
+end
+
+function sd_global.combo()
+    if cache.combo ~= nil then return cache.combo or nil end
+    local text, message = sd_text.read("data/mode/mode1.dat")
+    if text then
+        cache.combo = sd_global.parse_combo(text) or false
+    elseif not sd_text.not_ready(message) then
+        cache.combo = false
+    else
+        return nil
+    end
+    return cache.combo or nil
+end
+
 -- Forgets the loaded files (tests, a changed game folder).
 function sd_global.reset() cache = {} end
 return sd_global

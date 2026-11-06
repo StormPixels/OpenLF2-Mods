@@ -192,3 +192,6 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: time stop objects neither attack nor are attacked; a background mode's `attacking` scales hit damage and `centery` sets the height of random weapon drops.
 - LF2 Darkfiren: per-object statistics fx.killed_by, fx.last_killer, fx.combo and fx.combo_age; lethal poison counts as a kill.
 - LF2 Darkfiren: weapon `<sound>` blocks are read one entry per `bound:` block (up to 100), with `bg:` and `mode:` as sets.
+- LF2 Darkfiren: background mode tag `width: -1` uses the window width; mode areas also carry dicontrol, start_frame, reserve, dx, dvx, dz and dvz.
+- LF2 Darkfiren: finishing a stage can unlock the next stage or level (respond key); the combo settings are read from `mode1.dat`.
+- LF2 Darkfiren: sounds of items and effects outside the screen are still heard, played at the edge of the hearing area.

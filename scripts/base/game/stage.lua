@@ -260,6 +260,23 @@ local function start_phase(state, run)
     end
 end
 
+-- The unlock key (stage.dat `respond:`, 500..502 in Darkfiren) earned by the stage the round just cleared, or nil
+-- (stage not cleared, or no key). Call it once the round is over; flow.lua then calls unlock.grant(key).
+-- The stage's own `respond:` counts; a level's `respond:` counts when the cleared stage was the level's last
+-- one. [UNCERTAIN] the readme does not say which stage of a level earns the level's key.
+function stage.unlock_key(state)
+    local run = type(state) == "table" and state.stage_run or nil
+    if type(run) ~= "table" or not run.cleared_id or (run.result ~= 1 and run.result ~= 3) then return nil end
+    stage_list()
+    local own = list[run.cleared_id]
+    if own and own.respond and own.respond > 0 then return own.respond end
+    if not darkfiren() then return nil end
+    local level = stage_levels.level(whole, cdiv(run.cleared_id, 10))
+    if not (level and level.respond and level.respond > 0) then return nil end
+    if run.cleared_id % 10 ~= 9 and list[run.cleared_id + 1] then return nil end  -- not the last stage of its level
+    return level.respond
+end
+
 function stage.update(state, run)
     local display = {}
     run.marked = {}
@@ -438,7 +455,7 @@ function stage.update(state, run)
                 if state.round_counter < 90 then
                     display[#display + 1] = {"sprite", menu_sheet, frames[37], 215, 298}
                 end
-                if run.result == 0 then run.result = 1 end
+                if run.result == 0 then run.result = 1; run.cleared_id = run.id end
                 run.last_phase, run.go, run.shutter = 0, 0, 0
                 target = "items"
             end

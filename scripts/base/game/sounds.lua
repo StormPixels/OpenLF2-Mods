@@ -96,7 +96,16 @@ local function ears(camera, x)
     return hear(offset - spatialization.left_ear_offset), hear(offset - spatialization.right_ear_offset)
 end
 
-local function queue(state, bank, key, x)
+-- system.dat <sound>: a sound of such an id is not limited by the screen: off-screen it still plays as if it
+-- happened at the nearest edge of the hearing area. [UNCERTAIN] the exact pan and volume.
+local function unbounded(camera, x, id)
+    if id ~= nil and system_data.ids("sound")[id] then
+        return math.max(camera + spatialization.left_ear_offset, math.min(camera + spatialization.right_ear_offset, x))
+    end
+    return x
+end
+
+local function queue(state, bank, key, x, id)
     state.sound_queue = state.sound_queue or {}
     local channel = state.sound_queue[bank .. key]
     if not channel then
@@ -105,18 +114,18 @@ local function queue(state, bank, key, x)
         state.sound_order = state.sound_order or {}
         state.sound_order[#state.sound_order + 1] = channel
     end
-    local left, right = ears(state.camera or 0, x)
+    local left, right = ears(state.camera or 0, unbounded(state.camera or 0, x, id))
     channel.left = channel.left + left
     channel.right = channel.right + right
 end
 
-function sounds.item(state, x, path)
-    if path then queue(state, "item", sounds.canonical(path), x) end
+function sounds.item(state, x, path, id)
+    if path then queue(state, "item", sounds.canonical(path), x, id) end
 end
 
-function sounds.effect(state, x, channel)
+function sounds.effect(state, x, channel, id)
     ensure()
-    if fixed[channel] then queue(state, "fixed", channel, x) end
+    if fixed[channel] then queue(state, "fixed", channel, x, id) end
 end
 
 function sounds.buffer_play(channel)
