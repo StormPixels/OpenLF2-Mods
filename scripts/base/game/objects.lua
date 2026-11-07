@@ -216,7 +216,7 @@ local function spawn_point(state, index, parent, frame, point)
         if record.id == fighter_rudolf or record.id == fighter_julian then
             value.hp, value.max_hp, value.dark_hp, value.mp = 10, 10, 10, 5
         end
-        fx_point.extend(index, parent, value, record, point, engine.random)
+        fx_point.extend(index, parent, value, record, point, engine.random, state)
         value.x_int, value.y_int, value.z_int = trunc(value.x), trunc(value.y), trunc(value.z)
         local held = fx_point.held_code(point.kind)
         if held then
@@ -297,7 +297,7 @@ function objects.state_effects(state, index, value)
     local current = value.record.frame(value.frame).state
     if (previous == state_frozen or value.state_frame == character_frame_ice)
        and current ~= state_frozen and value.frame ~= character_frame_ice then
-        sounds.effect(state, value.x_int, 15)
+        sounds.effect(state, value.x_int, 15, value.record.id)
     end
     if (previous == state_frozen or value.state_frame == character_frame_ice)
        and current ~= state_frozen and value.frame ~= character_frame_ice

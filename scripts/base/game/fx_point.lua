@@ -19,7 +19,7 @@ end
 -- Applied to a freshly spawned object before its integer position is derived.
 -- UNCERTAIN choices (see docs/darkfiren/ai3_interactions.md): dvz is added to the key-based z speed,
 -- centerx/y/z = +-N uniform, framea = action + 0..N, reserve / attacking / skin_owner are stored only.
-function fx.extend(index, parent, value, record, point, random)
+function fx.extend(index, parent, value, record, point, random, state)
     local kind = point.kind
     if kind == 1 or kind == 2 then
         if point.hp and point.hp ~= 0 then
@@ -43,5 +43,13 @@ function fx.extend(index, parent, value, record, point, random)
     if point.reserve ~= nil and (record.kind == K.character or record.kind == K.prisoner) then extra.reserve = point.reserve end
     if point.attacking and point.attacking ~= 0 then extra.attacking = point.attacking end
     if point.pic == 1 then extra.skin_owner = index end -- the drawing code follows the owner's skin offset
+    -- Clone (user decision): a character made by an opoint whose record id is the creator's own (or the creator's
+    -- owner's). Marked once, here, at creation: fx.clone = true and fx.clone_owner = the creator's slot.
+    if record.kind == K.character then
+        local owner = state and state.items[parent.owner]
+        if record.id == parent.record.id or (owner and record.id == owner.record.id) then
+            extra.clone, extra.clone_owner = true, index
+        end
+    end
 end
 return fx

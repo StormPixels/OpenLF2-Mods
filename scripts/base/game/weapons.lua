@@ -276,7 +276,7 @@ function weapons.break_apart(state, index, value)
     if not is_weapon(value.record.kind) or value.drop_counter >= 0 then return false end
     value.drop_counter = 0
     local id = value.record.id
-    sounds.item(state, value.x_int, value.record.data.weapon.broken_sound)
+    sounds.item(state, value.x_int, value.record.data.weapon.broken_sound, value.record.id)
     for piece = 0, (debris_count[id] or 0) - 1 do
         local slot = objects.free_slot(state)
         if slot == -1 then break end

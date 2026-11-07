@@ -9,7 +9,26 @@
 -- Existing item fields (kills, damage_dealt, hp_spent) are untouched.
 local constants = require("base/game/constants")
 local fx_constants = require("base/game/fx_constants")
+-- The <combo> block of mode.dat (AI 5): {times, respond, facing, caughtact, effect}; nil when the game has none.
+local ok_sd, sd_global = pcall(require, "base/game/sd_global")
 local fx = {}
+
+local function combo_rules()
+    if ok_sd and type(sd_global) == "table" and type(sd_global.combo) == "function" then
+        local ok, rules = pcall(sd_global.combo)
+        if ok and type(rules) == "table" then return rules end
+    end
+    return nil
+end
+
+-- Who is counted (and shown): effect 8 = human players, 20 = humans and computers chosen in the menu, anything
+-- else (1000, or no <combo> block) = everyone.
+local function counted(owner, rules)
+    local effect = rules and rules.effect
+    if effect == 8 then return owner.human == true end
+    if effect == 20 then return owner.slot ~= nil end
+    return true
+end
 
 local function extra_of(value)
     local extra = value.fx
@@ -29,24 +48,31 @@ function fx.record_kill(victim, killer)
 end
 
 -- A hit that landed (not defended) on an enemy character counts toward its owner's combo.
--- UNCERTAIN: the Darkfiren <combo> rules (times / respond) are not read here; see fx_constants.combo_reset_ticks.
-function fx.hit(state, attacker, victim)
+-- Rules from <combo>: effect (who is counted), caughtact = 1 (hits dealt while catching count; `catching` is true
+-- for those), respond (see tick). A hit by a clone counts for its creator because a clone's owner is the creator.
+function fx.hit(state, attacker, victim, catching)
     local owner = state.items[attacker.owner]
     if not owner or owner.record.kind ~= constants.record_kinds.character then return end
     if victim.record.kind ~= constants.record_kinds.character or victim == owner then return end
     if victim.team == owner.team and owner.team ~= constants.teams.independent then return end
+    local rules = combo_rules()
+    if catching and not (rules and rules.caughtact == 1) then return end
+    if not counted(owner, rules) then return end
     local extra = extra_of(owner)
     extra.combo = (extra.combo or 0) + 1
     extra.combo_age = 0
 end
 
--- Once per tick for each object: ages the combo and drops it after combo_reset_ticks without a new hit.
+-- Once per tick for each object: ages the combo and drops it after `respond` ticks (mode.dat <combo>, else
+-- fx_constants.combo_reset_ticks) without a new hit.
 function fx.tick(value)
     local extra = value.fx
     local combo = extra and extra.combo
     if combo and combo > 0 then
         local age = (extra.combo_age or 0) + 1
-        if age > fx_constants.combo_reset_ticks then
+        local rules = combo_rules()
+        local limit = rules and rules.respond or fx_constants.combo_reset_ticks
+        if age > limit then
             extra.combo, extra.combo_age = 0, 0
         else
             extra.combo_age = age

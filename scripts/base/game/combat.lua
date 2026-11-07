@@ -15,6 +15,12 @@ local facing_right = constants.facings.right
 local state_burning = constants.frame_states.burning
 local state_burning_run = constants.frame_states.burning_run
 local state_defending = constants.frame_states.defending
+-- Darkfiren states 70 / 75: like defending (7) but they block from both sides.
+local function defending_state(state) return state == state_defending or state == 70 or state == 75 end
+local function two_sided_state(state) return state == 70 or state == 75 end
+-- Darkfiren victim states 601 / 602 / 603 keep the victim out of the injured frames, the falling frames, or both
+-- (the same effect as bdy kind 51 / 52 / 50).
+local state_pose = {[601] = {kind = 51}, [602] = {kind = 52}, [603] = {kind = 50}}
 local state_falling = constants.frame_states.falling
 local state_flying_heavy_item = constants.frame_states.flying_heavy_item
 local state_flying_missile = constants.frame_states.flying_missile
@@ -32,6 +38,13 @@ local object_freeze_column = constants.object_ids.freeze_column
 local object_henry_arrow = constants.object_ids.henry_arrow
 local object_henry_arrow_two = constants.object_ids.henry_arrow_two
 local object_john_biscuit = constants.object_ids.john_biscuit
+local system_data = require("base/game/system_data")
+-- system.dat <henry_arrow> / <john_biscuit> (AI 5): an empty list keeps the original LF2 id.
+local function id_listed(listname, id, original)
+    local list = system_data.ids(listname)
+    if list and next(list) ~= nil then return list[id] == true end
+    return id == original
+end
 local object_rudolf_weapon = constants.object_ids.rudolf_weapon
 local team_independent = constants.teams.independent
 local weapon_none = constants.weapon_holder_codes.none
@@ -586,21 +599,21 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
     end
     -- A ball plays its broken sound; characters play hit/knockdown/sharper sound effects;
     -- other victims their own hit sound.
-    if attacker.record.kind == record_kinds.ball then sounds.item(state, attacker.x_int, attacker.record.data.weapon.broken_sound) end
+    if attacker.record.kind == record_kinds.ball then sounds.item(state, attacker.x_int, attacker.record.data.weapon.broken_sound, attacker.record.id) end
     if victim_kind == record_kinds.character then
-        if itr.effect == effects.plain_hit then sounds.effect(state, victim.x_int, victim.timer_b0 == combat_knockdown_fall_points and 2 or 0) end
+        if itr.effect == effects.plain_hit then sounds.effect(state, victim.x_int, victim.timer_b0 == combat_knockdown_fall_points and 2 or 0, victim.record.id) end
         if itr.effect == effects.sharp_hit then
             spark_kind = 1
             if victim.timer_b0 == combat_knockdown_fall_points then
-                sounds.effect(state, victim.x_int, 12)
-                sounds.effect(state, victim.x_int, 2)
+                sounds.effect(state, victim.x_int, 12, victim.record.id)
+                sounds.effect(state, victim.x_int, 2, victim.record.id)
             else
-                sounds.effect(state, victim.x_int, 11)
-                sounds.effect(state, victim.x_int, 0)
+                sounds.effect(state, victim.x_int, 11, victim.record.id)
+                sounds.effect(state, victim.x_int, 0, victim.record.id)
             end
         end
     elseif victim_kind > 0 then
-        sounds.item(state, victim.x_int, victim.record.data.weapon.hit_sound)
+        sounds.item(state, victim.x_int, victim.record.data.weapon.hit_sound, victim.record.id)
     end
     local attacker_state = attacker.record.frame(attacker.frame).state
     if victim.timer_b0 ~= combat_knockdown_fall_points or victim.vx >= 5.0 or victim.vx <= -5.0 or itr.dvx ~= 0 then
@@ -619,7 +632,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
             if attacker.record.id == constants.item_ids.stick and attacker.weapon < 0 then
                 -- A swung club bats flying bottles away at least 10 px/frame.
                 victim.impulse_x = victim.impulse_x * 2.5
-                sounds.effect(state, victim.x_int, 13)
+                sounds.effect(state, victim.x_int, 13, victim.record.id)
                 if 0.0 < victim.impulse_x and victim.impulse_x < 10.0 then victim.impulse_x = 10.0 end
                 if victim.impulse_x < 0.0 and victim.impulse_x > -10.0 then victim.impulse_x = -10.0 end
             end
@@ -705,34 +718,34 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
         else victim.frame = engine.random(6) end
         victim.team = attacker.team
     end
-    if attacker.record.id == object_henry_arrow and victim_kind == record_kinds.character then objects.remove(state, p) end
-    if attacker.record.id == object_john_biscuit and victim_kind == record_kinds.character then attacker.hp = 0 end
+    if id_listed("henry_arrow", attacker.record.id, object_henry_arrow) and victim_kind == record_kinds.character then objects.remove(state, p) end
+    if id_listed("john_biscuit", attacker.record.id, object_john_biscuit) and victim_kind == record_kinds.character then attacker.hp = 0 end
     if victim_kind == record_kinds.ball then ball_struck(state, p, attacker, victim, itr) end
     if (itr.effect == effects.freeze or itr.effect == effects.rebound) and victim_kind == record_kinds.character
        and victim.record.frame(victim.state_frame).state ~= state_frozen then
         victim.frame = character_frames.ice
         victim.wait_counter = 0
-        sounds.effect(state, victim.x_int, 14)
+        sounds.effect(state, victim.x_int, 14, victim.record.id)
     end
     if (itr.effect == effects.burn or itr.effect == effects.burn_state_guard or itr.effect == effects.burn_push
         or (itr.effect == effects.burn_alt and victim.record.frame(victim.state_frame).state ~= state_burning)) and victim_kind == record_kinds.character then
         victim.frame = character_frames.fire
         victim.wait_counter = 0
-        sounds.effect(state, victim.x_int, 16)
+        sounds.effect(state, victim.x_int, 16, victim.record.id)
         victim.facing = victim.impulse_x < 0.0 and facing_right or facing_left
     end
-    if itr.effect == effects.burn_sound then sounds.effect(state, victim.x_int, 16) end
+    if itr.effect == effects.burn_sound then sounds.effect(state, victim.x_int, 16, victim.record.id) end
     return spark_kind
 end
 
 local function defended_hit(state, p, attacker, victim, itr)
     local victim_frame = victim.record.frame(victim.frame_at_pass)
     if attacker.record.kind == record_kinds.ball then
-        sounds.item(state, attacker.x_int, attacker.record.data.weapon.broken_sound)
+        sounds.item(state, attacker.x_int, attacker.record.data.weapon.broken_sound, attacker.record.id)
     elseif victim.record.id == constants.fighter_ids.knight or victim.record.id == constants.fighter_ids.louis then
-        sounds.effect(state, victim.x_int, 17)
+        sounds.effect(state, victim.x_int, 17, victim.record.id)
     else
-        sounds.effect(state, victim.x_int, 1)
+        sounds.effect(state, victim.x_int, 1, victim.record.id)
     end
     local base = itr.injury
     if victim.armor > 0 then base = cdiv(base * 100, victim.armor) end
@@ -760,7 +773,7 @@ local function defended_hit(state, p, attacker, victim, itr)
     victim.hit_lag = -5
     local attacker_state = attacker.record.frame(attacker.frame).state
     if victim.y_int == 0 then
-        if victim.timer_b8 < constants.combat.defend_break_threshold or victim_frame.state ~= state_defending then
+        if victim.timer_b8 < constants.combat.defend_break_threshold or not defending_state(victim_frame.state) then
             if victim.frame == character_frames.defend then victim.frame = character_frames.defend + 1 end
         else
             victim.frame = character_frames.broken_defend
@@ -920,7 +933,7 @@ end
 -- Itr kind 9 vs a ball: vanishing balls vanish; others turn to the attacker's team (frame 30).
 local function reflect_ball(state, p, attacker, victim)
     if victim.record.kind == record_kinds.ball then
-        sounds.item(state, victim.x_int, victim.record.data.weapon.broken_sound)
+        sounds.item(state, victim.x_int, victim.record.data.weapon.broken_sound, victim.record.id)
         attacker.hit_lag = -3
         victim.hit_this_frame = true
         if victim.record.frame(victim.frame).state == state_vanishing_ball then
@@ -1020,7 +1033,7 @@ local function freeze_hit(state, p, v, attacker, victim, itr)
     mp_gain(state, attacker, victim, itr.injury)
     victim.frame = character_frames.ice
     victim.wait_counter = 0
-    sounds.effect(state, victim.x_int, 14)
+    sounds.effect(state, victim.x_int, 14, victim.record.id)
     if itr.vrest > 0 then victim.pair_rest[p] = rest_byte(itr.vrest) end
     local held = objects.lookup(state, victim.held_item)
     if victim.weapon == record_kinds.heavy_item and held and held.holder == v and held.weapon == -record_kinds.heavy_item then
@@ -1164,8 +1177,8 @@ function combat.apply(state, p)
                     or victim_frame.state == state_falling or victim_frame.state == state_frozen or victim_frame.state == constants.frame_states.lying
                     or victim_frame.state == constants.frame_states.dizzy or victim_frame.state == state_burning
                 if not exposed then defended = armored(attacker, victim, itr) end
-                if not defended and victim_frame.state == state_defending and itr.bdefend < 61
-                   and (attacker.facing ~= victim.facing or itr.dvx < 0 or itr.dbdefend == 1 or attacker.record.id == constants.item_ids.boomerang
+                if not defended and defending_state(victim_frame.state) and itr.bdefend < 61
+                   and (two_sided_state(victim_frame.state) or attacker.facing ~= victim.facing or itr.dvx < 0 or itr.dbdefend == 1 or attacker.record.id == constants.item_ids.boomerang
                         or attacker.record.id == constants.object_ids.jan_chase or attacker.record.id == constants.object_ids.firzen_chase_fire or attacker.record.id == constants.object_ids.firzen_chase_ice)
                    and victim.hp > 0 then
                     defended = true
@@ -1180,7 +1193,11 @@ function combat.apply(state, p)
                     else
                         local before_frame, before_b0, before_vy = victim.frame, victim.timer_b0, victim.impulse_y
                         spark_kind = plain_hit(state, p, v, attacker, victim, itr, hit_body)
-                        fx_body.keep_pose(hit_body, victim, before_frame, before_b0, before_vy)
+                        local pose_body = hit_body
+                        if not (hit_body and hit_body.kind >= 50 and hit_body.kind <= 52) then
+                            pose_body = state_pose[victim.record.frame(before_frame).state] or hit_body
+                        end
+                        fx_body.keep_pose(pose_body, victim, before_frame, before_b0, before_vy)
                         if victim.record.kind == record_kinds.character then rumble.queue(state, v, 100) end
                     end
                     if spark_kind == "stop" then return end

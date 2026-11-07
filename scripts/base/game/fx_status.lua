@@ -8,6 +8,7 @@
 -- (manacle, delay, confus, bound, mimic, facing) are read by the control / MP code through `active`.
 local constants = require("base/game/constants")
 local fx_stats = require("base/game/fx_stats")
+local battle = require("base/game/battle")
 local fx = {}
 
 -- UNCERTAIN (docs/darkfiren/ai3_interactions.md): the notes' examples contradict their own
@@ -76,6 +77,8 @@ function fx.apply(attacker, victim, itr, defended, random)
                 else
                     local current = status[name] or 0
                     if timed.duration > current then status[name] = timed.duration end
+                    -- mimic: who to copy (the slot of the attacker's owner); cleared when the timer ends
+                    if name == "mimic" then status.mimic_by = attacker.owner end
                 end
             end
         end
@@ -126,6 +129,7 @@ function fx.update(state, slots)
                             fx_stats.record_kill(value, poison.by)
                             local owner = poison.by and state.items[poison.by]
                             if owner then owner.kills = owner.kills + 1 end
+                            battle.count_kill(state, value)
                         end
                     end
                 end
@@ -144,6 +148,7 @@ function fx.update(state, slots)
                 if type(timer) == "number" then
                     timer = timer - 1
                     status[name] = timer > 0 and timer or nil
+                    if name == "mimic" and not status[name] then status.mimic_by = nil end
                 end
             end
         end

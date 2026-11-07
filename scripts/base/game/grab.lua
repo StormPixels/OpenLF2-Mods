@@ -15,6 +15,7 @@ local item_slots = constants.item_slots
 local cpoint_kinds = constants.cpoint_kinds
 local objects = require("base/game/objects")
 local battle = require("base/game/battle")
+local fx_stats = require("base/game/fx_stats")
 local grab = {}
 
 local function cdiv(a, b)
@@ -161,6 +162,7 @@ function grab.place_victims(state)
                         if target.armor > 0 then damage = cdiv(damage * 100, target.armor) end
                         if target.hp > 0 and damage >= target.hp and target.follow == -1 then
                             if owner then owner.kills = owner.kills + 1 end
+                            fx_stats.record_kill(target, holder.owner)
                             battle.count_kill(state, target)
                         end
                         target.hp = target.hp - damage
@@ -171,6 +173,7 @@ function grab.place_victims(state)
                         target.hp_spent = target.hp_spent + damage
                         if owner then owner.damage_dealt = owner.damage_dealt + damage end
                         battle.count_damage(state, target, damage)
+                        fx_stats.hit(state, holder, target, true)
                     else
                         target.hp = target.hp + hit.injury
                         target.dark_hp = target.dark_hp + cdiv(hit.injury, damage_dark_hp_divisor)

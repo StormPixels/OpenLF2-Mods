@@ -7,6 +7,6 @@ return {
     max_bdy = 100,      -- bdy per frame
     max_opoints = 20,   -- opoint per frame, all spawned
     max_sounds = 20,    -- sounds played at the same time (enforced by sounds.lua, owned by AI 5)
-    frozen_can_be_hit = false, -- time stop: false = a frozen object neither attacks nor is attacked; true = it can still be hit
-    combo_reset_ticks = 60,    -- UNCERTAIN: ticks without a new hit after which fx.combo drops to 0
+    frozen_can_be_hit = true,  -- time stop: a frozen object never attacks; true = the user of the time stop can still hit it
+    combo_reset_ticks = 50,    -- ticks without a new hit after which fx.combo drops to 0 (used when mode.dat has no <combo> respond)
 }

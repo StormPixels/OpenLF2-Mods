@@ -22,6 +22,12 @@ local function trunc(value)
     return math.ceil(value)
 end
 local function random(range) return engine.random(range) end
+-- LF2 Darkfiren stage record ids that stand for a random object (readme stage mode.txt, "Stage New Random ids"). 1001 is
+-- id 1000 (a fighter 1..29) that may get 4x the HP; 5000 / 5001 a random minion; 7000 a random boss. 3001 (a random
+-- enemy or the rare mark with 4x HP) is the original's own selector. [UNCERTAIN] the chance of the 4x HP: the rare
+-- mark's chance (1 in constants.stage_spawn.rare_enemy_denominator) is used.
+local extra_selectors = {fighter_boost = 1001, minion = 5000, minion_boost = 5001, boss = 7000,
+    minion_first = 30, minion_count = 10, bosses = {38, 50, 51, 52}}
 local function cmod(a, b) return a - cdiv(a, b) * b end
 local menu_sheet, menu_sheet2 = "pe/menu_clip3", "pe/menu_clip2"
 local frames = {
@@ -93,7 +99,8 @@ local function spawn(state, run, entry, runtime, slot)
     elseif state.difficulty == constants.difficulties.easy then
         if id ~= constants.record_ids.criminal then health = trunc(health * constants.stage_health.easy_multiplier) end
     end
-    if id == constants.stage_record_selectors.random_fighter then
+    local requested = id
+    if id == constants.stage_record_selectors.random_fighter or id == extra_selectors.fighter_boost then
         if random_index == constants.stage_random_fighters.count or random_index == -1 then
             for _ = 1, constants.stage_random_fighters.shuffle_swaps do
                 local a, b = random(constants.stage_random_fighters.count), random(constants.stage_random_fighters.count)
@@ -103,6 +110,18 @@ local function spawn(state, run, entry, runtime, slot)
         end
         id = random_fighters[random_index + 1]
         random_index = random_index + 1
+        if requested == extra_selectors.fighter_boost and random(constants.stage_spawn.rare_enemy_denominator) == 0 then
+            health = health * constants.stage_spawn.rare_enemy_hp_multiplier
+        end
+    elseif requested == extra_selectors.minion or requested == extra_selectors.minion_boost then
+        -- LF2 Darkfiren ids 5000 / 5001: a random minion (30..39); 5001 may also get 4x the declared HP.
+        id = extra_selectors.minion_first + random(extra_selectors.minion_count)
+        if requested == extra_selectors.minion_boost and random(constants.stage_spawn.rare_enemy_denominator) == 0 then
+            health = health * constants.stage_spawn.rare_enemy_hp_multiplier
+        end
+    elseif requested == extra_selectors.boss then
+        -- LF2 Darkfiren id 7000: a random boss (38, 50, 51 or 52).
+        id = extra_selectors.bosses[random(#extra_selectors.bosses) + 1]
     elseif id == constants.stage_record_selectors.random_stage_enemy then
         id = random(2) + constants.fighter_ids.bandit
     elseif id == constants.stage_record_selectors.random_stage_enemy_with_rare then
@@ -260,19 +279,20 @@ local function start_phase(state, run)
     end
 end
 
--- The unlock key (stage.dat `respond:`, 500..502 in Darkfiren) earned by the stage the round just cleared, or nil
--- (stage not cleared, or no key). Call it once the round is over; flow.lua then calls unlock.grant(key).
--- The stage's own `respond:` counts; a level's `respond:` counts when the cleared stage was the level's last
--- one. [UNCERTAIN] the readme does not say which stage of a level earns the level's key.
+-- The unlock key earned by the stage the round just cleared, or nil (not cleared, no key, or the wrong difficulty).
+-- The key is the `respond:` (10..1000) of the level's <stage_information> in stage.dat; its `bound:` (-1 crazy, 0
+-- difficult, 1 normal, 2 easy) says on which difficulty it is earned (no `bound:` = any). It is earned when the level's
+-- last stage is cleared. Call it once the round is over; flow.lua then calls unlock.grant(key).
+-- NOTE the `respond:` inside a <stage> of a stage file is something else (how the unreachable area is blacked out).
+-- [UNCERTAIN] the readme says "on clearing this stage"; the level's last stage is assumed.
 function stage.unlock_key(state)
     local run = type(state) == "table" and state.stage_run or nil
     if type(run) ~= "table" or not run.cleared_id or (run.result ~= 1 and run.result ~= 3) then return nil end
     stage_list()
-    local own = list[run.cleared_id]
-    if own and own.respond and own.respond > 0 then return own.respond end
     if not darkfiren() then return nil end
     local level = stage_levels.level(whole, cdiv(run.cleared_id, 10))
-    if not (level and level.respond and level.respond > 0) then return nil end
+    if not (level and level.respond and level.respond >= 10 and level.respond <= 1000) then return nil end
+    if level.bound ~= nil and level.bound ~= state.difficulty then return nil end
     if run.cleared_id % 10 ~= 9 and list[run.cleared_id + 1] then return nil end  -- not the last stage of its level
     return level.respond
 end

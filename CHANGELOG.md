@@ -66,6 +66,11 @@ All notable changes to this project are documented in this file.
 
 - UI: lebar jendela pertandingan (`background.set_window_width`) diatur dari layout tiap pertandingan dibuat; kunci buka stage diberikan di akhir stage; pilihan tim mengikuti `constants.teams.enemies`; radar memakai gambar hidden/clone/heal; mode background width, zboundary, dvy, centery ditandai didukung.
 
+- LF2 Darkfiren: characters made by an opoint with the creator's own record id are marked as clones (fx.clone, fx.clone_owner).
+- LF2 Darkfiren: the user of a time stop can hit frozen objects; frozen objects never attack.
+- LF2 Darkfiren: combo rules (respond, caughtact, effect) read from mode.dat <combo>; kills made while catching are recorded; mimic keeps who applied it (fx.status.mimic_by).
+- LF2 Darkfiren: victim states 70 / 75 defend from both sides; states 601 / 602 / 603 keep the victim out of the injured / falling frames; system.dat <henry_arrow> and <john_biscuit> lists; sound calls pass the object id.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -200,3 +205,8 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `sounds.weapon_path` picks a weapon sound per background and mode from the weapon `<sound>` blocks, falling back to the weapon default sound.
 - UI: the match window width follows the layout, a stage's unlock key is granted when the stage ends, team choices follow the number of enemy teams, and the radar shows hidden, clone and healing marks.
 - LF2 Darkfiren: background `state:` layers and `transparency: -1` paths are read; background modes can carry the team HP bar and quest settings (new module `sd_quest`).
+- LF2 Darkfiren: characters made by an opoint with the creator's own record id are marked as clones (fx.clone, fx.clone_owner).
+- LF2 Darkfiren: the user of a time stop can hit frozen objects; frozen objects never attack.
+- LF2 Darkfiren: combo rules (respond, caughtact, effect) read from mode.dat <combo>; kills made while catching are recorded; mimic keeps who applied it (fx.status.mimic_by).
+- LF2 Darkfiren: victim states 70 / 75 defend from both sides; states 601 / 602 / 603 keep the victim out of the injured / falling frames; system.dat <henry_arrow> and <john_biscuit> lists; sound calls pass the object id.
+- LF2 Darkfiren: Darkfiren stages get a random stage id, and the stage unlock key is corrected.
