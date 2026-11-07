@@ -15,6 +15,56 @@ local words = {
         bit = 2, flag = "function_keys", buffer = 4},
 }
 local progress = {0, 0}
+local default_keys = {words[1].keys, words[2].keys}
+local word_limits = {7, 15}
+local words_settled = false
+
+-- The key codes of a cheat word of system.dat (`cheat1:` up to 7 characters, `cheat2:` up to 15): capital letters,
+-- digits and the period. nil when the text is missing, too long or holds anything else.
+-- [UNCERTAIN] the readme says "letter limit is 7 / 15, only capital letters" and "if removed the default is used";
+-- a word that breaks the rules also falls back to the default here (the original's reaction is not documented).
+function unlock.word_keys(text, limit)
+    if type(text) ~= "string" or text == "" or #text > limit then return nil end
+    local keys = {}
+    for index = 1, #text do
+        local char = text:sub(index, index)
+        if char:match("[A-Z0-9]") then keys[index] = char:byte()
+        elseif char == "." then keys[index] = 0xbe
+        else return nil end
+    end
+    return keys
+end
+
+local function same_keys(a, b)
+    if #a ~= #b then return false end
+    for index = 1, #a do if a[index] ~= b[index] then return false end end
+    return true
+end
+
+-- Takes the two cheat words from system.dat (`cheat1:`, `cheat2:`), the defaults LF2.NET and HEROFIGHTER.COM where
+-- they are missing or invalid. Runs by itself on the first key input after system.dat is readable; returns false
+-- while the game data is not attached yet.
+function unlock.configure_words()
+    local names = {"cheat1", "cheat2"}
+    system_data.string("cheat1", nil)  -- reads system.dat
+    if not system_data.loaded() then return false end
+    for index, word in ipairs(words) do
+        local keys = unlock.word_keys(system_data.string(names[index], nil), word_limits[index]) or default_keys[index]
+        if not same_keys(word.keys, keys) then
+            word.keys = keys
+            progress[index] = 0
+        end
+    end
+    words_settled = true
+    return true
+end
+
+-- Back to the default words and to configuring again at the next key input (tests, a changed game folder).
+function unlock.reset_words()
+    for index, word in ipairs(words) do word.keys = default_keys[index] end
+    progress[1], progress[2] = 0, 0
+    words_settled = false
+end
 -- Marks waiting for the next frame that takes them (the key table's 'd' at 0xf9 / 0xf8).
 local marked = {}
 -- Held keys of the previous trace frame, to turn traces' held "#n" keys into key-downs.
@@ -43,6 +93,7 @@ end
 -- Feeds one frame's input (base/ui/controls): live key-downs in order, or for traces the keys
 -- newly held since the previous frame in code order.
 function unlock.observe(input)
+    if not words_settled then unlock.configure_words() end
     local presses = input.presses
     if not presses then
         presses = {}

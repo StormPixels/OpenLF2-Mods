@@ -651,6 +651,9 @@ public:
     bool supports_fullscreen() const override {
         return desktop_window && window_ != nullptr;
     }
+    void set_window_title(std::string_view title) override {
+        if (window_ && !title.empty()) SDL_SetWindowTitle(window_.get(), std::string(title).c_str());
+    }
     Result<void> set_fullscreen(bool enabled) override {
         // A no-op where unsupported, even if asked: Android forces SDL_WINDOW_FULLSCREEN at
         // creation, and toggling it off there would fight the platform's own fixed layout.

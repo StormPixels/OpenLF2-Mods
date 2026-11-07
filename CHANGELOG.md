@@ -219,3 +219,6 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `fx.reserve` of an opoint sets a fighter's lives; `fx.clone` marks clones (state 21); id_no_blink and the pdk control (dicontrol) are read from the data; the camera view width follows the layout (1333/1018).
 - LF2 Darkfiren: stage tags `join_pic:`, `<protect>` and `max:` are read; a protected object dying ends the game at once.
 - UI: `hidden:` of modes, stage levels, small panels and HUD styles is judged per entry through `unlock.allows`; character minibars (`<minibar>`) are drawn under the fighters; background mode `attacking` is marked as supported.
+- LF2 Darkfiren: data-driven <armor> (types 0-4, ratio, decrease, mp, hp, recover, action, delay, spark, sounds, system.dat armor_s and defend lists); characters without it keep the original armor.
+- LF2 Darkfiren: weapon strikes use the new <weapon_strength_list> keys (drain, gain, recover, dbdefend, spark, dvz, selfinjury).
+- LF2 Darkfiren: the window title follows `name:` of `system.dat` (a no-op where the platform has no title bar), and the cheat words come from `cheat1:` and `cheat2:` of `system.dat` (defaults LF2.NET and HEROFIGHTER.COM).

@@ -4,6 +4,7 @@
 #pragma once
 #include "openlf2/ports/resources.hpp"
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace openlf2 {
@@ -18,4 +19,10 @@ inline constexpr std::size_t dat_text_limit = 1024 * 1024;
 // `normalized` must already be a virtual_path() result. Returns std::nullopt when it names neither source,
 // so the caller continues with its other sources.
 std::optional<Result<Bytes>> read_dat_text_resource(const ResourceSource& archive, std::string_view normalized);
+
+// LF2 Darkfiren: the window title from the text of data\system.dat: its top-level `name:` line (before any `<block>`),
+// with `_` shown as a space (`Little_Fighter_2` -> `Little Fighter 2`), a `;comment` and surrounding white space
+// dropped. nullopt when there is no usable name (missing, empty, longer than 100 characters, control characters),
+// so the window keeps its own title.
+std::optional<std::string> window_title_from_system_dat(std::string_view text);
 }

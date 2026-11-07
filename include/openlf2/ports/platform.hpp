@@ -221,6 +221,9 @@ public:
     // Enters or leaves borderless (desktop) fullscreen. A no-op where supports_fullscreen() is
     // false, so it is safe to call unconditionally every frame like set_render_filter.
     virtual Result<void> set_fullscreen(bool enabled) = 0;
+    // The window's title (LF2 Darkfiren: system.dat `name:`). A no-op where the platform has no title bar or
+    // does not implement it, so it is safe to call whenever the game data names one.
+    virtual void set_window_title(std::string_view) {}
     // Desktop placement in window coordinates; unsupported platforms return nothing.
     // The rectangle is the normal window's, even while maximized or fullscreen.
     virtual std::optional<WindowPlacement> window_placement() { return std::nullopt; }

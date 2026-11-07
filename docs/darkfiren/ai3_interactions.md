@@ -117,3 +117,29 @@ Selain itu tidak ditemukan ketidakcocokan nama kunci; tes `realdata_test.lua` da
 | State 70 dan 75 | Seperti state 7 (bertahan) tetapi menangkis dari kedua sisi (syarat arah hadap berbeda diabaikan); selebihnya sama dengan state 7 (damage sepersepuluh, frame bertahan) | DOCX 15.2 baris "70, 75" |
 | State 601 / 602 / 603 (korban) | Korban tidak masuk frame luka (601), tidak jatuh (602), atau keduanya (603), damage tetap diterima; sama dengan bdy 51 / 52 / 50. Bila bdy kind 50-52 ikut kena, bdy yang menang | DOCX 15.2; pembanding HP 601-699 dan 6xxx TIDAK dikerjakan (keputusan pengguna 5) |
 | Belum dikerjakan | state 3007, 180/190, 3005 pada karakter, hit_Fj/Uj/Dj/ja/Ua/Da untuk objek 3000/3006: spesifikasi DOCX hanya satu baris yang ambigu (lihat REPORT) | |
+
+
+## Putaran 9 (armor dan kunci baru weapon_strike)
+Armor (`armor.lua`, DOCX 16.5 / armor.txt). Bentuk data dari parser C++: angka `type ratio decrease mp fall bdefend injury spark delay hp recover facing action`, teks `sound1 sound2`, larik `ids states effects`, dan `frames` = daftar `{awal, akhir}`. Dibaca dari `record.data.armor`; tanpa blok itu armor lama (Knight/Louis/Julian) di `combat.armored` tetap dipakai.
+| Hal | Aturan | Catatan |
+|---|---|---|
+| type 0 | tidak menahan; hanya suara sound2 saat bertahan | armor.txt |
+| type 1 | menahan bila semua syarat di bawah lolos | |
+| type 2 | hanya memeriksa `ids` dan `effects` (frame, state, fall, bdefend, injury, ratio, facing, mp diabaikan) | armor.txt: "hanya efek"; [BELUM PASTI] |
+| type 3 | seperti 1 tetapi `fall` itr diabaikan | armor.txt |
+| type 4 | tidak menahan; hanya mengalikan damage dengan `decrease`% dan memakai `delay` / sound2 | armor.txt |
+| `ratio` | armor mati bila `timer_b8 > ratio` (Knight 15, Louis 1 sama dengan batas lama 16 dan 2) | dicocokkan dengan kode lama |
+| `ids`, `effects` | id penyerang / efek itr yang menembus armor | |
+| `fall`, `bdefend`, `injury` | itr dengan nilai >= angka itu menembus armor; -1 = tidak dipakai | armor.txt |
+| `frames` dan `states` | masing-masing menyebut tempat armor aktif; bila KEDUANYA ada, aktif di salah satunya (ATAU); bila satu, hanya itu; bila tidak ada, di mana pun. `<armor_s>` dari system_data (cadangan: 8 11 12 13 14 16 18) selalu mematikan armor | ATAU dipilih karena armor Louis asli = frame < 20 ATAU dashing/jumping/defending; AND membuatnya hampir tak pernah aktif [BELUM PASTI] |
+| `facing` (type 1) | -1 hanya serangan dari depan, -2 hanya dari belakang, 0 keduanya | armor.txt |
+| `mp` | biaya MP tiap kali armor menahan; MP kurang = armor tidak bekerja | |
+| `hp`, `recover`, `action` | HP armor berkurang `injury` per tahanan; habis = armor rusak; `recover` frame sampai pulih (-1 tak pernah); `action` = frame pemilik saat armor habis bila fall itr < 80. Status di `value.fx.armor` | |
+| `decrease` | persen damage yang tetap diterima saat menahan (0 tak ada, 100 penuh); -1 = sepersepuluh seperti LF2 asli | |
+| `delay` | >= 0 mengganti lama guncangan (kedua petarung), -1 = asli | |
+| `spark` | mengganti indeks spark pukulan yang ditahan | |
+| `sound1`, `sound2` | sound1 saat armor menahan, sound2 saat ditangkis tanpa armor; lewat `sounds.item` dengan id korban | |
+| `<defend>` | id yang boleh ditangkis dari dua sisi, lewat `system_data.ids("defend")`, ditambah id lama | |
+Kesetaraan dengan kode lama dibuktikan di `armor_real_test.lua` memakai blok `<armor>` asli Knight, Julian, dan Louis dari parser C++ (efek 24-29 dan 31-39 bisa berbeda dari kode lama karena daftar `effects` di data lebih sempit).
+
+`weapon_strike` (serangan dengan senjata yang dipegang) kini juga menyalin kunci baru dari `<weapon_strength_list>`: `dvz drain gain spark recover dbdefend z sound cover selfinjury`. Efek tambahan (drain, gain, recover) dikreditkan ke PEMEGANG: `gain` menambah MP pemegang; `recover` 1/3 juga menghapus guncangan senjata. `selfinjury` = damage ke pemegang tiap pukulan senjata yang kena (lewat `dealt`, tanpa penanganan kematian pemegang). `decrease` (damage ke senjata) BELUM diterapkan: tidak ada mekanisme daya tahan senjata di skrip. `caughtact` di strengths juga belum dipakai (hanya relevan untuk itr penangkap).

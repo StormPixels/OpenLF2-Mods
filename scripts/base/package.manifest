@@ -82,6 +82,7 @@ module=game/sd_global|game/sd_global.lua
 module=game/data_text|game/data_text.lua
 module=game/mode2_builtin|game/mode2_builtin.lua
 module=game/fx_stats|game/fx_stats.lua
+module=game/armor|game/armor.lua
 module=game/sd_quest|game/sd_quest.lua
 # Fonts for the translated languages (see i18n/i18n.lua); their licenses are next to them.
 asset=mods/base/onscreen/up.bmp|onscreen/up.bmp

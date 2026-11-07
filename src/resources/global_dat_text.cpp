@@ -27,4 +27,35 @@ std::optional<Result<Bytes>> read_dat_text_resource(const ResourceSource& archiv
     }
     return std::nullopt;
 }
+
+std::optional<std::string> window_title_from_system_dat(std::string_view text) {
+    constexpr std::size_t longest = 100;
+    std::size_t position = 0;
+    while (position <= text.size()) {
+        auto end = text.find('\n', position);
+        if (end == std::string_view::npos) end = text.size();
+        auto line = text.substr(position, end - position);
+        position = end + 1;
+        while (!line.empty() && (line.front() == ' ' || line.front() == '\t')) line.remove_prefix(1);
+        if (!line.empty() && line.front() == '<') break;  // the top-level tags end at the first block
+        if (!line.starts_with("name")) continue;
+        auto rest = line.substr(4);
+        while (!rest.empty() && (rest.front() == ' ' || rest.front() == '\t')) rest.remove_prefix(1);
+        if (rest.empty() || rest.front() != ':') continue;
+        rest.remove_prefix(1);
+        if (const auto comment = rest.find(';'); comment != std::string_view::npos) rest = rest.substr(0, comment);
+        std::string title(rest);
+        while (!title.empty() && (title.back() == ' ' || title.back() == '\t' || title.back() == '\r')) title.pop_back();
+        std::size_t start = 0;
+        while (start < title.size() && (title[start] == ' ' || title[start] == '\t')) ++start;
+        title.erase(0, start);
+        if (title.empty() || title.size() > longest) return std::nullopt;
+        for (auto& character : title) {
+            if (static_cast<unsigned char>(character) < 32 || character == 127) return std::nullopt;
+            if (character == '_') character = ' ';
+        }
+        return title;
+    }
+    return std::nullopt;
+}
 }

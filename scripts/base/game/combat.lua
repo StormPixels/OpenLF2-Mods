@@ -65,6 +65,7 @@ local fx_itr = require("base/game/fx_itr")
 local fx_body = require("base/game/fx_body")
 local fx_status = require("base/game/fx_status")
 local fx_stats = require("base/game/fx_stats")
+local armor = require("base/game/armor")
 local fx_constants = require("base/game/fx_constants")
 local timestop = require("base/game/timestop")
 local combat = {}
@@ -512,7 +513,7 @@ local function ball_struck(state, p, attacker, victim, itr)
     if lagged.hit_lag > 0 then lagged.hit_lag = -lagged.hit_lag end
 end
 
-local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
+local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
     local victim_frame = victim.record.frame(victim.frame_at_pass)
     local victim_kind = victim.record.kind
     local spark_kind = 0
@@ -551,7 +552,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
         return "skip"
     end
     if victim_kind ~= record_kinds.drink then
-        local damage = fx_status.weak_damage(attacker, itr.injury)
+        local damage = armor.scaled_damage(rule, fx_status.weak_damage(attacker, itr.injury))
         if victim.armor > 0 then damage = cdiv(damage * 100, victim.armor) end
         local counted = victim_kind == record_kinds.character and victim.follow == -1
         local applied = dealt(state, damage)
@@ -738,9 +739,12 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body)
     return spark_kind
 end
 
-local function defended_hit(state, p, attacker, victim, itr)
+local function defended_hit(state, p, attacker, victim, itr, rule)
     local victim_frame = victim.record.frame(victim.frame_at_pass)
-    if attacker.record.kind == record_kinds.ball then
+    local armor_sound = armor.sound(rule)
+    if armor_sound then
+        sounds.item(state, victim.x_int, armor_sound, victim.record.id)
+    elseif attacker.record.kind == record_kinds.ball then
         sounds.item(state, attacker.x_int, attacker.record.data.weapon.broken_sound, attacker.record.id)
     elseif victim.record.id == constants.fighter_ids.knight or victim.record.id == constants.fighter_ids.louis then
         sounds.effect(state, victim.x_int, 17, victim.record.id)
@@ -749,7 +753,7 @@ local function defended_hit(state, p, attacker, victim, itr)
     end
     local base = itr.injury
     if victim.armor > 0 then base = cdiv(base * 100, victim.armor) end
-    local damage = cdiv(base, 10)
+    local damage = armor.absorbed_damage(rule, base) or cdiv(base, 10)
     local applied = dealt(state, damage)
     if victim.hp > 0 and applied >= victim.hp and victim.follow == -1 then
         local owner = state.items[attacker.owner]
@@ -771,6 +775,10 @@ local function defended_hit(state, p, attacker, victim, itr)
     victim.hit_count = victim.hit_count + 1
     attacker.hit_lag = 3
     victim.hit_lag = -5
+    if rule then
+        armor.delay(rule, attacker, victim)
+        if rule.absorb then armor.commit(rule, itr, victim) end
+    end
     local attacker_state = attacker.record.frame(attacker.frame).state
     if victim.y_int == 0 then
         if victim.timer_b8 < constants.combat.defend_break_threshold or not defending_state(victim_frame.state) then
@@ -850,6 +858,13 @@ local function weapon_strike(state, p, attacker, v, itr)
     end
     hit.catching_actions = strength.catching_actions or {0, 0}
     hit.caught_actions = strength.caught_actions or {0, 0}
+    -- Darkfiren <weapon_strength_list> keys: the same itr extras as an ordinary attack, plus selfinjury (damage to the
+    -- holder). The extras are credited to the holder (`from_weapon`). `decrease` (damage to the weapon) is not applied:
+    -- nothing in the scripts reduces a weapon's own durability.
+    for _, field in ipairs({"dvz", "drain", "gain", "spark", "recover", "dbdefend", "z", "sound", "cover", "selfinjury"}) do
+        hit[field] = strength[field]
+    end
+    hit.from_weapon = true
     return hit
 end
 
@@ -1176,9 +1191,13 @@ function combat.apply(state, p)
                 local exposed = itr.bdefend == 100 or victim_frame.state == constants.frame_states.broken_defend or victim_frame.state == constants.frame_states.injured
                     or victim_frame.state == state_falling or victim_frame.state == state_frozen or victim_frame.state == constants.frame_states.lying
                     or victim_frame.state == constants.frame_states.dizzy or victim_frame.state == state_burning
-                if not exposed then defended = armored(attacker, victim, itr) end
+                local rule -- the victim's <armor> (Darkfiren); nil = the original hard-coded Knight / Louis / Julian armor
+                if not exposed then
+                    rule = armor.evaluate(attacker, victim, itr)
+                    if rule then defended = rule.absorb else defended = armored(attacker, victim, itr) end
+                end
                 if not defended and defending_state(victim_frame.state) and itr.bdefend < 61
-                   and (two_sided_state(victim_frame.state) or attacker.facing ~= victim.facing or itr.dvx < 0 or itr.dbdefend == 1 or attacker.record.id == constants.item_ids.boomerang
+                   and (two_sided_state(victim_frame.state) or attacker.facing ~= victim.facing or itr.dvx < 0 or itr.dbdefend == 1 or armor.two_way(attacker.record.id) or attacker.record.id == constants.item_ids.boomerang
                         or attacker.record.id == constants.object_ids.jan_chase or attacker.record.id == constants.object_ids.firzen_chase_fire or attacker.record.id == constants.object_ids.firzen_chase_ice)
                    and victim.hp > 0 then
                     defended = true
@@ -1188,11 +1207,12 @@ function combat.apply(state, p)
                 if not (defended and victim.record.kind ~= record_kinds.character) then
                     local spark_kind = 0
                     if defended then
-                        defended_hit(state, p, attacker, victim, itr)
+                        defended_hit(state, p, attacker, victim, itr, rule)
                         rumble.queue(state, v, 40) -- lighter feedback for a blocked hit
                     else
                         local before_frame, before_b0, before_vy = victim.frame, victim.timer_b0, victim.impulse_y
-                        spark_kind = plain_hit(state, p, v, attacker, victim, itr, hit_body)
+                        spark_kind = plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
+                        if rule then armor.delay(rule, attacker, victim) end
                         local pose_body = hit_body
                         if not (hit_body and hit_body.kind >= 50 and hit_body.kind <= 52) then
                             pose_body = state_pose[victim.record.frame(before_frame).state] or hit_body
@@ -1202,9 +1222,20 @@ function combat.apply(state, p)
                     end
                     if spark_kind == "stop" then return end
                     if spark_kind ~= "skip" then
-                        fx_itr.after_hit(attacker, victim, itr, defended)
+                        local credited = attacker
+                        if itr.from_weapon then credited = objects.lookup(state, attacker.holder) or attacker end
+                        fx_itr.after_hit(credited, victim, itr, defended)
+                        -- recover 1 / 3 removes the hit lag of the object that was given it (the weapon), not only the holder's
+                        if credited ~= attacker and (itr.recover == 1 or itr.recover == 3) then attacker.hit_lag = 0 end
+                        if itr.selfinjury and itr.selfinjury > 0 and credited ~= attacker then
+                            local self_damage = dealt(state, itr.selfinjury)
+                            credited.hp = credited.hp - self_damage
+                            credited.hp_spent = credited.hp_spent + self_damage
+                        end
                         if not defended then fx_stats.hit(state, attacker, victim) end
-                        if itr.spark ~= -1 then record_spark(state, p, v, attacker, victim, itr, spark_kind) end
+                        local shown = itr
+                        if rule and rule.absorb and rule.def.spark ~= nil then shown = copy_itr(itr) shown.spark = rule.def.spark end
+                        if shown.spark ~= -1 then record_spark(state, p, v, attacker, victim, shown, spark_kind) end
                     end
                 end
             end
@@ -1229,6 +1260,7 @@ end
 
 function combat.reset_lists(state)
     fx_status.update(state, item_slots)
+    armor.update(state, item_slots)
     for index = 0, item_slots - 1 do
         local value = state.items[index]
         if value then

@@ -78,6 +78,13 @@ function system_data.states(listname)
     return list and list.states or {}
 end
 
+-- True once system.dat has been read (or found missing); false while the game data is not attached yet, so a
+-- caller that must not settle on defaults too early can wait for it.
+function system_data.loaded()
+    data()
+    return settled
+end
+
 -- Does system.dat carry the block at all? (id_locked: a missing block means nothing is locked by default.)
 function system_data.has(listname)
     return data().lists[listname] ~= nil
