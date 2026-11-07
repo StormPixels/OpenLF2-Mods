@@ -1011,11 +1011,12 @@ Result<void> run(const Configuration& config) {
     if (!constants) return std::unexpected(constants.error());
     const auto& resources = game_data.attach(std::make_unique<GameResources>(*archive, std::move(executable), scripts->assets));
     // LF2 Darkfiren: the window takes the title of system.dat's `name:` (the game keeps "OpenLF2" without one).
+    std::string system_dat_text;  // data/system.dat as text; empty without the file
+    if (const auto system_dat = read_data_text(*archive, "data/system.dat", 1024 * 1024)) {
+        system_dat_text.assign(system_dat->begin(), system_dat->end());
+    }
     if (platform) {
-        if (const auto system_dat = read_data_text(*archive, "data/system.dat", 1024 * 1024)) {
-            const std::string text(system_dat->begin(), system_dat->end());
-            if (const auto title = window_title_from_system_dat(text)) platform->set_window_title(*title);
-        }
+        if (const auto title = window_title_from_system_dat(system_dat_text)) platform->set_window_title(*title);
     }
     auto bootstrap = read_file(config.scripts / "runtime/bootstrap.lua", 1024 * 1024);
     if (!bootstrap) return std::unexpected(bootstrap.error());
@@ -1154,7 +1155,9 @@ Result<void> run(const Configuration& config) {
         return static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - origin).count());
     };
-    FrameClock clock(milliseconds());
+    // LF2 Darkfiren: the frame intervals come from system.dat (fps_value, fps_value_f5); 33 and 3 without them.
+    const auto steps = frame_steps_from_system_dat(system_dat_text);
+    FrameClock clock(milliseconds(), steps.normal, steps.fast);
     bool fast = false;
     bool waiting_network = false;
     // "Show FPS" (OpenLF2 extension): an exponential moving average of the real time between

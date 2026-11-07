@@ -32,7 +32,7 @@ function background.filtered(data, filters)
     if not filters or data == nil or data.layers == nil then return data end
     local area = filters.area
     if filters.respond == nil and filters.arest == nil then
-        if not (area and (area.width or area.zboundary)) then return data end
+        if not (area and (area.width or area.zboundary or area.shadow or area.shadow_size)) then return data end
         -- Only the area changes: the layers and opoints stay the original's own, as without any filter.
         local same = {}
         for key, value in pairs(data) do same[key] = value end
@@ -105,6 +105,8 @@ function background.with_area(copy, area)
     if not area then return copy end
     if area.width then copy.width = area.width == -1 and (window_width or screen_width) or area.width end
     if area.zboundary then copy.zboundary = {area.zboundary[1], area.zboundary[2]} end
+    if area.shadow then copy.shadow = area.shadow end
+    if area.shadow_size then copy.shadow_size = {area.shadow_size[1], area.shadow_size[2]} end
     return copy
 end
 -- Mutable per-view state: the original keeps one animation counter per layer slot.

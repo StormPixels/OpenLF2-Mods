@@ -58,4 +58,47 @@ std::optional<std::string> window_title_from_system_dat(std::string_view text) {
     }
     return std::nullopt;
 }
+
+namespace {
+// The integer of a top-level `key:` line before the first block (the first one wins); nullopt when absent or not a number.
+std::optional<std::int64_t> top_level_integer(std::string_view text, std::string_view key) {
+    std::size_t position = 0;
+    while (position <= text.size()) {
+        auto end = text.find('\n', position);
+        if (end == std::string_view::npos) end = text.size();
+        auto line = text.substr(position, end - position);
+        position = end + 1;
+        while (!line.empty() && (line.front() == ' ' || line.front() == '\t')) line.remove_prefix(1);
+        if (!line.empty() && line.front() == '<') break;
+        if (!line.starts_with(key)) continue;
+        auto rest = line.substr(key.size());
+        while (!rest.empty() && (rest.front() == ' ' || rest.front() == '\t')) rest.remove_prefix(1);
+        if (rest.empty() || rest.front() != ':') continue;
+        rest.remove_prefix(1);
+        while (!rest.empty() && (rest.front() == ' ' || rest.front() == '\t')) rest.remove_prefix(1);
+        std::int64_t value = 0;
+        std::size_t digits = 0;
+        const bool negative = !rest.empty() && rest.front() == '-';
+        if (negative) rest.remove_prefix(1);
+        while (!rest.empty() && rest.front() >= '0' && rest.front() <= '9' && digits < 9) {
+            value = value * 10 + (rest.front() - '0');
+            rest.remove_prefix(1);
+            ++digits;
+        }
+        if (digits == 0) return std::nullopt;
+        return negative ? -value : value;
+    }
+    return std::nullopt;
+}
+}
+
+FrameSteps frame_steps_from_system_dat(std::string_view text) {
+    FrameSteps steps;
+    if (const auto normal = top_level_integer(text, "fps_value"); normal && *normal >= 10 && *normal <= 100)
+        steps.normal = static_cast<std::uint32_t>(*normal);
+    if (const auto fast = top_level_integer(text, "fps_value_f5"); fast && *fast >= 1 && *fast <= 100)
+        steps.fast = static_cast<std::uint32_t>(*fast);
+    if (steps.fast > steps.normal) steps.fast = steps.normal;
+    return steps;
+}
 }

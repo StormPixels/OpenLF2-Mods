@@ -516,6 +516,24 @@ local function draw_radar(context, view, current, radar, center, picture_width)
     end
 end
 
+-- The small face of a fighter: the one of the skin it wears (record.data.skins[i].small where the skin's offset is the
+-- fighter's pic_offset), else the character's own. A picture the game lacks keeps the character's own.
+local skin_small_known = {}
+local function small_face(value)
+    local own = value.record.data.small
+    local skins = value.record.data.skins
+    if type(skins) ~= "table" or not value.pic_offset or value.pic_offset == 0 then return own end
+    for index = 1, 10 do
+        local skin = skins[index]
+        if skin and skin.offset == value.pic_offset and type(skin.small) == "string" then
+            local path = skin.small:gsub("\\", "/"):lower()
+            if skin_small_known[path] == nil then skin_small_known[path] = pcall(engine.read_resource, path) end
+            return skin_small_known[path] and skin.small or own
+        end
+    end
+    return own
+end
+
 local function draw_status(context, state, style)
     style = style or fallback_hud
     for slot = 0, 7 do
@@ -524,7 +542,7 @@ local function draw_status(context, state, style)
         context.image(style.frame_pic, column, row, false)
         local value = state.items[slot] or state.items[slot + 10]
         if value then
-            local small = value.record.data.small
+            local small = small_face(value)
             if small then context.image(small:gsub("\\", "/"):lower(), column + style.small_x, row + style.small_y, false) end
             if value.hp > 0 then
                 local hp_bar, mp_bar = bar_of(value, "hp_bar", style), bar_of(value, "mp_bar", style)

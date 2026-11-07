@@ -88,3 +88,7 @@ Dasar: base-20261106-2-46e3dcd. Keputusan pengguna yang dijalankan:
 - **`dicontrol`** mode = 1 (kontrol pdk): `hit_ext.aj/jj/aa` dibaca lebih dulu daripada `Faj/Uaj/Daj`.
 - **Lebar kamera** mengikuti layout: `background.window_width()` (1333/1018) dipakai `camera.lua`, nil = 794 (layout expand tetap 794).
 - **`value.st.hidden`** = `value.st.invisible` (state 20/21), untuk radar AI 4.
+
+## Putaran 8 (paket uji R7, tanpa perubahan perilaku)
+
+Dasar: base-20261107-3-a050971. Tidak ada kode permainan yang diubah. Ditambah: karakter uji AI2STAT (id 992, `RESULT/testpack/data/ai2_stat.txt`), `PANDUAN_UJI_R7.md` dan tes `st_testpack_r7_test` (data asli lewat parser C++). Cakupan ponsel: start_frame, skin acak, reserve, regen_hp, regen_mp, recmp. Belum ada langkah ponsel untuk efek status, tag mode, kamera layout. centery pasukan battle mode: diminta ke AI 4 (`battle.lua` baris 168, milik AI 4); AI 5 mengonfirmasi bahwa pasukan memakai `centery`, bukan `dvy`, dan tanpa tag tetap -300.

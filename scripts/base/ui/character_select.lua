@@ -26,6 +26,7 @@ local mode_layout = require("base/game/mode_layout")
 local stage_levels = require("base/game/stage_levels")
 local menu_small = require("base/game/menu_small")
 local ui_modes = require("base/game/ui_modes")
+local object_data = require("base/game/object_data")
 local layout_targets = {}
 -- The options panel as LF2 Darkfiren draws it: the <menu_small> layers of mode4.dat (game/menu_small.lua).
 local small_layers = {}
@@ -188,19 +189,62 @@ local function resolve_random(state)
     for index = 0, 7 do state.slots[index].was_random = state.slots[index].fighter == 0 end
     for index = 0, 7 do
         local slot = state.slots[index]
-        if slot.was_random then slot.fighter = pick_fighter(state) end
+        if slot.was_random then slot.fighter, slot.skin = pick_fighter(state), nil end
     end
 end
 
 -- Fighter 0 is Random; others index the catalog in file order.
-local function next_fighter(state, slot) slot.fighter = catalog.step(state.fighters, slot.fighter, 1) end
-local function previous_fighter(state, slot) slot.fighter = catalog.step(state.fighters, slot.fighter, -1) end
+-- LF2 Darkfiren skins (readme/dat file/skin system.txt): "D" (the defend key, letter "f") cycles the skins of the fighter
+-- being chosen, in every mode but the championships. The skins come from the fighter's own data (record.data.skins, read
+-- when a fighter is first asked for and remembered); a fighter with fewer than two skins or `random: 1` has nothing to
+-- cycle. The choice is slot.skin (1..10) for the fighter slot.skin_for; the match gets it as options.slots[slot].skin
+-- (game/st_spawn.lua turns it into value.pic_offset).
+local skin_cache = {}
+local function skins_of(fighter)
+    if not fighter or type(fighter.path) ~= "string" then return nil end
+    local cached = skin_cache[fighter.path]
+    if cached == nil then
+        local ok, data = pcall(object_data.load, fighter.path)
+        local skins = ok and type(data) == "table" and data.skins or nil
+        local count = 0
+        if type(skins) == "table" then for index = 1, 10 do if skins[index] then count = index end end end
+        cached = (count >= 2 and skins.random ~= 1) and {skins = skins, count = count} or false
+        skin_cache[fighter.path] = cached
+    end
+    return cached or nil
+end
+-- The skin chosen for the fighter now in the slot (nil: the fighter's own look).
+local function chosen_skin(slot)
+    if slot.skin and slot.skin_for == slot.fighter then return slot.skin end
+    return nil
+end
+local function next_skin(state, slot)
+    if state.mode == constants.modes.championship or state.mode == constants.modes.team_championship then return end
+    local info = skins_of(state.fighters[slot.fighter])
+    if not info then return end
+    slot.skin, slot.skin_for = (chosen_skin(slot) or 1) % info.count + 1, slot.fighter
+    sounds.direct(state, "join")
+end
+local function skin_picture(fighter, slot, key)
+    local index = chosen_skin(slot)
+    local info = index and skins_of(fighter)
+    local skin = info and info.skins[index]
+    local path = skin and skin[key]
+    if type(path) ~= "string" then return nil end
+    return (path:gsub("\\", "/"):lower())
+end
+
+-- Changing the fighter forgets the skin (coming back to a fighter does not bring the old skin back).
+local function next_fighter(state, slot) slot.fighter, slot.skin = catalog.step(state.fighters, slot.fighter, 1), nil end
+local function previous_fighter(state, slot) slot.fighter, slot.skin = catalog.step(state.fighters, slot.fighter, -1), nil end
 
 local function draw_fighter(state, slot, col, row, color)
     local fighter = state.fighters[slot.fighter]
     -- The eye of Reset Random (LF2 Darkfiren): a fighter that came from Random stays unseen until the match.
     if state.options and state.options.hide_random and slot.was_random then fighter = nil end
-    image(state, fighter and fighter.portrait or "pe/rface", col + 147, row + 94)
+    local head = fighter and skin_picture(fighter, slot, "head")
+    if head and not pcall(engine.read_resource, head) then head = nil end   -- a picture the game lacks keeps the fighter's own
+    image(state, head or (fighter and fighter.portrait) or "pe/rface", col + 147, row + 94)
     slot_text(state, fighter and fighter.name or " Random", col, row, color, row + 241)
 end
 local function draw_team(state, slot, col, row, color)
@@ -269,7 +313,9 @@ local function fighter_slot(state, slot, keys)
     elseif pressed(keys, "l") then
         if trigger(slot) then previous_fighter(state, slot) end
     elseif pressed(keys, "u") then
-        if trigger(slot) then slot.fighter = 0 end
+        if trigger(slot) then slot.fighter, slot.skin = 0, nil end
+    elseif pressed(keys, "f") then
+        if trigger(slot) then next_skin(state, slot) end
     elseif pressed(keys, "c") then
         if trigger(slot) then
             slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
@@ -1086,7 +1132,7 @@ local function option_action(state, context, row, extras)
     elseif row == option_rows.reroll then
         for index = 0, 7 do
             local slot = state.slots[index]
-            if slot.was_random then slot.fighter = pick_fighter(state) end
+            if slot.was_random then slot.fighter, slot.skin = pick_fighter(state), nil end
         end
     end
 end
@@ -1345,9 +1391,9 @@ function selection.match_options(state)
     for index = 0, 7 do
         local slot = state.slots[index]
         if slot.phase >= slot_phases.choosing_fighter and slot.phase <= slot_phases.computer_fighter - 1 then
-            slots[index] = {kind = "human", fighter = slot.fighter, team = slot.team, random = slot.was_random}
+            slots[index] = {kind = "human", fighter = slot.fighter, team = slot.team, random = slot.was_random, skin = chosen_skin(slot)}
         elseif slot.phase >= slot_phases.computer_fighter then
-            slots[index] = {kind = "computer", fighter = slot.fighter, team = slot.team, random = slot.was_random}
+            slots[index] = {kind = "computer", fighter = slot.fighter, team = slot.team, random = slot.was_random, skin = chosen_skin(slot)}
         end
     end
     return {mode = state.mode, difficulty = state.options.difficulty, background = state.options.background,

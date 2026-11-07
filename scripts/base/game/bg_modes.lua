@@ -31,7 +31,7 @@ local function value_set(text)
     return set
 end
 
--- The tags of a mode that change the background's area or the round's start: `dicontrol`, `start_frame`, `reserve`,
+-- The tags of a mode that change the background's area or the round's start: `shadow`, `shadowsize`, `dicontrol`, `start_frame`, `reserve`,
 -- `dx`, `dvx`, `dz`, `dvz` (the round's start and control, read by the round) and `width` (the battlefield's width,
 -- -1 = the window width), `zboundary` ("near far"), `dvy` (the start height of every fighter, below 0), `centery`
 -- (the height weapons, criminals and battle-mode armies drop from, below 0) and `attacking` (the damage percent
@@ -50,6 +50,10 @@ function bg_modes.area(mode)
     if centery and centery < 0 then area.centery = math.floor(centery) end
     local attacking = tonumber(mode.attacking)
     if attacking and attacking >= 0 then area.attacking = math.floor(attacking) end
+    -- `shadow` (the image) and `shadowsize` ("width height") take priority over the bg.dat's own.
+    if type(mode.shadow) == "string" and mode.shadow:match("%S") then area.shadow = (mode.shadow:gsub("^%s+", ""):gsub("%s+$", "")) end
+    local shadow_width, shadow_height = tostring(mode.shadowsize or ""):match("^%s*(%d+)[%s,]+(%d+)")
+    if shadow_width then area.shadow_size = {tonumber(shadow_width), tonumber(shadow_height)} end
     -- Round start and control tags: whole numbers, nil when the mode has none. `dicontrol` is 0 (vanilla) or 1 (pdk).
     for _, key in ipairs({"start_frame", "reserve", "dx", "dvx", "dz", "dvz"}) do
         local number = tonumber(mode[key])

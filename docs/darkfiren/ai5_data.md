@@ -1,14 +1,61 @@
-# AI 5 — data global, suara/musik, kunci buka, area background (R1)
+# AI 5 — data global, musik/suara, kunci buka, background (R11)
 
-Sumber virtual: `game/dat_text/<jalur>` (teks terdekripsi, maks 1 MB, tanpa peka huruf besar-kecil) dan `game/mode_file/<k>` (k=1..4; kosong bila tidak ada).
-Modul Lua: `sd_text` (pemindai), `system_data` (I4), `unlock` (I5), `music` (bgm.dat), `sounds` (sound.dat), `sd_global` (kind/fusion/dmg), `bg_modes`/`background` (area mode).
+Acuan untuk AI lain dan untuk integrasi. Status tiap butir: **BASE** = sudah ada di BASE yang diperiksa (base-20261107-1-394e07b); **R11** = ada di patch R11 AI5 tetapi belum di BASE; **data saja** = data tersedia, belum ada pemakai di berkas AI lain. Hal yang tidak pasti ditandai **[BELUM PASTI]**.
 
-## Keputusan [BELUM PASTI]
-- Format `saves.txt` tidak terdokumentasi (berkas bawaan kosong): dibaca sebagai semua bilangan bulat 10..1000. Ganti `unlock.parse_saves` bila format asli berbeda.
-- `hidden` 5..9 dan >1000: terkunci. `hidden` <= 0: selalu boleh.
-- `mode:`/`respond:` trek bgm: himpunan angka opak; `music.selectable(mode, respond)`, argumen nil = tanpa penyaring.
-- `hex:` bgm disimpan sebagai teks dan angka heksadesimal bila polos.
-- `kind.dat`: daftar `bound` dan `respond` dikembalikan dengan nama tag aslinya, arti pemicu/terdampak tidak ditebak.
-- `attacking` diasumsikan persen (`bg_modes.damage_percent`, bawaan 100).
-- `width: -1` = `constants.screen.width` (794); layout lebar mungkin ingin lebar jendela sebenarnya.
-- Penulisan `saves.txt` belum bisa: tidak ada API tulis berkas di Lua. `unlock.on_change(text)` disiapkan.
+## 1. Sumber virtual dan pembaca teks
+| Sumber | Isi | Status |
+|---|---|---|
+| `game/dat_text/<jalur>` | Teks terdekripsi berkas data apa pun di arsip game (huruf kecil, `/`, tanpa peka huruf besar-kecil; nama berakhiran `dat` didekripsi, lainnya apa adanya). Maks 1 MB; galat bila tidak ada, terlalu besar, atau bukan teks (byte NUL). | BASE |
+| `game/mode_file/<k>` | Teks `data/mode/mode<k>.dat`, k = 1..4; kosong bila tidak ada, galat untuk k lain. `game/mode_file` (tanpa angka) tetap seperti sebelumnya. | BASE |
+Jalur mentah `engine.read_resource("data/...")` tidak diubah. Pemindai bersama: `sd_text` (`scan`, `pairs_of_line`, `read`, `not_ready`); data yang belum terpasang dicoba lagi, file yang tidak ada diingat (dibaca sekali).
+
+## 2. Modul Lua milik AI5 (scripts/base/game)
+Semua modul sudah terdaftar di package.manifest BASE (`sd_text`, `system_data`, `sd_global`, `sd_quest`); modul baru wajib didaftarkan di sana. Kompatibel Lua 5.1/LuaJIT: tanpa `goto`, `load`, `setmetatable`.
+
+### system_data (system.dat) — BASE
+`number(key, default)`, `string(key, default)`, `ids(daftar)` / `states(daftar)` (himpunan `{[id]=true}`, kosong bila blok tidak ada, jangan diubah), `has(daftar)`, `loaded()` (true setelah system.dat terbaca atau diketahui tidak ada; R11), `parse(text)`, `set_text(text)` (tes). Maks 100 entri per daftar.
+Daftar yang diketahui: armor_s (state), defend, hp_refill, mp_refill, criminal_free, stage_com, id_no_blink, z_oid, z_states (state), z_movement, freeze_column, henry_arrow, john_biscuit, weapon_ww_sky, weapon_flute_sky, weapon_throw, weapon_run, id_locked, sound. Status pemakai: **data saja** (belum ada konsumen di AI2/AI3 kecuali yang disebut AI itu sendiri).
+Skalar penting: spark_w/h, fps_value, fps_value_f5, slow_motion, slow_power, st_vol, tu_mode, join, bound, name, file, cheat1, cheat2, menu_bgm1/2.
+
+### unlock (kunci buka dan cheat) — BASE (kata cheat: R11)
+`allows(hidden)`: 0 atau kosong selalu; 1 kode LF2.NET; 2 HEROFIGHTER.COM; 3 keduanya; 4 tidak pernah; 10..1000 kunci di saves atau `join: -1` (membuka semua); 5..9 dan >1000 terkunci **[BELUM PASTI]**.
+`grant(key)`, `serialize()`, `load_saves(text)`, `parse_saves(text)`, `reset_saves()`, `on_change` (fungsi yang dipanggil dengan teks saves setelah grant baru). **[BELUM PASTI]** format saves.txt (berkas bawaan kosong): dibaca sebagai semua bilangan bulat 10..1000 (negatif diabaikan). Penulisan ke berkas belum bisa (tidak ada API tulis berkas di Lua).
+Kata cheat (R11): `cheat1:` (maks 7 karakter) dan `cheat2:` (maks 15) di system.dat menggantikan LF2.NET dan HEROFIGHTER.COM; huruf kapital, angka dan titik; kata tidak sah atau tag hilang memakai kata bawaan **[BELUM PASTI]** reaksi aslinya. `word_keys`, `configure_words`, `reset_words`. Kedua peer harus memakai system.dat yang sama.
+
+### music (bgm.dat) — BASE
+`music.tracks`, `music.names`, `music.info` (name, file, boss, hex, hidden, modes, responds), `menu_track(1|2)` (`[MU]` = nil, dibisukan), `selectable(mode, respond)` (nil = tanpa penyaring; hidden lewat `unlock.allows`), `random_index(mode, respond)` (hanya `engine.random`). Tanpa bgm.dat: 8 lagu asli. **[BELUM PASTI]** arti angka `mode:`/`respond:` (himpunan opak), `hex:` (teks dan angka heksadesimal bila polos).
+
+### sounds (sound.dat) — BASE
+Daftar suara tetap dari `<sound>` sound.dat (indeks 0 dst), diisi ulang di tempat. Batas 20 suara terkuat per flush (menu tidak dihitung; seri = antrean lebih dulu). `sounds.item(state, x, path, id)` dan `effect(state, x, channel, id)` (id opsional; id di system.dat `<sound>` tetap terdengar di luar layar; pan/volume persis **[BELUM PASTI]**), `ignores_bounds(id)`.
+`weapon_path(state, data, "hit"|"drop"|"broken")`: entri pertama `data.sound_list` yang cocok dengan baris background dan nomor mode, selain itu `data.weapon.<kind>_sound`. **data saja** (belum dipakai AI3). **[BELUM PASTI]** mode mulai 0 atau 1 (0 dipakai) dan prioritas bila beberapa entri cocok (entri pertama).
+
+### sd_global — BASE
+`kinds()` (kind.dat), `fusions()` (fusion.dat), `damage_rules(jalur)` (blok `<stage_dmg_dec>`), `combo()` (`<combo>` di mode1.dat: times, respond, facing, caughtact, effect; Darkfiren respond 50, times 30). **data saja**. **[BELUM PASTI]** arti daftar `bound` dan `respond` di kind.dat; arti `decrease` (dikurangi X persen atau menjadi X persen), apakah `type`/`id` menunjuk korban atau penyerang, dan `team` di dmg.dat (Darkfiren memakai 6, readme contoh 1-5; DOCX: tim musuh stage menjadi 6). Jangan menerapkan dmg.dat sebelum ada kepastian.
+
+### sd_quest (quest background) — BASE (R7)
+`create(quests, mode)` per pemain (mode 0 vs, 1 stage, 4 battle) dan `step(tracker, tick, stats)` mengembalikan hadiah `{index, respond, amount, sound, fall, check}`. Statistik: `{kill, attack, mp, hp_lost}`. Satuan 1/30 detik. **data saja**; penerapan hadiah (respond 1-12) milik AI2/AI3. **[BELUM PASTI]** semantik di luar contoh readme: sasaran yang meleset diperiksa lagi dengan sasaran sama, tanpa `next` hadiah tiap pemeriksaan.
+
+### bg_modes dan background — BASE (shadow: R11)
+`bg_modes.area(mode)`: width (-1 = lebar jendela), zboundary, shadow, shadowsize, dvy (<0), centery (<0), attacking (>=0), start_frame, reserve, dx, dvx, dz, dvz, dicontrol (0/1). `filters(mode).area`, `has_filters`, `damage_percent(area)` (bawaan 100).
+Berlaku sekarang: width, zboundary (background.filtered), dvy (hook di match.lua: tinggi awal petarung), shadow dan shadowsize (R11). Hanya dibawa sebagai `state.bg_area`: centery, attacking, start_frame, reserve, dx/dvx/dz/dvz, dicontrol.
+`background.switch(state, row, mode)`, `switch_state(state, nilai_state)`: 9xx (ganti bg), 9xxyy (bila bg sekarang xx maka yy), 7xx (ganti mode), 7xxyy (bila mode sekarang xx maka yy); mode mulai 0 **[BELUM PASTI]**. `set_window_width(n)` / `window_width()` untuk `width: -1` pada layout lebar (nil = 794).
+Layer `state:` (1 saat ronde mulai, 2 saat selesai): `set_phase(view, fase)`; `transparency: -1` (di atas karakter): `enable_front(view)` + `paint_front(...)`. Bilah HP tim (`frame:`, maks 50) dan quest (`quest:`, maks 5): `data.team_frames`, `data.quests`, `team_bar_rect(frame, nilai, maksimum)`, `team_frame_visible(frame, tick)`; frame ikut `respond` mode seperti layer. **data saja**; penjumlahan HP tim, arti `wait` dan `effect` frame **[BELUM PASTI]**.
+
+### stage — BASE (tag baru: R11)
+- Id acak: 1000/3000/3001 (asli); 1001 (petarung 1..29 dengan peluang HP 4x), 5000 (minion 30..39), 5001 (idem dengan peluang 4x), 7000 (boss 38/50/51/52). **[BELUM PASTI]** peluang 4x (dipakai 1 dari 7, seperti mark langka).
+- `stage.unlock_key(state)`: `respond:` (10..1000) pada `<stage_information>` level di stage.dat, bila `bound:` level cocok dengan kesulitan (tanpa bound = semua), diberikan saat stage terakhir level selesai (`state.stage_run.result` 1 atau 3). **Koreksi:** `respond:` di dalam `<stage>` pada berkas stage adalah gaya area terlarang (1/2/3), bukan kunci.
+- R11: `join_pic:` (pic offset saat musuh bangkit; hook 2 baris di frame_rules.lua), `<protect>` (`value.protect`; akhir permainan saat mati belum ada: butuh match.lua AI2), `max:` stage (`stage.max`; belum ada pembaca klon).
+
+## 3. C++ milik AI5
+- `src/resources/global_dat_text.cpp`: dat_text, mode_file/<k>, `window_title_from_system_dat`, `frame_steps_from_system_dat`.
+- R11: judul jendela dari `name:` (`Platform::set_window_title`, bawaan tidak berbuat apa-apa; SDL memanggil SDL_SetWindowTitle); interval frame dari `fps_value` (10..100 ms, bawaan 33) dan `fps_value_f5` (1..100 ms, tidak lebih lambat dari normal, bawaan 3). Di luar batas atau tanpa tag = nilai asli. Gerak lambat akhir ronde (slow_motion, slow_power) tidak diubah. Kecepatan simulasi mengikuti system.dat: untuk jaringan dan replay semua pemain harus memakai system.dat yang sama.
+- background_data (BASE: R7): layer `state:`, `frame:` dan `quest:`; stage_data (R11): `join_pic`, `<protect>`, `max`.
+
+## 4. Yang menunggu pihak lain
+- AI2: `background.set_phase` (ronde mulai dan selesai), tracker `sd_quest` per pemain dan hadiahnya, logika akhir `<protect>`, pembaca `max:`, `background.switch_state` di st_states.lua, `centery` untuk pasukan battle mode.
+- AI3: `sounds.weapon_path`, `attacking` (`bg_modes.damage_percent(state.bg_area)`), data sd_global.
+- AI4: menggambar `data.team_frames` dan `paint_front`, menandai centery/attacking sebagai supported, mengisi `effects.index` (nomor mode 0-based) agar `weapon_path` tahu mode pilihan pemain.
+- Pengguna: API tulis berkas Lua untuk saves.txt.
+
+## 5. Pengujian
+`bash RESULT/tests/run.sh` dari akar repo (tes Lua `*_test.lua` dan tes C++ mandiri) dengan fixture data Darkfiren asli di `RESULT/tests/fixtures`. Tes C++ memakai g++ -std=c++23; `platform.cpp` (SDL) dan perilaku di perangkat tidak teruji di sandbox.
