@@ -71,6 +71,8 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: combo rules (respond, caughtact, effect) read from mode.dat <combo>; kills made while catching are recorded; mimic keeps who applied it (fx.status.mimic_by).
 - LF2 Darkfiren: victim states 70 / 75 defend from both sides; states 601 / 602 / 603 keep the victim out of the injured / falling frames; system.dat <henry_arrow> and <john_biscuit> lists; sound calls pass the object id.
 
+- UI: `hidden:` pada mode, level stage, panel kecil, dan gaya HUD dinilai per entri lewat `unlock.allows`; minibar karakter (`<minibar>`) digambar di bawah karakter; mode background `attacking` ditandai didukung.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -210,3 +212,10 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: combo rules (respond, caughtact, effect) read from mode.dat <combo>; kills made while catching are recorded; mimic keeps who applied it (fx.status.mimic_by).
 - LF2 Darkfiren: victim states 70 / 75 defend from both sides; states 601 / 602 / 603 keep the victim out of the injured / falling frames; system.dat <henry_arrow> and <john_biscuit> lists; sound calls pass the object id.
 - LF2 Darkfiren: Darkfiren stages get a random stage id, and the stage unlock key is corrected.
+- LF2 Darkfiren: the stage enemies are team 6 and team 5 is a normal team; ten player slots (0-9, computers picked at the menu at slot + 10).
+- LF2 Darkfiren: `<stats>` caught, recmp, regen_hp, regen_dhp, regen_mp and reserve of a character's own data file now act.
+- LF2 Darkfiren: itr status effects manacle, bound, facing, weak, confus and mimic now act on the control, mp and recovery code.
+- LF2 Darkfiren: a player fighter takes its skin, start frame, reserve and start position (dx, dvx, dz, dvz) from its data and the background mode; the mode's centery sets the drop height of revived fighters and falling weapons.
+- LF2 Darkfiren: `fx.reserve` of an opoint sets a fighter's lives; `fx.clone` marks clones (state 21); id_no_blink and the pdk control (dicontrol) are read from the data; the camera view width follows the layout (1333/1018).
+- LF2 Darkfiren: stage tags `join_pic:`, `<protect>` and `max:` are read; a protected object dying ends the game at once.
+- UI: `hidden:` of modes, stage levels, small panels and HUD styles is judged per entry through `unlock.allows`; character minibars (`<minibar>`) are drawn under the fighters; background mode `attacking` is marked as supported.

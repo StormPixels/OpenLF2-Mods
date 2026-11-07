@@ -57,11 +57,15 @@ local press_of = {uz = "up_press", dz = "down_press"}
 
 -- hit_Faj/Uaj/Daj read as the J-key sequences' fallback (see st_constants.alias_aj).
 local alias_field = {Fj = "Faj", Uj = "Uaj", Dj = "Daj"}
-function st_input.alias_target(frame, field)
+-- The pdk control (a background mode's dicontrol = 1) renames them hit_aj, hit_jj, hit_aa (feature list 16.3).
+local pdk_field = {Fj = "aj", Uj = "jj", Dj = "aa"}
+function st_input.alias_target(frame, field, match)
     if not st_constants.alias_aj then return 0 end
     local ext = frame.hit_ext
     local name = alias_field[field]
     if not ext or not name then return 0 end
+    local area = match and match.bg_area
+    if area and area.dicontrol == 1 then return ext[pdk_field[field]] or ext[name] or 0 end
     return ext[name] or 0
 end
 

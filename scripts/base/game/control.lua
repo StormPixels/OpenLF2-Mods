@@ -22,6 +22,8 @@ local sounds = require("base/game/sounds")
 local unlock = require("base/game/unlock")
 local st_input = require("base/game/st_input")
 local st_frame = require("base/game/st_frame")
+local st_stats = require("base/game/st_stats")
+local st_status = require("base/game/st_status")
 local control = {}
 
 local function cdiv(a, b)
@@ -31,9 +33,11 @@ local function cdiv(a, b)
 end
 local function cmod(a, b) return a - cdiv(a, b) * b end
 -- A background mode's `recmp` (LF2 Darkfiren's mp usage modes) is the percentage of the MP a move costs.
-local function scaled_mp(match, cost)
+-- LF2 Darkfiren: then the fighter's own <stats> recmp, then the facing status effect (mp x2).
+local function scaled_mp(match, cost, value)
     local mode = match.bg_mode
-    if mode and mode.recmp and cost > 0 then return math.floor(cost * mode.recmp / 100) end
+    if mode and mode.recmp and cost > 0 then cost = math.floor(cost * mode.recmp / 100) end
+    if value and cost > 0 then cost = st_stats.recmp(value, cost) * st_status.mp_factor(value) end
     return cost
 end
 
@@ -58,7 +62,7 @@ function control.enter_frame(match, value, target)
         return
     end
     local cost = frame.mp
-    local mp_cost = scaled_mp(match, cmod(cost, move_cost_encoding.hp_radix))
+    local mp_cost = scaled_mp(match, cmod(cost, move_cost_encoding.hp_radix), value)
     local hp_cost = cdiv(cost, move_cost_encoding.hp_radix) * move_cost_encoding.hp_unit
     if value.mp >= mp_cost and value.hp > hp_cost and st_frame.affordable(value, frame) then
         value.hp = value.hp - hp_cost
@@ -70,7 +74,7 @@ function control.enter_frame(match, value, target)
         clear_presses(value)
     else
         -- LF2 Darkfiren: a frame's `caught` is where a fighter goes when it cannot pay for the frame.
-        local caught = st_frame.caught_target(frame)
+        local caught = st_frame.caught_target(frame, value)
         if caught and value.record.frames[caught] then
             value.frame = caught
             clear_presses(value)
@@ -137,7 +141,7 @@ local function recognize(match, value, index)
     if state == completed_sequence then
         local frame = value.record.frame(value.frame)
         local target = frame.hits[spec[5]]
-        if target == 0 then target = st_input.alias_target(frame, spec[5]) end
+        if target == 0 then target = st_input.alias_target(frame, spec[5], match) end
         if index == combo_jump_attack then
             if value.record.id == constants.fighter_ids.louis and target == 300 and value.hp > 177 and unlock.flags.characters == 0 then
                 value.sequences[index] = state
@@ -174,7 +178,7 @@ end
 
 local function spend_mp(match, value, frame_id)
     if not match.running then return end
-    local cost = scaled_mp(match, value.record.frame(frame_id).mp)
+    local cost = scaled_mp(match, value.record.frame(frame_id).mp, value)
     value.mp = value.mp - cost
     if value.mp < 0 then value.mp = 0 else value.mp_spent = value.mp_spent + cost end
 end
@@ -287,8 +291,8 @@ local function running(match, value, heavy)
         if heavy then value.frame = character_frames.heavy_weapon_throw
         elseif value.weapon == none then
             if not match.running then value.frame = character_frames.run_attack
-            elseif value.mp >= scaled_mp(match, value.record.frame(character_frames.run_attack).mp) then
-                local cost = scaled_mp(match, value.record.frame(character_frames.run_attack).mp)
+            elseif value.mp >= scaled_mp(match, value.record.frame(character_frames.run_attack).mp, value) then
+                local cost = scaled_mp(match, value.record.frame(character_frames.run_attack).mp, value)
                 value.mp = value.mp - cost
                 value.mp_spent = value.mp_spent + cost
                 value.frame = character_frames.run_attack
@@ -379,7 +383,7 @@ local function dashing(match, value)
     if not forward or not keys.attack then return end
     local weapon = value.weapon
     if weapon == none then
-        local cost = scaled_mp(match, value.record.frame(character_frames.dash_attack).mp)
+        local cost = scaled_mp(match, value.record.frame(character_frames.dash_attack).mp, value)
         if not match.running then value.frame = character_frames.dash_attack
         elseif value.mp >= cost then
             value.mp = value.mp - cost
@@ -432,9 +436,11 @@ function control.step(match, value)
     end
     -- A background mode's `bound` (LF2 Darkfiren): 1 takes the jump key away from fighters, 2 their combination
     -- moves, 3 both.
+    -- LF2 Darkfiren status effects: mimic copies the attacker's keys, bound (effect) takes the jump key, manacle the combos.
+    st_status.mimic(match, value)
     local bound = match.bg_mode and match.bg_mode.bound or 0
-    local no_jump = bound == 1 or bound == 3
-    local no_combos = bound == 2 or bound == 3
+    local no_jump = bound == 1 or bound == 3 or st_status.no_jump(value)
+    local no_combos = bound == 2 or bound == 3 or st_status.no_combos(value)
     if no_jump and value.record.kind == record_kinds.character then value.keys.jump = false end
     for _, field in ipairs(press_fields) do
         if value[field] > 0 then value[field] = value[field] - 1 end

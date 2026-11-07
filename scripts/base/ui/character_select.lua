@@ -695,8 +695,8 @@ layout_targets.grid_mode = grid_mode
 local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp = true, regen_mp = true,
     hurtable = true, gain_mp_a = true, gain_mp_v = true,
     -- Applied through the chosen mode's area (game/bg_modes.lua): width and zboundary by game/background.lua, dvy by
-    -- match.lua, centery by game/weapons.lua. `attacking` (the mode's damage percent) is read but not applied yet.
-    width = true, zboundary = true, dvy = true, centery = true}
+    -- match.lua, centery by game/weapons.lua, attacking (the mode's damage percent) by game/combat.lua.
+    width = true, zboundary = true, dvy = true, centery = true, attacking = true}
 local mode_neutral = {name = true, hex = true, small = true, smallb = true, hidden = true, spark = true,
     bg_pause = true, cam_pause = true, id = true, oid = true, drop = true, etc_width = true, etc_mode = true,
     dicontrol = true}
@@ -739,12 +739,18 @@ local function load_modes(row)
     mode_cache[row] = modes
     return modes
 end
--- The modes the player may see: those with hidden 1 to 3 once the cheat is in, hidden 4 never; the first always.
+-- May a `hidden:` value be used? game/unlock.allows (cheat codes and the saved keys); a host without it keeps the old rule.
+local function allows(hidden)
+    if unlock.allows then return unlock.allows(hidden) end
+    return hidden == nil or hidden <= 0 or (hidden <= 3 and unlock.flags.characters == 1)
+end
+
+-- The modes the player may see: those whose hidden value is allowed; the first always.
 local function visible_modes(row)
     local list = {}
     for position, mode in ipairs(load_modes(row)) do
         local hidden = tonumber(mode.hidden) or 0
-        if position == 1 or hidden == 0 or (hidden <= 3 and unlock.flags.characters == 1) then list[#list + 1] = mode end
+        if position == 1 or allows(hidden) then list[#list + 1] = mode end
     end
     return list
 end
@@ -932,7 +938,7 @@ local function levels_wanted(state)
     return state.mode == constants.modes.stage and stage_levels.active(stage_data())
 end
 local function stage_cells()
-    return stage_levels.visible(stage_data(), unlock.flags.characters == 1)
+    return stage_levels.visible(stage_data(), allows)
 end
 local function open_stage_grid(state)
     local cells = stage_cells()
@@ -1024,7 +1030,7 @@ local small_forced = {[7] = true, [8] = true}
 local function small_rows(state)
     local stage_mode = state.mode == constants.modes.stage
     local skip = {[8] = not stage_mode and #time_list == 0, [9] = stage_mode or #cost_settings.pools == 0}
-    return menu_small.rows(small_layers, state.mode, unlock.flags.characters == 1, small_forced, skip), stage_mode,
+    return menu_small.rows(small_layers, state.mode, allows, small_forced, skip), stage_mode,
         not stage_mode and background_has_modes(state)
 end
 local function small_disabled(number, stage_mode, has_modes)

@@ -11,6 +11,13 @@ local constants = require("base/game/constants")
 local ui_hud = {}
 
 local list_path = "data/frame.dat"
+-- May a style with this `hidden:` value be chosen? 0 always; others by game/unlock.allows (nothing when the game lacks it).
+local function permitted(hidden)
+    hidden = hidden or 0
+    if hidden == 0 then return true end
+    local ok, unlock = pcall(require, "base/game/unlock")
+    return ok and type(unlock) == "table" and type(unlock.allows) == "function" and unlock.allows(hidden) == true
+end
 local classic_width = constants.screen.width
 
 -- The classic HUD: 4 boxes of 198 x 54 per row, bars of 124 x 10 read from the BARS sheet at the `col_*` rows.
@@ -85,7 +92,7 @@ end
 -- width or this one, and is for 8 players (`facing` 10 marks the 10 player styles).
 function ui_hud.pick(list, width)
     for _, entry in ipairs(list or {}) do
-        if (entry.hidden or 0) == 0 and (entry.respond == nil or entry.respond == width) and (entry.facing or 8) == 8 then
+        if permitted(entry.hidden) and (entry.respond == nil or entry.respond == width) and (entry.facing or 8) == 8 then
             return entry
         end
     end
@@ -166,7 +173,7 @@ function ui_hud.names()
     local names, seen = {"Default"}, {Default = true}
     local listing = data_text.read(list_path)
     for _, entry in ipairs(listing and ui_hud.list(listing) or {}) do
-        if (entry.hidden or 0) == 0 and (entry.facing or 8) == 8 and entry.name and not seen[entry.name] then
+        if permitted(entry.hidden) and (entry.facing or 8) == 8 and entry.name and not seen[entry.name] then
             seen[entry.name] = true
             names[#names + 1] = entry.name
         end
@@ -188,7 +195,7 @@ function ui_hud.current(layout, width, name)
         local picture_width = width or classic_width
         local chosen
         for _, entry in ipairs(listing and ui_hud.list(listing) or {}) do
-            if entry.name == name and (entry.hidden or 0) == 0 and (entry.facing or 8) == 8
+            if entry.name == name and permitted(entry.hidden) and (entry.facing or 8) == 8
                and (entry.respond == nil or entry.respond == picture_width) then
                 chosen = entry
                 break

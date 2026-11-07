@@ -47,6 +47,10 @@ local recording = require("base/game/recording")
 local unlock = require("base/game/unlock")
 local st_states = require("base/game/st_states")
 local st_fa = require("base/game/st_fa")
+local st_stats = require("base/game/st_stats")
+local st_constants = require("base/game/st_constants")
+local st_status = require("base/game/st_status")
+local st_spawn = require("base/game/st_spawn")
 local match = {}
 
 local function cdiv(a, b)
@@ -109,7 +113,7 @@ function match.create(options)
     local near, far = state.stage.zboundary[1] or 0, state.stage.zboundary[2] or 0
     if options.demo then create_demo(state, options, width, near, far) end
     if options.replay then create_replay(state, options.replay) end
-    for slot = 0, 7 do
+    for slot = 0, constants.player_slots - 1 do
         local entry = options.slots[slot]
         if entry and entry.kind then
             local fighter = options.fighters[entry.fighter]
@@ -144,6 +148,8 @@ function match.create(options)
             value.owner = index
             value.human = entry.kind == "human"
             value.slot = slot
+            -- LF2 Darkfiren: skin, start frame, reserve and the mode's start position (st_spawn.lua).
+            st_spawn.player(value, record, entry, state.bg_area, width, near, far, options.mode == mode_battle)
             state.items[index] = value
         end
     end
@@ -370,7 +376,7 @@ local function each_item(state, callback)
 end
 
 local function read_input(state, held)
-    for index = 0, 7 do
+    for index = 0, constants.player_slots - 1 do
         local value = state.items[index]
         if value and value.human and not st_states.takes_over(value) then
             for _, key in ipairs(item.keys) do value.previous_keys[key] = value.keys[key] end
@@ -384,6 +390,7 @@ local function read_input(state, held)
                 value.keys.attack = keys:find("c", 1, true) ~= nil
                 value.keys.jump = keys:find("b", 1, true) ~= nil
                 value.keys.defend = keys:find("f", 1, true) ~= nil
+                st_status.remap_keys(value)  -- the confus status swaps the keys
             end
         end
     end
@@ -487,7 +494,7 @@ local function round_end(state)
         if state.mode == mode_stage then
             stage.round_keys(state, state.stage_run)
         elseif state.random_game then
-            for slot = 0, 7 do
+            for slot = 0, constants.player_slots - 1 do
                 local keys = state.held and state.held[slot] or ""
                 if keys:find("c", 1, true) or keys:find("b", 1, true) then
                     state.round_counter = round_counter_finished
@@ -495,7 +502,7 @@ local function round_end(state)
                 end
             end
         else
-            for index = 0, 7 do
+            for index = 0, constants.player_slots - 1 do
                 local value = state.items[index]
                 if value and (value.keys.attack or value.keys.jump) then state.round_counter = round_counter_finished end
             end
@@ -510,9 +517,17 @@ end
 
 local function regenerate(state, value)
     if value.record.kind ~= record_kinds.character then return end
-    -- A background mode's `regen_hp` and `regen_mp` (LF2 Darkfiren): 1 stops that recovery.
+    -- A background mode's `regen_hp` and `regen_mp` (LF2 Darkfiren): 1 stops that recovery. The fighter's own <stats>
+    -- regen_hp, regen_dhp and regen_mp, and the weak status (hp recovery stops, mp recovery slows), act as well.
     local mode = state.bg_mode
-    if value.hp > 0 and value.hp < value.dark_hp and state.counter_12 == 0 and not (mode and mode.regen_hp == 1) then value.hp = value.hp + 1 end
+    local weak = st_status.weak(value)
+    local dark_step = st_stats.dark_step(value)
+    if dark_step > 0 and value.hp > 0 and state.counter_12 == 0 and value.dark_hp < value.max_hp then
+        value.dark_hp = math.min(value.max_hp, value.dark_hp + dark_step)
+    end
+    if value.hp > 0 and value.hp < value.dark_hp and state.counter_12 == 0 and not (mode and mode.regen_hp == 1) and not weak then
+        value.hp = math.min(value.dark_hp, value.hp + st_stats.hp_step(value))
+    end
     -- Whirlwind victims lose 9 hp (900 / armor) every twelfth frame.
     if value.fall_damage < 0 and state.counter_12 == 0 then
         local loss = 9
@@ -523,11 +538,18 @@ local function regenerate(state, value)
         if value.dark_hp < 0 then value.dark_hp = 0 end
         value.hp_spent = value.hp_spent + 9
     end
-    if (value.follow == -1 or value.mp < 150) and value.mp < points_full and state.counter_3 == 0 and value.blink > -1
-       and not (mode and mode.regen_mp == 1) then
-        local hp = math.min(value.hp, points_full)
-        if value.record.id == constants.fighter_ids.firzen or value.record.id == constants.fighter_ids.julian then hp = cdiv(hp, 2) end
-        value.mp = value.mp + math.floor((points_full - hp) / 100) + 1 + (value.st and value.st.mp_regen or 0)
+    if state.counter_3 ~= 0 or value.blink <= -1 or (mode and mode.regen_mp == 1) then return end
+    local hp = math.min(value.hp, points_full)
+    if value.record.id == constants.fighter_ids.firzen or value.record.id == constants.fighter_ids.julian then hp = cdiv(hp, 2) end
+    local default = math.floor((points_full - hp) / 100) + 1 + (value.st and value.st.mp_regen or 0)
+    local step = st_stats.mp_step(value, default)
+    if weak and step > 0 then
+        if value.hp >= value.dark_hp then step = 0 else step = math.floor(step / st_constants.weak_mp_divisor) end
+    end
+    if step > 0 then
+        if (value.follow == -1 or value.mp < 150) and value.mp < points_full then value.mp = value.mp + step end
+    elseif step < 0 and value.mp > 0 then
+        value.mp = math.max(0, value.mp + step)
     end
 end
 
@@ -578,7 +600,8 @@ local function fill_weapons(state)
         if slot == -1 then break end
         local value = objects.place(state, slot, id)
         if value then
-            value.x, value.y, value.z = x, constants.weapon_spawn.initial_y, z
+            local drop_y = state.bg_area and state.bg_area.centery  -- LF2 Darkfiren: the mode's drop height (< 0)
+            value.x, value.y, value.z = x, (drop_y and drop_y < 0) and drop_y or constants.weapon_spawn.initial_y, z
             for other = 0, item_slots - 1 do
                 local item_value = state.items[other]
                 if item_value then item_value.pair_rest[slot] = 0 end
@@ -600,7 +623,7 @@ local function function_key_effects(state, index, value)
             value.hp, value.mp = 0, 0
         end
     end
-    if state.heal_all and (state.mode ~= mode_stage or (index < 8 and value.team == constants.teams.player_one)) then
+    if state.heal_all and (state.mode ~= mode_stage or (index < constants.player_slots and value.team == constants.teams.player_one)) then
         if value.max_hp < points_full then value.max_hp = points_full end
         value.dark_hp = value.max_hp
         value.hp = value.dark_hp
@@ -789,7 +812,7 @@ end
 -- uses. A button already held when the demo starts does not count until released.
 local function exit_pressed(state, held)
     local down = held.gamepad ~= nil and held.gamepad.a == true
-    for slot = 0, 7 do
+    for slot = 0, constants.player_slots - 1 do
         local keys = held[slot] or ""
         if keys:find("c", 1, true) or keys:find("b", 1, true) then down = true end
     end

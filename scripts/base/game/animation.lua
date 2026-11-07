@@ -26,6 +26,8 @@ local cpoint_kinds = constants.cpoint_kinds
 local record_kinds = constants.record_kinds
 local sounds = require("base/game/sounds")
 local st_frame = require("base/game/st_frame")
+local st_stats = require("base/game/st_stats")
+local st_status = require("base/game/st_status")
 local st_states = require("base/game/st_states")
 local animation = {}
 local jump_frame, standing_frame = constants.character_frames.jump + 2, constants.character_frames.standing
@@ -98,7 +100,7 @@ function animation.advance(match, value, index)
        and (((value.team ~= team_enemies and value.battle_side == 0) or match.difficulty ~= difficulty_easy)
        and (((match.mode ~= mode_stage and match.mode ~= mode_battle)
              or (value.team ~= team_enemies and value.battle_side == 0))
-            or (math.floor(record.id / 10) ~= 3 or record.id == fighter_bat))) then
+            or not st_states.no_blink_id(record.id, fighter_bat))) then
         value.blink = blink_get_up_frames
     end
     if value.frame == jump_frame and not airborne_landing then
@@ -116,8 +118,10 @@ function animation.advance(match, value, index)
         -- Continuous mp cost: without enough mp the move ends at hit_d.
         if value.mp < current.mp then value.frame = current.hits.d
         else
-            value.mp = value.mp + current.mp
-            value.mp_spent = value.mp_spent - current.mp
+            -- LF2 Darkfiren: the fighter's <stats> recmp and the facing status scale the continuous cost.
+            local delta = -st_stats.recmp(value, -current.mp) * st_status.mp_factor(value)
+            value.mp = value.mp + delta
+            value.mp_spent = value.mp_spent - delta
         end
         current = frame(value.frame)
         if current.hits.d > 0 then

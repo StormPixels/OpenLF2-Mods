@@ -63,10 +63,15 @@ local st_constants = {
     landing = {first = 9000, last = 9399},       -- 9xxx: frame to go to when landing
     camera = {first = 99000, last = 99999},      -- 99XXX (XXX ticks, 0 = while in the frame)
     quake = {first = 50000, last = 59999, base = 50},  -- 5XXYY: x = XX-50, y = YY-50; an axis written 00 does not move (55200 = x +2 only)
-    -- Background switches. [UNCERTAIN] 9XX = row XX; 9XXYY = row XX and mode YY (9XXYY = 90000-98999, 99XXX is the camera);
-    -- 7XX = mode XX; 7XXYY = mode XX and row YY. The call is background.switch(state, row, mode), made with pcall.
+    -- Background switch states 9XX, 9XXYY, 7XX, 7XXYY (readme "new states.txt"). Only the ranges live here (99XXX is the
+    -- camera); AI 5's background.switch_state(match, state_number) knows what they mean and AI 2 hands the number over.
     background = {row = {first = 900, last = 999}, row_mode = {first = 90000, last = 98999},
         mode = {first = 700, last = 799}, mode_row = {first = 70000, last = 79999}},
+    -- itr status effects (section 4) read by the control code. confus: the keys are swapped. [UNCERTAIN] The notes' eight
+    -- "confuse key tables" are not in the documents (exe/pointer.txt lists only their addresses), so this map is AI 2's own.
+    confus_map = {left = "right", right = "left", up = "down", down = "up"},
+    weak_mp_divisor = 2,   -- weak: mp recovery slows to this fraction; hp recovery stops
+    facing_mp_factor = 2,  -- facing: the mp a move costs is multiplied by this
     -- hit_Fa values on attack objects that are new in Darkfiren.
     fa = {fire_chase = 24, ice_chase = 25, firen_explosion = 26, angel_first = 5000, demon_first = 6000, bat_first = 8000,
         range = 1000, chase_min = 4, chase_max = 10, demon_max = 7},

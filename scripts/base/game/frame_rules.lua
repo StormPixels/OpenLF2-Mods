@@ -119,7 +119,8 @@ function frame_rules.drop_in(state, index, value, part)
     value.hp = value.dark_hp
     value.blink = constants.blink.spawn_frames
     value.frame = constants.character_frames.jump + 2
-    value.y_int = constants.revival.initial_y
+    local drop_y = state.bg_area and state.bg_area.centery  -- LF2 Darkfiren: the mode's drop height (< 0)
+    value.y_int = (drop_y and drop_y < 0) and drop_y or constants.revival.initial_y
     value.y = value.y_int
     value.vy = 0.0
 end

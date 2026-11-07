@@ -57,6 +57,14 @@ function stage_levels.title(stage, id)
     return (name:gsub("%%d", tostring(id % 10 + 1)))
 end
 
+-- May a `hidden:` value be used? `cheat` is a boolean (the cheat code is in: 1 to 3 show) or a function(hidden) -> boolean
+-- such as game/unlock.allows (which also knows the saved lock keys, 10 and up).
+local function permitted(hidden, cheat)
+    if hidden == 0 then return true end
+    if type(cheat) == "function" then return cheat(hidden) == true end
+    return hidden >= 1 and hidden <= 3 and cheat and true or false
+end
+
 -- The levels a player may choose: hidden 0, or 1 to 3 once the cheat code is in; 4 and the lock values (10 and
 -- up, kept in saves.txt, not done) stay hidden. Level numbers with no stage in the data are left out.
 function stage_levels.visible(data, cheat)
@@ -64,7 +72,7 @@ function stage_levels.visible(data, cheat)
     if not stage_levels.active(data) then return list end
     for _, info in ipairs(data.levels) do
         local hidden = info.hidden or 0
-        if (hidden == 0 or (hidden <= 3 and cheat)) and data.stages[info.id * 10] then list[#list + 1] = info end
+        if permitted(hidden, cheat) and data.stages[info.id * 10] then list[#list + 1] = info end
     end
     return list
 end

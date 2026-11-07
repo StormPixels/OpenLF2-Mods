@@ -126,6 +126,7 @@ function screen.snapshot(state, snapshot)
             entry.blink, entry.hit_lag, entry.draw_offset = value.blink, value.hit_lag, value.draw_offset
             entry.pic_offset, entry.weapon, entry.team = value.pic_offset, value.weapon, value.team
             entry.hp, entry.max_hp, entry.human = value.hp, value.max_hp, value.human
+            entry.dark_hp, entry.mp = value.dark_hp, value.mp   -- minibar bars
             entry.lives = value.lives
             -- I10: state 20/21 hide the object. The frame tag center_z corrects the z the drawing order uses by
             -- (center_z - 20000), or by (center_z - 200000) in the 100000..299999 range (Darkfiren: "the object with the
@@ -284,6 +285,62 @@ local function colorref(value)
     return value % 256 * 65536 + math.floor(value / 256) % 256 * 256 + math.floor(value / 65536)
 end
 
+-- The minibar of a fighter (record.display.minibar, `<minibar>` of its dat): layers drawn under the character, in file
+-- order. A layer without a type is a picture (the frame), type 1 is the hp bar, 2 the dark hp, 3 the mp (a bar `max`
+-- wide in value, 500 by default); `facing: 1` fills from the right. `team:` lists and `respond` choose who and which mode
+-- it is for (team table of readme/dat file/minibar.txt: 1-4 teams, 5 stage enemies, 10-13 player independent, 20-27
+-- computer independent; respond 0 versus, 1 stage). Not done: types 4 and 5 (fusion time), `effect`, `cc`/`c1`/`c2`,
+-- `bound`/`centerx`. [BELUM PASTI] the anchor: x from the character's centre, y from the ground line (z).
+local minibar_mode = 0
+local function minibar_code(entry)
+    if entry.team == constants.teams.enemies then return 5 end
+    if entry.team == constants.teams.independent then
+        if entry.index < 10 then return 10 + entry.index end
+        if entry.index >= 20 and entry.index <= 27 then return entry.index end
+        return nil
+    end
+    if entry.team >= 1 and entry.team <= 4 then return entry.team end
+    return nil
+end
+local function minibar_for(layer, code)
+    if layer.teams and #layer.teams > 0 then
+        local found = false
+        for _, team in ipairs(layer.teams) do if team == code then found = true end end
+        if not found then return false end
+    end
+    if type(layer.respond) == "number" and layer.respond ~= minibar_mode then return false end
+    return true
+end
+local function draw_minibar(context, entry, camera, shake)
+    local display = entry.record.display
+    local block = type(display) == "table" and display.minibar or nil
+    local layers = block and block.layers
+    if type(layers) ~= "table" then return end
+    local code = minibar_code(entry)
+    for _, layer in ipairs(layers) do
+        if type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1
+           and minibar_for(layer, code) then
+            local width = layer.w
+            local kind = layer.type
+            if kind == 1 or kind == 2 or kind == 3 then
+                local value = kind == 1 and entry.hp or kind == 2 and entry.dark_hp or entry.mp
+                local full = type(layer.max) == "number" and layer.max > 0 and layer.max or constants.points.full
+                width = math.max(0, math.min(layer.w, math.floor(layer.w * (value or 0) / full)))
+            elseif kind ~= nil then
+                width = 0   -- types 4 and 5 are not drawn yet
+            end
+            if width > 0 then
+                local dx = layer.dx or 0
+                local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0)
+                if layer.facing == 1 and width < layer.w then
+                    x, dx = x + layer.w - width, dx + layer.w - width
+                end
+                context.sprite(layer.pic:gsub("\\", "/"):lower(), {dx, layer.dy or 0, width, layer.h}, x, entry.z + (layer.y or 0), layer.transparency == 1)
+            end
+        end
+    end
+end
+
 local function draw_item(context, stage, view, entry, bounds, lighting)
     local frame = entry.record.frame(entry.frame)
     local blink = math.abs(entry.blink)
@@ -366,6 +423,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         end
         glyphs(context, sheet, label, x, entry.z + 3, 9)
     end
+    if entry.blink > -25 and not entry.invisible then draw_minibar(context, entry, camera, shake) end
     for _, spark in ipairs(entry.sparks) do
         local source = spark_source(spark.frame)
         -- Frames 0, 5, 10 and 15 are never given a rectangle (assumed empty; see docs).
@@ -684,6 +742,7 @@ function screen.draw(state, context, window_bounds)
     context.clip(passable_bounds and passable_bounds.left or 0, 128,
         passable_bounds and passable_bounds.right - passable_bounds.left or constants.screen.width, constants.screen.height - 128)
     local lighting = options.current()
+    minibar_mode = current.mode == constants.modes.stage and 1 or 0
     for _, entry in ipairs(view.items) do
         draw_item(arena, current.stage, view, entry, passable_bounds, lighting)
     end

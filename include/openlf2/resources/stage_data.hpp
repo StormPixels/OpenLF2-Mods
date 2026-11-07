@@ -41,6 +41,8 @@ struct Entry {
     std::optional<std::int32_t> z;
     std::optional<std::int32_t> fx;    // fixed x, wins over x
     std::int32_t pic = 0;              // skin offset
+    std::optional<std::int32_t> join_pic; // `join_pic:` skin offset when the beaten enemy joins back
+    bool protect = false;              // `<protect>`: the game ends at once when this t0/t5 object dies
 };
 
 struct Phase {
@@ -67,6 +69,7 @@ struct Stage {
     std::int32_t mode = 0;           // background mode
     std::int32_t respond = 0;        // 1-3: area beyond the bound blacked out
     std::int32_t hex = -1;           // colour of the name
+    std::optional<std::int32_t> max_clones; // `max:` -1 removes the clones when passing on, N caps them (default 2)
 };
 
 // LF2 Darkfiren's data/stage.dat: a list of levels, each with the file of its stages.

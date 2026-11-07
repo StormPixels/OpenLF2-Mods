@@ -101,6 +101,19 @@ function st_states.after_control(match, index, value)
     local s = frame.state
     local kind = kind_of(s)
     local st = value.st
+    -- AI 3 marks clones (value.fx.clone) and the opoint's reserve (value.fx.reserve); AI 2 keeps them in value.st.
+    local fx = value.fx
+    if fx and (fx.clone or fx.reserve ~= nil) then
+        st = st or ensure(value)
+        if fx.clone then st.clone = true end
+        if fx.reserve ~= nil and not st.fx_reserve_done and value.record.kind == constants.record_kinds.character then
+            st.fx_reserve_done = true
+            if fx.reserve >= 0 then
+                value.lives = fx.reserve
+                st.reserve = true
+            end
+        end
+    end
     if not kind and not st then return end
     st = st or ensure(value)
     local entered = st.seen_frame ~= value.frame
@@ -110,10 +123,11 @@ function st_states.after_control(match, index, value)
         st_camera.release(match, index)
     end
     if not kind then
-        if st.invisible then st.invisible = false end
+        if st.invisible then st.invisible, st.hidden = false, false end
         return
     end
     st.invisible = s == S.invisible or (s == S.invisible_not_clone and not st.clone)
+    st.hidden = st.invisible  -- the radar's marker for a hidden object (AI 4)
     if kind == "set" then
         if s == S.set_hp_one then value.hp = 1
         elseif s == S.set_hp_zero then value.hp, value.dark_hp = 0, 0
@@ -193,17 +207,13 @@ function st_states.transform(match, value, frame)
     value.wait_counter = 0
 end
 
--- 9XX, 9XXYY, 7XX, 7XXYY: background.switch(match, row, mode) when AI 5's function exists (see st_constants.background).
+-- 9XX, 9XXYY, 7XX, 7XXYY: the state number goes to AI 5's background.switch_state when it exists.
 function st_states.switch_background(match, s)
+    -- AI 5's background.switch_state(match, state_number) knows the rules (9XX, 9XXYY, 7XX, 7XXYY, see readme
+    -- "new states.txt"); AI 2 only hands the number over. Skipped when the function is missing or fails.
     local ok, background = pcall(require, "base/game/background")
-    if not ok or type(background) ~= "table" or not background.switch then return end
-    local bg = st_constants.background
-    local row, mode
-    if between(s, bg.row) then row = s % 100
-    elseif between(s, bg.row_mode) then row, mode = math.floor(s / 100) % 100, s % 100
-    elseif between(s, bg.mode) then mode = s % 100
-    else mode, row = math.floor(s / 100) % 100, s % 100 end
-    pcall(background.switch, match, row, mode)
+    if not ok or type(background) ~= "table" or not background.switch_state then return end
+    pcall(background.switch_state, match, s)
 end
 
 local function held_keys(value)
@@ -252,7 +262,7 @@ function st_states.charge(match, value, st, frame, entered)
         local before = value.frame
         control.enter_frame(match, value, target)
         if value.frame == before then
-            local caught = st_frame.caught_target(frame)
+            local caught = st_frame.caught_target(frame, value)
             if caught and value.record.frames[caught] then value.frame = caught end
         end
     end
@@ -271,7 +281,7 @@ function st_states.charge(match, value, st, frame, entered)
     if cost > 0 then
         if value.mp < cost then
             st.charge = nil
-            local caught = st_frame.caught_target(frame)
+            local caught = st_frame.caught_target(frame, value)
             if caught and value.record.frames[caught] then value.frame = caught end
             return
         end
@@ -311,5 +321,15 @@ end
 function st_states.begin_tick(match)
     timestop.tick(match)
     st_camera.begin_tick(match)
+end
+-- Ids that do not blink after getting up in stage and battle mode (system.dat id_no_blink, AI 5's system_data.ids). Without
+-- that list the old rule stands: ids 30-39 except the bat (fighter_bat), the same ids as Darkfiren's list.
+function st_states.no_blink_id(id, fighter_bat)
+    local ok, system_data = pcall(require, "base/game/system_data")
+    if ok and type(system_data) == "table" and system_data.ids then
+        local listed = system_data.ids("id_no_blink")
+        if type(listed) == "table" and next(listed) ~= nil then return listed[id] == true end
+    end
+    return math.floor(id / 10) == 3 and id ~= fighter_bat
 end
 return st_states

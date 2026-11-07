@@ -155,9 +155,16 @@ local function spawn(state, run, entry, runtime, slot)
     value.x, value.z = value.x_int, value.z_int
     value.mp = (entry.mp and entry.mp > 0) and entry.mp or constants.points.full
     if entry.pic and entry.pic ~= 0 then value.pic_offset = entry.pic end
+    value.join_pic = entry.join_pic  -- LF2 Darkfiren: the skin offset when this beaten enemy joins back (frame_rules.lua)
     value.dark_hp, value.hp, value.max_hp = health, health, health
     value.owner = index
     local kind = value.record.kind
+    -- LF2 Darkfiren <protect>: when this t0 or t5 object dies the game ends at once (the round ends it, value.protect).
+    -- A protected t5 object ignores `reserve`.
+    if entry.protect == 1 and (kind == record_kinds.character or kind == record_kinds.prisoner) then
+        value.protect = true
+        if kind == record_kinds.prisoner then value.lives = 0 end
+    end
     if kind ~= record_kinds.character and kind ~= record_kinds.prisoner then
         value.blink, value.team = 0, constants.teams.independent
         value.y_int = -300

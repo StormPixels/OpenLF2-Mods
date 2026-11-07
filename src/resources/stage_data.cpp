@@ -81,6 +81,7 @@ private:
                 else if (word_ == "mode:") read_int(stage.mode);
                 else if (word_ == "respond:") read_int(stage.respond);
                 else if (word_ == "hex:") read_int(stage.hex);
+                else if (word_ == "max:") { std::int32_t cap = 0; read_int(cap); stage.max_clones = cap; }
             }
             if (word_ == "id:") {
                 std::int32_t id = current_;
@@ -158,6 +159,8 @@ private:
             if (word_ == "z:") { std::int32_t z = 0; read_int(z); current_entry(phase).z = z; }
             if (word_ == "fx:") { std::int32_t fx = 0; read_int(fx); current_entry(phase).fx = fx; }
             if (word_ == "pic:") read_int(current_entry(phase).pic);
+            if (word_ == "join_pic:") { std::int32_t pic = 0; read_int(pic); current_entry(phase).join_pic = pic; }
+            if (word_ == "<protect>") current_entry(phase).protect = true;
             if (word_ == "ratio:") {
                 if (stream_.real(current_entry(phase).ratio) == TokenStream::Scan::mismatch) {
                     note("`ratio:` expects a number; value left unchanged");
@@ -304,6 +307,8 @@ ScriptValue to_script_value(const StageList& list) {
                 if (entry.mp) set_field(fields, "mp", integer(*entry.mp));
                 if (entry.z) set_field(fields, "z", integer(*entry.z));
                 if (entry.fx) set_field(fields, "fx", integer(*entry.fx));
+                if (entry.join_pic) set_field(fields, "join_pic", integer(*entry.join_pic));
+                if (entry.protect) set_field(fields, "protect", integer(1));
                 set_field(entries, static_cast<std::int32_t>(position + 1), ScriptValue{std::move(fields)});
             }
             set_field(phases, static_cast<std::int32_t>(index),
@@ -313,15 +318,16 @@ ScriptValue to_script_value(const StageList& list) {
                           {"entry_count", integer(static_cast<std::int32_t>(phase.entries.size()))},
                           {"entries", ScriptValue{std::move(entries)}}}});
         }
-        set_field(stages, static_cast<std::int32_t>(id),
-                  ScriptValue{ScriptTable{{"phase_count", integer(static_cast<std::int32_t>(list.stages[id]->phases.size()))},
-                                          {"phases", ScriptValue{std::move(phases)}},
-                                          {"name", ScriptValue{list.stages[id]->name}}, {"boss", integer(list.stages[id]->boss ? 1 : 0)},
-                                          {"bg", integer(list.stages[id]->bg)}, {"end", integer(list.stages[id]->end)},
-                                          {"next", integer(list.stages[id]->next)}, {"type", integer(list.stages[id]->type)},
-                                          {"ptype", integer(list.stages[id]->ptype)}, {"xpos", integer(list.stages[id]->xpos)},
-                                          {"facing", integer(list.stages[id]->facing)}, {"mode", integer(list.stages[id]->mode)},
-                                          {"respond", integer(list.stages[id]->respond)}, {"hex", integer(list.stages[id]->hex)}}});
+        ScriptTable stage_fields{{"phase_count", integer(static_cast<std::int32_t>(list.stages[id]->phases.size()))},
+                                 {"phases", ScriptValue{std::move(phases)}},
+                                 {"name", ScriptValue{list.stages[id]->name}}, {"boss", integer(list.stages[id]->boss ? 1 : 0)},
+                                 {"bg", integer(list.stages[id]->bg)}, {"end", integer(list.stages[id]->end)},
+                                 {"next", integer(list.stages[id]->next)}, {"type", integer(list.stages[id]->type)},
+                                 {"ptype", integer(list.stages[id]->ptype)}, {"xpos", integer(list.stages[id]->xpos)},
+                                 {"facing", integer(list.stages[id]->facing)}, {"mode", integer(list.stages[id]->mode)},
+                                 {"respond", integer(list.stages[id]->respond)}, {"hex", integer(list.stages[id]->hex)}};
+        if (list.stages[id]->max_clones) set_field(stage_fields, "max", integer(*list.stages[id]->max_clones));
+        set_field(stages, static_cast<std::int32_t>(id), ScriptValue{std::move(stage_fields)});
     }
     ScriptTable diagnostics;
     for (std::size_t index = 0; index < list.diagnostics.size(); ++index) {

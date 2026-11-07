@@ -44,12 +44,20 @@ function menu_small.parse(text)
     return layers
 end
 
+-- May a `hidden:` value be used? `cheat` is a boolean (the cheat code is in: 1 to 3 show) or a function(hidden) -> boolean
+-- such as game/unlock.allows (which also knows the saved lock keys, 10 and up).
+local function permitted(hidden, cheat)
+    if hidden == 0 then return true end
+    if type(cheat) == "function" then return cheat(hidden) == true end
+    return hidden >= 1 and hidden <= 3 and cheat and true or false
+end
+
 -- Is the layer shown? hidden 4 and the lock values (10 and up) never; 1 to 3 once the cheat code is in. A layer
 -- that lists game modes is shown in those only. `game_mode`: 0 versus, 1 stage, 2 and 3 championships, 4 battle, 5 demo.
 function menu_small.shown(layer, game_mode, cheat)
     if not layer or not (layer.small or layer.head) then return false end
     local hidden = layer.hidden or 0
-    if hidden ~= 0 and not (hidden >= 1 and hidden <= 3 and cheat) then return false end
+    if not permitted(hidden, cheat) then return false end
     if layer.kind == 1 then return false end   -- "more settings" is not offered
     if layer.modes and not layer.modes[game_mode] then return false end
     return true
@@ -68,7 +76,7 @@ function menu_small.rows(layers, game_mode, cheat, forced, skip)
         local show = menu_small.shown(layer, game_mode, cheat)
         if not show and forced and forced[number] and layer.small then
             local hidden = layer.hidden or 0
-            show = hidden == 0 or (hidden >= 1 and hidden <= 3 and cheat)
+            show = permitted(hidden, cheat)
         end
         if show and skip and skip[number] then show = false end
         if show then

@@ -7,6 +7,7 @@ local st_constants = require("base/game/st_constants")
 local constants = require("base/game/constants")
 local facing_right = constants.facings.right
 local points_full = constants.points.full
+local st_stats = require("base/game/st_stats")
 local st_frame = {}
 
 local function cdiv(a, b)
@@ -37,9 +38,12 @@ function st_frame.affordable(value, frame)
 end
 
 -- The frame the fighter goes to when it cannot pay for `frame` (frame.caught), or nil.
-function st_frame.caught_target(frame)
+-- The frame's own `caught` first, then the object's <stats> caught (readme: frame > <stats> > <mode>; the mode has no
+-- caught that reaches the code yet).
+function st_frame.caught_target(frame, value)
     local target = frame.caught
     if target and target ~= 0 then return target end
+    if value then return st_stats.caught(value) end
     return nil
 end
 
@@ -49,7 +53,7 @@ function st_frame.on_enter(match, value, frame)
     local hp, chp, cmp = frame.hp, frame.chp, frame.cmp
     if not hp and not chp and not cmp then return end
     if not st_frame.affordable(value, frame) then
-        local target = st_frame.caught_target(frame)
+        local target = st_frame.caught_target(frame, value)
         if target and value.record.frames[target] then
             value.frame = target
             value.wait_counter = 0

@@ -13,6 +13,17 @@ local item_id_milk = constants.item_ids.milk
 local item_slots = constants.item_slots
 local mode_stage = constants.modes.stage
 local screen_width = constants.screen.width
+
+-- LF2 Darkfiren: the width of the view is the layout's (1333 or 1018 when AI 5's background.window_width() says so, else 794).
+local background_module
+local function view_width()
+    if background_module == nil then
+        local ok, module = pcall(require, "base/game/background")
+        background_module = ok and module or false
+    end
+    local width = background_module and background_module.window_width and background_module.window_width()
+    return width or screen_width
+end
 local stage_group_survival = constants.stage_groups.survival
 local team_enemies = constants.teams.enemies
 local world_edge_ball_margin = constants.world_edges.ball_margin
@@ -105,9 +116,10 @@ function camera.step(state)
     local focus = st_camera.focus(state)
     if focus then sum, count = focus, 1 end
     local width = state.stage.width or screen_width
-    local target = cdiv(sum, count) - screen_width / 2
+    local view = view_width()
+    local target = cdiv(sum, count) - view / 2
     if target < 0 then target = 0 end
-    if target > width - screen_width then target = width - screen_width end
+    if target > width - view then target = width - view end
     if state.camera_limit ~= 0 and target > state.camera_limit then target = state.camera_limit end
     state.camera_step = cdiv(cdiv(target - state.camera, camera_motion_target_distance_divisor) + state.camera_step * camera_motion_previous_step_weight, camera_motion_step_weight_divisor)
     if state.camera_step == 0 then
@@ -118,7 +130,7 @@ function camera.step(state)
     local pan = state.replay_pan
     if pan and pan.active then state.camera = pan.x end
     if state.camera < 0 then state.camera = 0 end
-    if state.camera > width - screen_width then state.camera = width - screen_width end
+    if state.camera > width - view then state.camera = width - view end
     if pan and pan.active then pan.x = state.camera end
 end
 return camera

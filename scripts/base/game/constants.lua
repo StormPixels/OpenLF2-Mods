@@ -385,6 +385,8 @@ return {
     -- Item slots: 0-19 hold the fighters (players and computers), the rest spawned objects.
     item_slots = 1000,
     first_spawned_slot = 20,
+    -- Player slots 0-9 (LF2 Darkfiren allows ten players); a computer picked at the menu uses slot + 10.
+    player_slots = 10,
     -- facing 0 looks right, 1 left.
     facings = {
         right = 0,
@@ -674,8 +676,9 @@ return {
         player_two = 2,
         player_three = 3,
         player_four = 4,
-        enemies = 5,
-        -- A fighter without a team gets its slot + 10: players 10-13, computers 20-27.
+        player_five = 5,  -- LF2 Darkfiren: team 5 is a normal team (10 players), the stage enemies are team 6
+        enemies = 6,
+        -- A fighter without a team gets its slot + 10: players 10-19, computers 20-29.
         slot_offset = 10,
         active_end_exclusive = 40,
     },
