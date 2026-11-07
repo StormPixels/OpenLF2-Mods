@@ -35,6 +35,17 @@ local jump_frame, standing_frame = constants.character_frames.jump + 2, constant
 function animation.advance(match, value, index)
     local record = value.record
     local frame = record.frame
+    if record.kind == record_kinds.character and value.human then
+    if value.frame == value.dbg_frame then value.dbg_n = (value.dbg_n or 0) + 1
+    else value.dbg_frame, value.dbg_n = value.frame, 0 end
+    if value.dbg_n > 300 then
+        local f = frame(value.frame)
+        error(("STUCK frame=%s state=%s wait=%s next=%s hit_lag=%s weapon=%s caught_by=%s cpoint=%s hp=%s"):format(
+            tostring(value.frame), tostring(f.state), tostring(f.wait), tostring(f.next),
+            tostring(value.hit_lag), tostring(value.weapon), tostring(value.caught_by),
+            tostring(f.cpoint.kind), tostring(value.hp)))
+    end
+end
     if value.hit_lag ~= 0 and record.kind ~= record_kinds.ball then return end
     if value.timer_ec > 0 then value.timer_ec = value.timer_ec - 1 end
     if value.weapon < 0 then return end
