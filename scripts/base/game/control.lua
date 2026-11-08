@@ -193,7 +193,7 @@ local function walking(match, value, heavy)
     if value.dash_counter > 0 then value.dash_counter = value.dash_counter - 1 end
     if value.dash_counter < 0 then value.dash_counter = value.dash_counter + 1 end
     if heavy and value.frame < character_frames.heavy_walking then value.frame = character_frames.heavy_walking end
-    if keys.right and not keys.left and value.y_int == 0 then
+    if keys.right and not keys.left and value.y_int == (value.floor_y or 0) then
         if value.facing == facing_left then value.dash_counter = 0 end
         value.facing = facing_right
         walk_cycle(value, base)
@@ -205,7 +205,7 @@ local function walking(match, value, heavy)
             value.walk_phase, value.dash_counter = 0, 0
         end
     end
-    if not keys.right and keys.left and value.y_int == 0 then
+    if not keys.right and keys.left and value.y_int == (value.floor_y or 0) then
         if value.facing == facing_right then value.dash_counter = 0 end
         value.facing = facing_left
         walk_cycle(value, base)
@@ -217,12 +217,12 @@ local function walking(match, value, heavy)
         end
     end
     local sideways = keys.left == keys.right
-    if keys.up and not keys.down and value.y_int == 0 then
+    if keys.up and not keys.down and value.y_int == (value.floor_y or 0) then
         if sideways then walk_cycle(value, base) end
         value.vz = -speedz
         value.vx = value.vx / 1.4
     end
-    if keys.down and not keys.up and value.y_int == 0 then
+    if keys.down and not keys.up and value.y_int == (value.floor_y or 0) then
         if sideways then walk_cycle(value, base) end
         value.vz = speedz
         value.vx = value.vx / 1.4
@@ -278,11 +278,11 @@ local function running(match, value, heavy)
         value.vx = -speed
         if keys.right then value.frame = brake end
     end
-    if keys.up and not keys.down and value.y_int == 0 then
+    if keys.up and not keys.down and value.y_int == (value.floor_y or 0) then
         value.vz = -speedz
         value.vx = value.vx / 1.2
     end
-    if not keys.up and keys.down and value.y_int == 0 then
+    if not keys.up and keys.down and value.y_int == (value.floor_y or 0) then
         value.vz = speedz
         value.vx = value.vx / 1.2
     end
@@ -480,14 +480,14 @@ function control.step(match, value)
     local movement = value.record.movement
     local state = value.record.frame(value.frame).state
     if state == constants.frame_states.deep_dash_sword or state == constants.frame_states.burning_run then
-        if value.keys.up and not value.keys.down and value.y_int == 0 then value.vz = -(movement.running_speedz or 0) end
-        if value.keys.down and not value.keys.up and value.y_int == 0 then value.vz = movement.running_speedz or 0 end
+        if value.keys.up and not value.keys.down and value.y_int == (value.floor_y or 0) then value.vz = -(movement.running_speedz or 0) end
+        if value.keys.down and not value.keys.up and value.y_int == (value.floor_y or 0) then value.vz = movement.running_speedz or 0 end
     end
     if value.weapon ~= record_kinds.heavy_item and (state == constants.frame_states.standing or state == constants.frame_states.walking) then walking(match, value, false) end
     state = value.record.frame(value.frame).state
     if value.weapon == record_kinds.heavy_item and (state == constants.frame_states.standing or state == constants.frame_states.walking) then walking(match, value, true) end
     state = value.record.frame(value.frame).state
-    if state == constants.frame_states.jumping and value.y_int < 0 then jumping(match, value) end
+    if state == constants.frame_states.jumping and value.y_int < (value.floor_y or 0) then jumping(match, value) end
     state = value.record.frame(value.frame).state
     if state == constants.frame_states.running and value.weapon ~= record_kinds.heavy_item then running(match, value, false) end
     state = value.record.frame(value.frame).state

@@ -25,7 +25,7 @@ local function pass_record(state, index, record)
         local follower = state.items[other]
         if follower and follower.follow == index and follower.hp > 0 then
             follower.record = record
-            follower.frame = follower.y_int < 0 and constants.character_frames.jump + 2 or constants.character_frames.standing
+            follower.frame = follower.y_int < (follower.floor_y or 0) and constants.character_frames.jump + 2 or constants.character_frames.standing
         end
     end
 end
@@ -185,7 +185,7 @@ function frame_rules.after_physics(state, index, value)
             frame_rules.drop_in(state, index, value, 1)
         end
     end
-    if value.transform > -1 and value.sequences[constants.combo_indices.jump_attack] == constants.combo_states.complete and value.y_int == 0 and value.hp > 0 then
+    if value.transform > -1 and value.sequences[constants.combo_indices.jump_attack] == constants.combo_states.complete and value.y_int == (value.floor_y or 0) and value.hp > 0 then
         value.sequences[constants.combo_indices.jump_attack] = constants.combo_states.idle
         local record = objects.record(state, value.transform)
         if record then

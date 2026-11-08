@@ -34,6 +34,21 @@ local sounds = require("base/game/sounds")
 local st_frame = require("base/game/st_frame")
 local physics = {}
 
+-- LF2 Darkfiren platforms (itr kind 30-89, platform.lua of AI 3): the plane an item lands on instead of the ground.
+-- `value.floor_y` holds it (nil = the ground, y 0); the rest of the engine reads `value.floor_y or 0` where it used to
+-- read 0. Without platform.lua, or with no platform under the item, every number below is the old one.
+local platform
+local function plane_under(match, value)
+    if platform == nil then
+        local ok, module = pcall(require, "base/game/platform")
+        platform = ok and module or false
+    end
+    if not platform or not match.items then return nil end
+    -- Only an item in the air, moving up or down, or already standing on a plane can need one.
+    if value.y_int >= 0 and (value.vy or 0) == 0 and value.floor_y == nil then return nil end
+    return platform.plane_at(match, value)
+end
+
 -- C (int) conversion of a double truncates toward zero.
 local function truncate(value)
     if value >= 0 then return math.floor(value) end
@@ -47,9 +62,9 @@ local function stop(value)
     value.vx = value.vx * 0.5
 end
 
-local function landed(value, index)
+local function landed(value, index, floor)
     local frame = value.record.frame
-    value.y = 0.0
+    value.y = floor + 0.0
     value.vy = 0.0
     value.vx = value.vx / 3.0
     local state = frame(index).state
@@ -60,29 +75,29 @@ local function landed(value, index)
 end
 
 -- Kind-0 (character) landing and falling rules.
-local function character_ground(value, match)
+local function character_ground(value, match, floor)
     local frame = value.record.frame
-    if value.y > 0.0001 and value.vy > 0.0001 and frame(value.frame).state == state_frozen then
+    if value.y - floor > 0.0001 and value.vy > 0.0001 and frame(value.frame).state == state_frozen then
         if value.vy > landing_frozen_bounce_speed_y_threshold or value.vx > landing_bounce_speed_x_threshold or value.vx < -landing_bounce_speed_x_threshold then
             if value.armor == 0 then value.hp = value.hp - landing_frozen_impact_damage
             else value.hp = value.hp + truncate(-landing_frozen_impact_damage * defense_normal / value.armor) end
-            value.y = 0.0
+            value.y = floor + 0.0
             value.vy = landing_bounce_vy
             if value.vx > landing_max_bounce_speed_x then value.vx = landing_max_bounce_speed_x end
             if value.vx < -landing_max_bounce_speed_x then value.vx = -landing_max_bounce_speed_x end
             value.frame = 185
         else
-            value.y = 0.0
+            value.y = floor + 0.0
             value.vy = 0.0
             value.vx = value.vx / 3.0
         end
     end
-    if value.y > 0.0 and value.vy == 0.0 and value.frame == character_frames.jump + 2 then
-        return landed(value, character_frames.jump + 2)
+    if value.y - floor > 0.0 and value.vy == 0.0 and value.frame == character_frames.jump + 2 then
+        return landed(value, character_frames.jump + 2, floor)
     end
-    if value.y > 0.0001 and value.vy > 0.0001 then
+    if value.y - floor > 0.0001 and value.vy > 0.0001 then
         local state = frame(value.frame).state
-        if state ~= state_falling and state ~= state_burning then return landed(value, value.frame) end
+        if state ~= state_falling and state ~= state_burning then return landed(value, value.frame, floor) end
         sounds.effect(match, value.x_int, 6)
         -- Landing from a fall (12) or a fire/ice fall (18): bounce or lie down, taking fall damage.
         local damage = value.fall_damage
@@ -95,14 +110,14 @@ local function character_ground(value, match)
             value.fall_damage = 0
         end
         if value.vy > landing_bounce_speed_y_threshold or value.vx > landing_bounce_speed_x_threshold or value.vx < -landing_bounce_speed_x_threshold or frame(value.frame).state == state_burning then
-            value.y = 0.0
+            value.y = floor + 0.0
             value.vy = landing_bounce_vy
             if value.vx > landing_max_bounce_speed_x then value.vx = landing_max_bounce_speed_x end
             if value.vx < -landing_max_bounce_speed_x then value.vx = -landing_max_bounce_speed_x end
             if value.frame < 186 or frame(value.frame).state == state_burning then value.frame = 185
             else value.frame = 191 end
         else
-            value.y = 0.0
+            value.y = floor + 0.0
             value.vy = 0.0
             value.wait_counter = 0
             value.vx = value.vx / 3.0
@@ -123,7 +138,8 @@ function physics.step(match, value)
     end
     if value.weapon < 0 then return end
     if frame(value.frame).cpoint.kind == cpoint_kinds.caught then return end
-    local air_frame, was_airborne = value.frame, value.y < -0.0001
+    local floor_before = value.floor_y or 0
+    local air_frame, was_airborne = value.frame, value.y - floor_before < -0.0001
     if not ((value.vx > 0.0 and value.blocked_right) or (value.vx < 0.0 and value.blocked_left)) then
         value.x = value.x + value.vx
     end
@@ -136,7 +152,7 @@ function physics.step(match, value)
     if record.kind == record_kinds.ball and frame(value.frame).hits.j > 0 then
         value.z = (frame(value.frame).hits.j - 50) + value.z
     end
-    if value.y_int >= 0 then
+    if value.y_int >= floor_before then
         -- Ground friction of one unit per frame.
         if value.vx > 0.0001 then
             value.vx = value.vx - 1.0
@@ -160,7 +176,9 @@ function physics.step(match, value)
         value.frame = 40
     end
     value.y = value.y + value.vy
-    if value.y < -0.0001 then
+    local floor = plane_under(match, value) or 0
+    value.floor_y = floor ~= 0 and floor or nil
+    if value.y - floor < -0.0001 then
         -- Airborne: gravity by kind and state.
         local kind = record.kind
         if kind ~= record_kinds.ball then
@@ -201,10 +219,10 @@ function physics.step(match, value)
     elseif frame(value.frame).cpoint.kind ~= cpoint_kinds.caught then
         local kind = record.kind
         if kind == record_kinds.character then
-            character_ground(value, match)
+            character_ground(value, match, floor)
         elseif kind == record_kinds.light_item then
-            if not (value.y <= 0.0001 or value.vy <= 0.0001) then
-                value.y = 0.0
+            if not (value.y - floor <= 0.0001 or value.vy <= 0.0001) then
+                value.y = floor + 0.0
                 value.drop_counter = value.drop_counter - record.data.weapon.drop_hurt
                 if value.vy <= 9.9 then
                     if frame(value.frame).state == state_thrown_item then value.frame = 70; stop(value)
@@ -221,10 +239,10 @@ function physics.step(match, value)
                 end
             end
         elseif kind == record_kinds.baseball or kind == record_kinds.drink then
-            if not (value.y <= 0.0001 or value.vy <= 0.0001) then
+            if not (value.y - floor <= 0.0001 or value.vy <= 0.0001) then
                 value.drop_counter = value.drop_counter - record.data.weapon.drop_hurt
                 if kind == record_kinds.drink and value.hp < 1 then value.drop_counter = -1 end
-                value.y = 0.0
+                value.y = floor + 0.0
                 local state = frame(value.frame).state
                 if (value.vy <= 8.5 and value.vx >= -10.0 and value.vx <= 10.0)
                    or (state ~= state_thrown_item and state ~= state_airborne_item) then
@@ -241,9 +259,9 @@ function physics.step(match, value)
                 end
             end
         elseif kind == record_kinds.heavy_item then
-            if value.y > 0.0001 then
+            if value.y - floor > 0.0001 then
                 value.drop_counter = value.drop_counter - 1
-                value.y = 0.0
+                value.y = floor + 0.0
                 if value.vy > 9.0 then
                     sounds.item(match, value.x_int, record.data.weapon.drop_sound)
                     value.vy = -5.0
@@ -256,8 +274,8 @@ function physics.step(match, value)
                     stop(value)
                 end
             end
-        elseif record.id == object_broken_weapon and value.y > -0.0001 then
-            value.y = 0.0
+        elseif record.id == object_broken_weapon and value.y - floor > -0.0001 then
+            value.y = floor + 0.0
             value.frame = 101
             value.vy = 0.0
             value.wait_counter = 0

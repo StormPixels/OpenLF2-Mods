@@ -241,9 +241,9 @@ local function specials(context, target, self, target_state, flag_a, distance, f
     ::after_2::
     if S.record.id == fighter_deep then
         if S.frame >= 260 and S.frame <= 289 and dx(S, T) < 100 and dz(S, T) < 7 then
-            if (T.y_int ~= 0 or S.y_int ~= 0 or random(3) ~= 0)
-               and (T.y_int >= 0 or S.y_int >= 0 or random(7) ~= 0) then
-                if (T.y_int < 0 and random(5) == 0) or random(30) == 0 then
+            if (T.y_int ~= (T.floor_y or 0) or S.y_int ~= (S.floor_y or 0) or random(3) ~= 0)
+               and (T.y_int >= (T.floor_y or 0) or S.y_int >= (S.floor_y or 0) or random(7) ~= 0) then
+                if (T.y_int < (T.floor_y or 0) and random(5) == 0) or random(30) == 0 then
                     if (S.x_int < T.x_int and S.facing == facing_right) or (T.x_int < S.x_int and S.facing == facing_left) then
                         press(S, "jump")
                     end
@@ -376,7 +376,7 @@ local function specials(context, target, self, target_state, flag_a, distance, f
             end
         end
         -- Frame offset +0x2c (hit_j) equal to 290 while the target is airborne.
-        if S.record.frame(S.frame).hits.j == 290 and T.y_int < 0 then
+        if S.record.frame(S.frame).hits.j == 290 and T.y_int < (T.floor_y or 0) then
             fresh(S, "jump"); press(S, "jump")
         end
         if random(5) == 0 or target_state == state_dizzy or target_state == state_broken_defend then
@@ -393,7 +393,7 @@ local function specials(context, target, self, target_state, flag_a, distance, f
                 goto down_attack
             end
         end
-        if S.frame == 271 and T.y_int < 0 and target_state == state_falling then S.sequences[combo_up_attack] = sequence_complete return true end
+        if S.frame == 271 and T.y_int < (T.floor_y or 0) and target_state == state_falling then S.sequences[combo_up_attack] = sequence_complete return true end
         if random(10) == 0 or target_state == state_dizzy or target_state == state_broken_defend then
             if abs(trunc(S.vx) - S.x_int + T.x_int) < 80 and dz(S, T) < 7 and forward(S, T) then goto up_attack end
         end

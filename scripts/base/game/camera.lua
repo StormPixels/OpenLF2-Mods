@@ -83,7 +83,7 @@ local function clamp(state)
                    and (value.battle_side > 0 or (state.mode == mode_stage and math.floor(state.stage_run.id / 10) == stage_group_survival)) then
                 if value.x < world_edge_drink_margin then value.x = world_edge_drink_margin end
                 if width - world_edge_drink_margin < value.x then value.x = width - world_edge_drink_margin end
-            elseif (value.x < 0.0 or width < value.x) and value.y_int == 0 then
+            elseif (value.x < 0.0 or width < value.x) and value.y_int == (value.floor_y or 0) then
                 objects.remove(state, index)
             end
             value.x_int = truncate(value.x)

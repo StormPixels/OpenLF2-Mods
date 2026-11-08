@@ -78,6 +78,10 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `ppoint` makes an object follow its owner at an offset (x, y, z).
 - LF2 Darkfiren: extended `cpoint` (daction/faction/baction/uzaction/dzaction while holding, `z`, drain/gain/recover) and itr `respond` as holding time for catch itrs.
 
+- LF2 Darkfiren: `platform.plane_at` for itr kind 30-89 platforms (landing plane for kind X0; physics.lua must call it).
+
+- AI 2: platform (itr kind 30-89, tahap 1 = X0): `physics.lua` memakai `platform.plane_at` sebagai bidang pendaratan (`value.floor_y`); pemeriksaan "di tanah" di control/animation/frame_rules/st_frame/ai/camera/match ikut. Tanpa platform perilaku identik. Tes baru `st_platform_test`.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -233,3 +237,4 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: extended `cpoint` (daction/faction/baction/uzaction/dzaction while holding, `z`, drain/gain/recover) and itr `respond` as holding time for catch itrs.
 - UI: a combo counter ("N hit") is drawn above the attacker, read from the `<combo>` block of the mode file and `fx.combo`.
 - Battle mode: the squad fall height uses the mode tag `centery` (below 0) when present; without the tag it stays -300.
+- LF2 Darkfiren: itr kind 30-89 platforms (stage 1, kind X0) act as a landing plane through `platform.plane_at`, and every "on the ground" check follows that plane; without platforms nothing changes.

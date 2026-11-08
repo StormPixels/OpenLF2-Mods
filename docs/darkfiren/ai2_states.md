@@ -92,3 +92,12 @@ Dasar: base-20261106-2-46e3dcd. Keputusan pengguna yang dijalankan:
 ## Putaran 8 (paket uji R7, tanpa perubahan perilaku)
 
 Dasar: base-20261107-3-a050971. Tidak ada kode permainan yang diubah. Ditambah: karakter uji AI2STAT (id 992, `RESULT/testpack/data/ai2_stat.txt`), `PANDUAN_UJI_R7.md` dan tes `st_testpack_r7_test` (data asli lewat parser C++). Cakupan ponsel: start_frame, skin acak, reserve, regen_hp, regen_mp, recmp. Belum ada langkah ponsel untuk efek status, tag mode, kamera layout. centery pasukan battle mode: diminta ke AI 4 (`battle.lua` baris 168, milik AI 4); AI 5 mengonfirmasi bahwa pasukan memakai `centery`, bukan `dvy`, dan tanpa tag tetap -300.
+
+## Putaran 9 (platform: bidang pendaratan)
+
+Dasar: base-20261108-1-299f016. AI 3 menyediakan `platform.plane_at(match, value)` (`platform.lua`, R11): tinggi bidang (<= 0) atau nil. `physics.lua` memanggilnya lewat `pcall(require, "base/game/platform")`; tanpa modul itu atau tanpa platform, setiap angka sama dengan yang lama (hash regresi 2336476036 tetap).
+- `value.floor_y`: bidang yang sedang dipakai item (nil = tanah, y 0). Diisi `physics.step` setiap tick setelah `y = y + vy` (supaya "kaki sebelumnya" = y - vy sesuai platform.lua). Hanya diminta bila item di udara, bergerak vertikal, atau sudah berdiri di bidang (hemat: pemindaian 1000 slot).
+- `physics.lua`: semua pembanding dan pengisi `y` terhadap 0 memakai `floor` (karakter, light_item, baseball/drink, heavy_item, broken weapon; `landed`, `character_ground`). Sambil berdiri di bidang, gaya gesek tanah berlaku (memakai `floor_y` tick sebelumnya).
+- Pemeriksaan "di tanah" yang ikut memakai `floor_y or 0`: `control.lua` (jalan, lari, lompat, 9 tempat), `animation.lua` (4), `frame_rules.lua` (2), `st_frame.lua` (`direct_move` dy, `landing`/hit_g), `ai.lua`, `camera.lua`, `match.lua` (baris 660).
+- Tahap 1 = kind X0 saja (sesuai AI 3). X1 blok mutlak, X2/X3 bergerak, X4 resistansi, X5 pantul: belum. Gelombang t3 (3000/3006/3007 + hit_g): bagian AI 3.
+- [BELUM PASTI] Belum diubah karena bukan berkas AI 2: `combat.lua` 592-599 (korban di bidang dianggap melayang), bayangan karakter (AI 4: masih digambar di y 0), kamera tidak mengikuti tinggi.

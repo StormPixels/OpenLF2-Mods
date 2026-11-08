@@ -24,7 +24,8 @@ function st_frame.direct_move(value)
     if dx and dx ~= 0 then value.x = value.x + (value.facing == facing_right and dx or -dx) end
     if dy and dy ~= 0 then
         value.y = value.y + dy
-        if value.y > 0 then value.y = 0.0 end
+        local floor = value.floor_y or 0
+        if value.y > floor then value.y = floor + 0.0 end
     end
     if dz and dz ~= 0 then value.z = value.z + dz end
 end
@@ -81,7 +82,8 @@ end
 -- hit_g: the frame a fighter or object lands into, replacing the default landing frame. `air_frame` is the frame before
 -- the physics step, `was_airborne` whether it was in the air then.
 function st_frame.landing(value, air_frame, was_airborne)
-    if not was_airborne or value.y < 0 or value.y_int ~= 0 then return end
+    local floor = value.floor_y or 0
+    if not was_airborne or value.y < floor or value.y_int ~= floor then return end
     local air = value.record.frame(air_frame)
     local ext = air.hit_ext
     local target = ext and ext.g

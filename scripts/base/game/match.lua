@@ -657,7 +657,7 @@ after_advance = function(state, index, value)
     end
     if value.record.kind == record_kinds.character then
         if value.hp <= 0 and (value.frame < character_frames.heavy_walking or value.frame == character_frames.defend or value.frame == character_frames.defend + 1) then knock_down(value) end
-        if value.y_int == 0 and value.y == 0.0 and value.vy == 0.0 and value.impulse_y == 0.0
+        if value.y_int == (value.floor_y or 0) and value.y == (value.floor_y or 0) + 0.0 and value.vy == 0.0 and value.impulse_y == 0.0
            and ((value.frame >= 180 and value.frame <= 189 and value.frame ~= 184)
                 or (value.frame >= 212 and value.frame <= 214)) then
             knock_down(value)

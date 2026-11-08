@@ -35,17 +35,6 @@ local jump_frame, standing_frame = constants.character_frames.jump + 2, constant
 function animation.advance(match, value, index)
     local record = value.record
     local frame = record.frame
-    if record.kind == record_kinds.character and value.human then
-    if value.frame == value.dbg_frame then value.dbg_n = (value.dbg_n or 0) + 1
-    else value.dbg_frame, value.dbg_n = value.frame, 0 end
-    if value.dbg_n > 300 then
-        local f = frame(value.frame)
-        error(("STUCK frame=%s state=%s wait=%s next=%s hit_lag=%s weapon=%s caught_by=%s cpoint=%s hp=%s"):format(
-            tostring(value.frame), tostring(f.state), tostring(f.wait), tostring(f.next),
-            tostring(value.hit_lag), tostring(value.weapon), tostring(value.caught_by),
-            tostring(f.cpoint.kind), tostring(value.hp)))
-    end
-end
     if value.hit_lag ~= 0 and record.kind ~= record_kinds.ball then return end
     if value.timer_ec > 0 then value.timer_ec = value.timer_ec - 1 end
     if value.weapon < 0 then return end
@@ -73,8 +62,8 @@ end
         st_frame.on_enter(match, value, frame(value.frame))
     end
     value.wait_counter = value.wait_counter + 1
-    if record.kind >= 0 and frame(value.frame).state == state_standing and value.y_int < 0 then value.frame = jump_frame end
-    if record.kind == record_kinds.heavy_item and frame(value.frame).state == state_flying_heavy_item and value.y_int == 0
+    if record.kind >= 0 and frame(value.frame).state == state_standing and value.y_int < (value.floor_y or 0) then value.frame = jump_frame end
+    if record.kind == record_kinds.heavy_item and frame(value.frame).state == state_flying_heavy_item and value.y_int == (value.floor_y or 0)
        and value.vx < 0.1 and -0.1 < value.vx then
         value.frame = 20
     end
@@ -99,7 +88,7 @@ end
     end
     local airborne_landing = false
     if value.frame == frame_selector_return_to_standing then
-        if value.y_int == 0 or record.kind ~= record_kinds.character then value.frame = standing_frame
+        if value.y_int == (value.floor_y or 0) or record.kind ~= record_kinds.character then value.frame = standing_frame
         else
             airborne_landing = true
             value.frame = jump_frame
@@ -137,8 +126,8 @@ end
         current = frame(value.frame)
         if current.hits.d > 0 then
             local keys = value.keys
-            if keys.left and not keys.right and value.y_int == 0 and value.facing == facing_right then value.frame = current.hits.d end
-            if not keys.left and keys.right and value.y_int == 0 and value.facing == facing_left then value.frame = current.hits.d end
+            if keys.left and not keys.right and value.y_int == (value.floor_y or 0) and value.facing == facing_right then value.frame = current.hits.d end
+            if not keys.left and keys.right and value.y_int == (value.floor_y or 0) and value.facing == facing_left then value.frame = current.hits.d end
         end
     end
     return animation.tail(value)
