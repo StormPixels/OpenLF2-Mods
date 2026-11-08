@@ -716,6 +716,9 @@ end
 
 function screen.draw(state, context, window_bounds)
     local view_width = constants.screen.width
+    -- A background taller than the classic 550 is shown whole: the viewport takes its height and the platform scales it.
+    local view_height = constants.screen.height
+    if state.match and state.match.stage then view_height = background.view_height(state.match.stage) end
     local wide_picture = options.wide_width(options.current().battlefield_layout)
     if wide_picture then
         -- LF2 Darkfiren's widescreen: the picture is 1333 (or 1018) wide whatever the window; a window that is
@@ -726,15 +729,15 @@ function screen.draw(state, context, window_bounds)
             left = math.min(window_bounds and window_bounds.left or 0, 0),
             top = math.min(window_bounds and window_bounds.top or 0, 0),
             right = math.max(window_bounds and window_bounds.right or 0, view_width),
-            bottom = math.max(window_bounds and window_bounds.bottom or 0, constants.screen.height)}
+            bottom = math.max(window_bounds and window_bounds.bottom or 0, view_height)}
     end
-    context.viewport(view_width, constants.screen.height, 0, 0, 0)
+    context.viewport(view_width, view_height, 0, 0, 0)
     local view = state.view
     local current = state.match
     if not view then return end
     local bounds, passable_bounds, wide
     if window_bounds and (window_bounds.left < 0 or window_bounds.top < 0
-            or window_bounds.right > constants.screen.width or window_bounds.bottom > constants.screen.height) then
+            or window_bounds.right > constants.screen.width or window_bounds.bottom > view_height) then
         -- The stage's edges are the screen's edges: a window of the full screen width scrolls across the stage
         -- (slower than the game's camera, which follows the fighters on a 794 wide view) and always contains
         -- that classic view. Nothing is scaled and nothing slides in at the stage ends.
@@ -789,7 +792,7 @@ function screen.draw(state, context, window_bounds)
         background.paint(arena, current.stage, current.view, view.camera, bounds, wide)
     end
     context.clip(passable_bounds and passable_bounds.left or 0, 128,
-        passable_bounds and passable_bounds.right - passable_bounds.left or constants.screen.width, constants.screen.height - 128)
+        passable_bounds and passable_bounds.right - passable_bounds.left or constants.screen.width, view_height - 128)
     local lighting = options.current()
     minibar_mode = current.mode == constants.modes.stage and 1 or 0
     combo_settings = ui_modes.combo_settings(options.current().battlefield_layout)
