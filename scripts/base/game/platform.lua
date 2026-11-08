@@ -71,8 +71,11 @@ end
 
 -- Height (<= 0, negative = up) of the highest platform plane at or below the item's feet that affects it, or nil.
 -- plane = the platform object's y plus the itr's dvy (readme). An item whose feet were already below the plane on
--- the previous tick passes through it (walking under, jumping up through it).
-function platform.plane_at(match, value)
+-- the previous tick passes through it (walking under, jumping up through it). `current` (optional) is the plane the item
+-- stood on last tick (value.floor_y): a plane that is at most `rise_limit` above it still holds the item, so a rising
+-- platform carries it along.
+function platform.plane_at(match, value, current)
+    if not match or not match.items then return nil end
     local best
     local previous_feet = value.y - (value.vy or 0)
     for index = 0, item_slots - 1 do
@@ -84,7 +87,9 @@ function platform.plane_at(match, value)
                 if platform.is_platform_kind(kind) and config.supported_subtypes[kind % 10]
                    and affects(kind, object, value) and inside(object, frame, itr, value) then
                     local plane = object.y_int + (itr.dvy or 0)
-                    if plane <= 0 and previous_feet <= plane + config.land_tolerance and (best == nil or plane < best) then
+                    local slack = config.land_tolerance
+                    if current and plane <= current and current - plane <= config.rise_limit then slack = config.rise_limit end
+                    if plane <= 0 and previous_feet <= plane + slack and (best == nil or plane < best) then
                         best = plane
                     end
                 end

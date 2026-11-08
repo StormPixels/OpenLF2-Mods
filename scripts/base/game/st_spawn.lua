@@ -34,6 +34,9 @@ function st_spawn.start_frame(value, record, area)
     local frame = (header and header.start_frame) or (area and area.start_frame)
     if frame and record.frames[frame] then
         value.frame, value.previous_frame = frame, frame
+        -- A new item starts with vy 0.1; on the ground physics counts that as a landing and replaces the frame with the
+        -- landing frame (219) on the first tick, so the start frame would never be seen.
+        if value.y_int >= 0 then value.vy = 0.0 end
     end
 end
 

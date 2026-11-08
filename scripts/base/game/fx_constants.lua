@@ -10,6 +10,7 @@ return {
     frozen_can_be_hit = true,  -- time stop: a frozen object never attacks; true = the user of the time stop can still hit it
     platform = {               -- itr kind 30-89 (docs/txt/readme/platform.txt), see platform.lua
         supported_subtypes = {[0] = true}, -- stage 1: only kind X0 (landing plane); X1..X5 are ignored until specified
+        rise_limit = 24,                   -- [BELUM PASTI] a platform may rise this far per tick under an item standing on it (AI2)
         land_tolerance = 0.0001,           -- feet may be this far below the plane and still land on it
     },
     ppoint_mirror_x = true,    -- [BELUM PASTI] ppoint x is mirrored when the owner faces left (docs show only a right-facing example)

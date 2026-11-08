@@ -348,6 +348,9 @@ local function candidates(state, me)
     return list
 end
 
+-- Ground for chase / projectile clamps: the platform plane physics.lua stored in value.floor_y (nil = ground, y 0).
+local function ground(me) return me.floor_y or 0.0 end
+
 function objects.update(state, index)
     local me = state.items[index]
     local hit_fa_mode = me.record.frame(me.frame).hits.Fa
@@ -452,7 +455,7 @@ function objects.update(state, index)
         if 0.0 > me.vx then me.vx = me.vx - 1.1 else me.vx = me.vx + 1.1 end
         if me.vx > 30.0 then me.vx = 30.0 end
         if me.vx < -30.0 then me.vx = -30.0 end
-        if me.y > 3.0 then me.y = 3.0 end
+        if me.y > ground(me) + 3.0 then me.y = ground(me) + 3.0 end
         me.facing = me.vx > 0.0 and facing_right or facing_left
         return
     end
@@ -496,14 +499,14 @@ function objects.update(state, index)
         if target.record.kind == record_kinds.character then
             if target.y > me.y + 10.0 then me.y = me.y + 1.2 end
             if target.y < me.y + 10.0 then me.y = me.y - 1.2 end
-        elseif me.y > 0.0 then
+        elseif me.y > ground(me) then
             me.y = me.y + 1.0
         end
         if me.vx > 13.0 then me.vx = 13.0 end
         if me.vx < -13.0 then me.vx = -13.0 end
         if me.vz > 2.0 then me.vz = 2.0 end
         if me.vz < -2.0 then me.vz = -2.0 end
-        if me.y > 1.0 then me.y = 1.0 end
+        if me.y > ground(me) + 1.0 then me.y = ground(me) + 1.0 end
         me.facing = me.vx > 0.0 and facing_right or facing_left
         return
     end
@@ -534,20 +537,20 @@ function objects.update(state, index)
             if target.record.kind == record_kinds.character then
                 if target.y > me.y + 40.0 then me.y = me.y + 1.0 end
                 if target.y < me.y + 40.0 then me.y = me.y - 1.0 end
-            elseif me.y > 0.0 then
+            elseif me.y > ground(me) then
                 me.y = me.y + 1.0
             end
         elseif hit_fa_mode == hit_fa_modes.returning_copy then
             if me.vy < 4.0 then me.vy = me.vy + 0.4 end
             me.y = me.y + me.vy
-            if me.y_int > -25 then
+            if me.y_int > ground(me) - 25 then
                 me.frame = 60
                 me.vz, me.vx, me.vy = 0.0, 0.0, 0.0
             end
         end
         if me.vx > 14.0 then me.vx = 14.0 end
         if me.vx < -14.0 then me.vx = -14.0 end
-        if me.y > 1.4 then me.y = 1.4 end
+        if me.y > ground(me) + 1.4 then me.y = ground(me) + 1.4 end
         local limit = hit_fa_mode == hit_fa_modes.special_chase and 1.5 or 2.2
         if me.vz > limit then me.vz = limit end
         if me.vz < -limit then me.vz = -limit end
@@ -578,13 +581,13 @@ function objects.update(state, index)
         if me.vx < -17.0 then me.vx = -17.0 end
         if hit_fa_mode == hit_fa_modes.animated_chase or hit_fa_mode == hit_fa_modes.healing_projectile
            or hit_fa_mode == hit_fa_modes.special_chase or hit_fa_mode == hit_fa_modes.unanimated_chase then
-            if me.y > 1.4 then me.y = 1.4 end
+            if me.y > ground(me) + 1.4 then me.y = ground(me) + 1.4 end
         elseif hit_fa_mode == hit_fa_modes.returning_copy then
             if me.vy < 4.0 then me.vy = me.vy + 0.4 end
             me.y = me.y + me.vy
-            if me.y_int > -25 then
+            if me.y_int > ground(me) - 25 then
                 me.frame = 60
-                me.y_int = -25
+                me.y_int = ground(me) - 25
                 me.vz, me.vx, me.vy = 0.0, 0.0, 0.0
             end
         end

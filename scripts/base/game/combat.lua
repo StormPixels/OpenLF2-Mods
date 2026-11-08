@@ -589,14 +589,14 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
         -- Balls keep their frame; the accumulated value only matters at 80.
     elseif b0 > 40 then
         victim.frame = character_frames.injured + 6
-        victim.timer_b0 = victim.y_int < 0 and combat_knockdown_fall_points or 60
+        victim.timer_b0 = victim.y_int < (victim.floor_y or 0) and combat_knockdown_fall_points or 60
     elseif b0 > 20 then
         victim.frame = character_frames.injured + 2 + same_facing * 2
-        victim.timer_b0 = victim.y_int < 0 and combat_knockdown_fall_points or 40
+        victim.timer_b0 = victim.y_int < (victim.floor_y or 0) and combat_knockdown_fall_points or 40
     elseif b0 > 0 then
         victim.frame = character_frames.injured
         victim.timer_b0 = 20
-        if victim.y_int < 0 then victim.frame = character_frames.injured + 2 + same_facing * 2 end
+        if victim.y_int < (victim.floor_y or 0) then victim.frame = character_frames.injured + 2 + same_facing * 2 end
     end
     -- A ball plays its broken sound; characters play hit/knockdown/sharper sound effects;
     -- other victims their own hit sound.
@@ -780,7 +780,7 @@ local function defended_hit(state, p, attacker, victim, itr, rule)
         if rule.absorb then armor.commit(rule, itr, victim) end
     end
     local attacker_state = attacker.record.frame(attacker.frame).state
-    if victim.y_int == 0 then
+    if victim.y_int == (victim.floor_y or 0) then -- floor_y: platform plane set by physics.lua (nil = ground)
         if victim.timer_b8 < constants.combat.defend_break_threshold or not defending_state(victim_frame.state) then
             if victim.frame == character_frames.defend then victim.frame = character_frames.defend + 1 end
         else

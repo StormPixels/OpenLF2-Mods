@@ -157,3 +157,12 @@ Kesetaraan dengan kode lama dibuktikan di `armor_real_test.lua` memakai blok `<a
 - Rentang kind: 30-59 = tipe 0 (karakter), 60-89 = tipe 1, 2, 4, 5, 6 (bukan bola/3); dalam satu dekade 0-9 semua tim, 40-49 / 70-79 sama tim dengan platform, 50-59 / 80-89 tim lain.
 - Tahap 1 hanya X0 (`fx_constants.platform.supported_subtypes`); X1 (blok mutlak), X2/X3 (bergerak), X4 (resistansi), X5 (pantul) diabaikan sampai ada spesifikasi. Itr kind > 18 sudah diabaikan combat (`combat.lua` baris 149), jadi platform tidak melukai siapa pun.
 - Gelombang t3 (state 3000/3006/3007, `hit_g`) belum dikerjakan: spesifikasi state itu belum jelas.
+
+## R12: platform.plane_at diperluas, combat memakai floor_y
+- `platform.plane_at(match, value, current)`: aman bila `match` atau `match.items` nil (mengembalikan nil). Parameter ketiga opsional = bidang yang dipakai item tick lalu (`value.floor_y`): bidang yang paling banyak `fx_constants.platform.rise_limit` (24, [BELUM PASTI]) di atasnya tetap menopang item, jadi platform yang naik membawa item tanpa trik AI2 (value.y diturunkan 24).
+- `combat.lua`: korban di bidang platform dianggap di tanah: tiga tempat `victim.y_int < 0` dan satu `victim.y_int == 0` kini memakai `(victim.floor_y or 0)` (field milik AI2; nil = tanah). Belum diuji dengan unit test (cabang itu butuh adegan pukulan penuh); tes lama membuktikan perilaku tanpa `floor_y` tidak berubah.
+- Belum: `objects.lua` 499/537 (`me.y > 0.0`, bola pengejar di bawah tanah) dan gelombang t3 / `hit_g` memakai `floor_y`.
+
+## R13: objects.lua memakai floor_y
+- `objects.update` (bola pengejar / proyektil, hit_Fa 1, 2, 4, 7, 10, 12, 14): tanah y = 0 diganti `ground(me) = me.floor_y or 0`. Berubah: pemeriksaan `me.y > 0.0` (2 tempat), batas `y <= 1.0` / `1.4` / `3.0` (kini bidang + nilai itu), dan tinggi 25 (`-25`, salinan pengembali, kini bidang - 25). Tanpa `floor_y` hasilnya sama persis. Unit test hanya hit_Fa 1 dan 10 (`r13_objects_floor_test.lua`); hit_Fa 7 (`-25`) dan cabang `hp <= 0` belum diuji (jalur 7 memanggil `create_effect` di awal, sulit di-stub).
+- `hit_g` (frame pendaratan) ada di `st_frame.landing` milik AI2: pemeriksaan `value.y < 0 or value.y_int ~= 0` masih memakai tanah 0, jadi di platform hit_g tidak berlaku. Permintaan ke AI2: ganti 0 dengan `(value.floor_y or 0)` di dua tempat itu.
