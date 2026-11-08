@@ -68,4 +68,23 @@ function fx.after_hit(attacker, victim, itr, defended)
     if itr.dvz and itr.dvz ~= 0 and not defended then victim.impulse_z = victim.impulse_z + itr.dvz end
     fx_status.apply(attacker, victim, itr, defended, engine.random)
 end
+-- Catching itr (kind 1) frames per side (docs/txt/readme/frame/cpoint.txt, ai1_data_fields.md "itr: catchingact ..."):
+-- the LEFT side (attacker facing left) uses catchingact / caughtact, the RIGHT side pickingact / pickedact, each falling
+-- back to the left pair; only the first number is used. A negative frame turns that character around (the caller does it).
+-- Data with none of the new keys, or incomplete pairs, keeps the old catching_actions[1] / caught_actions[1].
+function fx.catch_frames(itr, facing)
+    local catching, caught
+    if facing == constants.facings.left then
+        catching = itr.catchingact and itr.catchingact[1]
+        caught = itr.caughtact and itr.caughtact[1]
+    else
+        catching = (itr.pickingact or itr.catchingact or {})[1]
+        caught = (itr.pickedact or itr.caughtact or {})[1]
+    end
+    if not catching or not caught or catching == 0 or caught == 0 then
+        return itr.catching_actions[1], itr.caught_actions[1]
+    end
+    return catching, caught
+end
+
 return fx

@@ -38,7 +38,6 @@ local physics = {}
 -- `value.floor_y` holds it (nil = the ground, y 0); the rest of the engine reads `value.floor_y or 0` where it used to
 -- read 0. Without platform.lua, or with no platform under the item, every number below is the old one.
 local platform
-local platform_lift = 24 -- [BELUM PASTI] most a platform may rise in one tick and still carry what stands on it
 local function plane_under(match, value)
     if platform == nil then
         local ok, module = pcall(require, "base/game/platform")
@@ -47,16 +46,9 @@ local function plane_under(match, value)
     if not platform or not match.items then return nil end
     -- Only an item in the air, moving up or down, or already standing on a plane can need one.
     if value.y_int >= 0 and (value.vy or 0) == 0 and value.floor_y == nil then return nil end
-    -- Standing on a plane: platform.lua lets an item pass a plane its feet are below, which a rising platform makes true.
-    -- So the feet are lifted by `platform_lift` for the question (a platform that moves up faster than that is not followed).
-    if value.floor_y ~= nil and (value.vy or 0) == 0 and value.y == value.floor_y then
-        local y = value.y
-        value.y = y - platform_lift
-        local plane = platform.plane_at(match, value)
-        value.y = y
-        return plane
-    end
-    return platform.plane_at(match, value)
+    -- `current` = the plane the item stood on last tick: platform.lua lets a plane up to its rise_limit above it still hold
+    -- the item, so a rising platform carries it along (nil when it stood on the ground).
+    return platform.plane_at(match, value, value.floor_y)
 end
 
 -- C (int) conversion of a double truncates toward zero.

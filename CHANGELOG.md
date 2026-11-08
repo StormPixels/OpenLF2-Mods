@@ -82,6 +82,10 @@ All notable changes to this project are documented in this file.
 
 - AI 2: platform (itr kind 30-89, tahap 1 = X0): `physics.lua` memakai `platform.plane_at` sebagai bidang pendaratan (`value.floor_y`); pemeriksaan "di tanah" di control/animation/frame_rules/st_frame/ai/camera/match ikut. Tanpa platform perilaku identik. Tes baru `st_platform_test`.
 
+- AI 2: `physics.lua` memakai parameter `current` dari `platform.plane_at` (rise_limit milik AI 3); trik kaki diturunkan 24 dibuang. Tanpa perubahan perilaku.
+
+- LF2 Darkfiren: catching itr (kind 1) frames per side (catchingact/caughtact left, pickingact/pickedact right, negative = turn around); fixes a crash on negative frames.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -240,3 +244,5 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: itr kind 30-89 platforms (stage 1, kind X0) act as a landing plane through `platform.plane_at`, and every "on the ground" check follows that plane; without platforms nothing changes.
 - LF2 Darkfiren: itr `catchingact:` and `caughtact:` read one or two numbers (LF2 2.0a writes two), and a platform keeps carrying an item standing on it when the platform rises (`physics.lua`).
 - LF2 Darkfiren: combat and chase/projectile code treat the platform plane (`value.floor_y`) as the ground, and an item that starts on the ground with a `start_frame` keeps that frame instead of being replaced by the landing frame.
+- LF2 Darkfiren: catching itr (kind 1) frames per side (catchingact/caughtact left, pickingact/pickedact right, negative = turn around); fixes a crash on negative frames.
+- LF2 Darkfiren: team HP bars and background quests are filtered by the mode tags `wait` and `fall` (not `respond`), and a rising platform carries an item standing on it via `platform.plane_at(match, value, current)`.

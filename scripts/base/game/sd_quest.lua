@@ -8,6 +8,8 @@
 --   respond (the reward): 1 hp, 2 heal, 3 mp, 4 total hp, 5 dark hp, 6 reserve, 7 double damage, 8 double mp regen,
 --     9 double dhp regen, 10 double hp regen, 11 unlimited hp, 12 unlimited mp (7-12 last `amount` units)
 --   start, recover: units of 1/30 s; times: how many checks; bound: game mode (0 vs, 1 stage, 4 battle)
+--   fall: the quest runs only in a background mode whose `fall:` lists it (background.filtered keeps data.quests
+--     of the round's background to those; the event's `fall` repeats the value)
 -- [UNCERTAIN] the readme's example says only: the first check is at `start`, a goal of `next` earns the reward, the
 -- goal then grows by `next`, and checks repeat every `recover` units, `times` times. Here a goal that is missed is
 -- checked again with the same goal at the next loop; a quest without `next` is rewarded at every check.

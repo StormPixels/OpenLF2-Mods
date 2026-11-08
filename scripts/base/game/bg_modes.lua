@@ -70,12 +70,13 @@ end
 -- `area` (see bg_modes.area) travels with them: background.filtered applies its width and zboundary, and the
 -- round reads the rest as state.bg_area.
 function bg_modes.filters(mode)
-    return {respond = value_set(mode.respond), arest = value_set(mode.arest), area = bg_modes.area(mode)}
+    return {respond = value_set(mode.respond), arest = value_set(mode.arest), wait = value_set(mode.wait),
+        fall = value_set(mode.fall), area = bg_modes.area(mode)}
 end
 
 -- True when the mode has a respond or arest key, or one of the area tags, at all.
 function bg_modes.has_filters(mode)
-    return mode.respond ~= nil or mode.arest ~= nil or bg_modes.area(mode) ~= nil
+    return mode.respond ~= nil or mode.arest ~= nil or mode.wait ~= nil or mode.fall ~= nil or bg_modes.area(mode) ~= nil
 end
 
 -- The percent every hit's damage is scaled to (`attacking`); 100 when the mode has none.

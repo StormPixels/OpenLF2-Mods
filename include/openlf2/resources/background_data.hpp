@@ -57,8 +57,8 @@ inline constexpr std::size_t max_team_frames = 50;
 inline constexpr std::size_t max_quests = 5;
 
 // LF2 Darkfiren `frame:` ... `frame_end:` of a background: one image of a team HP bar (readme background.txt).
-// `type` 0 frame, 1 hp bar, 2 dark hp bar; `facing` 0 fills left to right, 1 right to left; `respond` is the value the
-// background mode must list (like a layer's); `effect`, `cc`, `c1`, `c2` animate it like a layer; `wait` is read
+// `type` 0 frame, 1 hp bar, 2 dark hp bar; `facing` 0 fills left to right, 1 right to left; `respond` is read and kept; the
+// background mode's `wait:` must list the frame's `wait` for it to show; `effect`, `cc`, `c1`, `c2` animate it like a layer; `wait` is read
 // and kept (its meaning is not documented).
 struct TeamFrame {
     std::string path;
@@ -89,7 +89,7 @@ struct Quest {
     std::int32_t recover = 0; // time between checks, in units
     std::int32_t times = 0;   // number of checks
     std::int32_t bound = 0;   // game mode: 0 vs, 1 stage, 4 battle
-    std::int32_t fall = 0;    // layer shown when the goal is reached
+    std::int32_t fall = 0;    // the quest runs only in a background mode whose `fall:` lists this value
     std::int32_t next = 0;    // what the goal grows by after each reward
 };
 

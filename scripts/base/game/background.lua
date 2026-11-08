@@ -31,7 +31,7 @@ end
 function background.filtered(data, filters)
     if not filters or data == nil or data.layers == nil then return data end
     local area = filters.area
-    if filters.respond == nil and filters.arest == nil then
+    if filters.respond == nil and filters.arest == nil and filters.wait == nil and filters.fall == nil then
         if not (area and (area.width or area.zboundary or area.shadow or area.shadow_size)) then return data end
         -- Only the area changes: the layers and opoints stay the original's own, as without any filter.
         local same = {}
@@ -40,7 +40,7 @@ function background.filtered(data, filters)
     end
     local copy = {}
     for key, value in pairs(data) do copy[key] = value end
-    copy.layers, copy.opoints, copy.team_frames = {}, {}, {}
+    copy.layers, copy.opoints, copy.team_frames, copy.quests = {}, {}, {}, {}
     for _, layer in ipairs(data.layers) do
         if filters.respond == nil or filters.respond[layer.respond or 0] == true then
             local entry = {}
@@ -53,9 +53,14 @@ function background.filtered(data, filters)
     for _, opoint in ipairs(data.opoints or {}) do
         if filters.arest == nil or filters.arest[opoint.arest or 0] == true then copy.opoints[#copy.opoints + 1] = opoint end
     end
-    -- A team HP bar image follows its `respond:` like a layer does.
+    -- readme: the mode's `wait:` controls the team HP bar frames and its `fall:` the quests of the background, the
+    -- way `respond:` controls the layers and `arest:` the opoints (HK Coliseum: only mode teamhpbar_t1&t2 has wait: 1,
+    -- and every one of its frames has wait: 1). A frame or quest without its own value has value 0.
     for _, frame in ipairs(data.team_frames or {}) do
-        if filters.respond == nil or filters.respond[frame.respond or 0] == true then copy.team_frames[#copy.team_frames + 1] = frame end
+        if filters.wait == nil or filters.wait[frame.wait or 0] == true then copy.team_frames[#copy.team_frames + 1] = frame end
+    end
+    for _, quest in ipairs(data.quests or {}) do
+        if filters.fall == nil or filters.fall[quest.fall or 0] == true then copy.quests[#copy.quests + 1] = quest end
     end
     copy.groups_ready = nil
     return background.with_area(copy, area)

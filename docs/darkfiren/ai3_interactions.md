@@ -166,3 +166,9 @@ Kesetaraan dengan kode lama dibuktikan di `armor_real_test.lua` memakai blok `<a
 ## R13: objects.lua memakai floor_y
 - `objects.update` (bola pengejar / proyektil, hit_Fa 1, 2, 4, 7, 10, 12, 14): tanah y = 0 diganti `ground(me) = me.floor_y or 0`. Berubah: pemeriksaan `me.y > 0.0` (2 tempat), batas `y <= 1.0` / `1.4` / `3.0` (kini bidang + nilai itu), dan tinggi 25 (`-25`, salinan pengembali, kini bidang - 25). Tanpa `floor_y` hasilnya sama persis. Unit test hanya hit_Fa 1 dan 10 (`r13_objects_floor_test.lua`); hit_Fa 7 (`-25`) dan cabang `hp <= 0` belum diuji (jalur 7 memanggil `create_effect` di awal, sulit di-stub).
 - `hit_g` (frame pendaratan) ada di `st_frame.landing` milik AI2: pemeriksaan `value.y < 0 or value.y_int ~= 0` masih memakai tanah 0, jadi di platform hit_g tidak berlaku. Permintaan ke AI2: ganti 0 dengan `(value.floor_y or 0)` di dua tempat itu.
+
+## R14: itr kind 1, tangkapan per sisi (catchingact / caughtact / pickingact / pickedact)
+- `fx_itr.catch_frames(itr, facing)` dipakai `combat.catch`: sisi KIRI (penyerang menghadap kiri) memakai `catchingact` / `caughtact`, sisi KANAN `pickingact` / `pickedact`, masing-masing jatuh ke pasangan kiri bila tidak ditulis; hanya angka pertama dipakai (angka kedua gaya LF2 2.0a [BELUM PASTI]). Frame negatif memutar karakter itu (penyerang / korban) lalu memakai nilai mutlaknya.
+- Data lama (tanpa kunci baru, atau pasangan tidak lengkap) tetap memakai `catching_actions[1]` / `caught_actions[1]`.
+- Catatan: pada data gaya readme parser mengisi slot lama `catching_actions` dari `pickingact`/`pickedact` dan `caught_actions[1]` = `caughtact` (bisa negatif). Kode BASE lama membaca slot itu langsung dan crash (`cpoint.x` nil) pada frame negatif; terbukti dengan tes `r14_catch_test.lua` pada BASE tanpa patch.
+- Tebakan [BELUM PASTI]: "sisi" = arah hadap penyerang setelah ia menghadap korban; tata letak korban setelah pemutaran memakai arah hadap akhir penyerang.

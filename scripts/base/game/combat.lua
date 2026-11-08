@@ -1065,7 +1065,9 @@ local function catch(state, p, v, attacker, victim, itr)
     victim.vx, attacker.vx = 0.0, 0.0
     attacker.facing = attacker.x_int > victim.x_int and facing_left or facing_right
     victim.facing = 1 - attacker.facing
-    local catching, caught = itr.catching_actions[1], itr.caught_actions[1]
+    local catching, caught = fx_itr.catch_frames(itr, attacker.facing)
+    if catching < 0 then attacker.facing, catching = 1 - attacker.facing, -catching end -- negative frame: turn around
+    if caught < 0 then victim.facing, caught = 1 - victim.facing, -caught end
     attacker.frame = catching
     victim.frame = caught
     local first = attacker.record.frame(catching).cpoint.x
