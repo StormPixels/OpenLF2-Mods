@@ -38,6 +38,7 @@ local physics = {}
 -- `value.floor_y` holds it (nil = the ground, y 0); the rest of the engine reads `value.floor_y or 0` where it used to
 -- read 0. Without platform.lua, or with no platform under the item, every number below is the old one.
 local platform
+local platform_lift = 24 -- [BELUM PASTI] most a platform may rise in one tick and still carry what stands on it
 local function plane_under(match, value)
     if platform == nil then
         local ok, module = pcall(require, "base/game/platform")
@@ -46,6 +47,15 @@ local function plane_under(match, value)
     if not platform or not match.items then return nil end
     -- Only an item in the air, moving up or down, or already standing on a plane can need one.
     if value.y_int >= 0 and (value.vy or 0) == 0 and value.floor_y == nil then return nil end
+    -- Standing on a plane: platform.lua lets an item pass a plane its feet are below, which a rising platform makes true.
+    -- So the feet are lifted by `platform_lift` for the question (a platform that moves up faster than that is not followed).
+    if value.floor_y ~= nil and (value.vy or 0) == 0 and value.y == value.floor_y then
+        local y = value.y
+        value.y = y - platform_lift
+        local plane = platform.plane_at(match, value)
+        value.y = y
+        return plane
+    end
     return platform.plane_at(match, value)
 end
 
@@ -177,6 +187,8 @@ function physics.step(match, value)
     end
     value.y = value.y + value.vy
     local floor = plane_under(match, value) or 0
+    -- A platform that rose under a fighter standing on it carries the fighter up.
+    if floor < floor_before and value.vy == 0.0 and value.y == floor_before + 0.0 then value.y = floor + 0.0 end
     value.floor_y = floor ~= 0 and floor or nil
     if value.y - floor < -0.0001 then
         -- Airborne: gravity by kind and state.

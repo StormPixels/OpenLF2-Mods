@@ -67,7 +67,17 @@ Baru (angka, nil bila tidak ada): `dx dy dz hp chp cmp caught loop amount shadow
 ## itr (`interactions[i]`, juga `strengths`)
 Lama: `kind x y width height dvx dvy fall arest vrest respond effect catching_actions caught_actions bdefend injury zwidth`.
 Baru (angka): `dvz drain gain recover dbdefend spark cover z dx dy dz delay poison confus weak manacle join mimic bound facing sound`.
-`pickingact` dan `pickedact` = tindakan penangkapan dari sisi KANAN (readme `cpoint.txt`: catchingact/caughtact untuk sisi kiri, pickingact/pickedact untuk sisi kanan; bila pickingact/pickedact tidak ditulis, dipakai catchingact/caughtact; nilai negatif mengganti arah hadap). Nilai disimpan sebagai larik berisi satu atau dua angka persis seperti tertulis. Slot lama `catching_actions[1]`/`[2]` tetap diisi dari `pickingact`/`pickedact` seperti sebelumnya.
+### itr: catchingact, caughtact, pickingact, pickedact
+Tiap tag disimpan SETIA seperti tertulis sebagai larik satu atau dua angka (nil bila tag tidak ada; nilai negatif dipertahankan; tanpa diagnostik bila hanya satu angka):
+`interactions[i].catchingact`, `.caughtact`, `.pickingact`, `.pickedact`. Contoh gaya readme `catchingact: -120  pickingact: 120  caughtact: -130  pickedact: 130`
+menghasilkan `catchingact = {-120}`, `pickingact = {120}`, `caughtact = {-130}`, `pickedact = {130}`.
+- Arti sisi menurut readme `cpoint.txt`: catchingact/caughtact = sisi KIRI (X1/Y1), pickingact/pickedact = sisi KANAN (X2/Y2); bila X2/Y2 tidak ditulis dipakai X1/Y1; negatif = ganti arah hadap.
+  Parser TIDAK menerapkan aturan itu; pemakai yang menurunkannya, mis. kanan-tangkap = `(pickingact or catchingact)[1]`, kanan-tertangkap = `(pickedact or caughtact)[1]`.
+- Bentuk dua angka gaya LF2 2.0a (`catchingact: 121 122`, `caughtact: 130 131`) ada di data dan tetap terbaca: angka pertama dan kedua masuk `catchingact = {121, 122}`. **[BELUM PASTI]**
+  Arti angka kedua pada bentuk ini (sisi atau hal lain) tidak ditulis oleh sumber mana pun; AI1 tidak menafsirkannya.
+- Slot lama `catching_actions` dan `caught_actions` (dua slot, untuk data LF2 asli) tetap diisi seperti sebelumnya: `catchingact` mengisi `catching_actions[1..2]`, `caughtact` mengisi `caught_actions[1..2]`,
+  TETAPI `pickingact` menimpa `catching_actions[1]` dan `pickedact` menimpa `catching_actions[2]` (perilaku 2.0a yang dipertahankan). Jadi untuk data gaya Darkfiren slot lama BISA tertimpa
+  (contoh di atas: `catching_actions = {120, 130}`, bukan {-120, ...}). Untuk data Darkfiren pakai larik per tag di atas, bukan slot lama.
 
 ## bdy (`bodies[i]`)
 Lama: `kind x y width height`. Baru: `zwidth`, `respond`. `kind` mentah.

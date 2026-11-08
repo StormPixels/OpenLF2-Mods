@@ -29,7 +29,7 @@ constexpr std::array itr_tags{same("dvz"), same("drain"), same("gain"), same("re
     same("spark"), same("cover"), same("z"), same("dx"), same("dy"), same("dz"), same("delay"),
     same("poison"), same("confus"), same("weak"), same("manacle"), same("join"), same("mimic"),
     same("bound"), same("facing"), same("sound")};
-constexpr std::array itr_pair_tags{same("pickingact"), same("pickedact")};
+constexpr std::array itr_pair_tags{same("catchingact"), same("caughtact"), same("pickingact"), same("pickedact")};
 constexpr std::array strength_tags{same("dvz"), same("drain"), same("gain"), same("spark"), same("recover"),
     same("dbdefend"), same("z"), same("sound"), same("cover"), same("caughtact"), same("selfinjury"),
     same("decrease")};
@@ -754,10 +754,18 @@ private:
 
     bool interaction_block_field(Interaction& target) {
         if (interaction_field(target)) return true;
-        if (token_ == "catchingact:") {
-            if (read_int(target.catching_actions[0])) read_int(target.catching_actions[1]);
-        } else if (token_ == "caughtact:") {
-            if (read_int(target.caught_actions[0])) read_int(target.caught_actions[1]);
+        if (token_ == "catchingact:" || token_ == "caughtact:") {
+            // LF2 2.0a writes two numbers, Darkfiren's readme one; the second is taken only when it is there, without a
+            // diagnostic. The values are also kept exactly as written under `catchingact` / `caughtact`.
+            const bool catching = token_ == "catchingact:";
+            if (extra_pair(target.extra, itr_pair_tags)) {
+                auto& slots = catching ? target.catching_actions : target.caught_actions;
+                for (const auto& item : target.extra) {
+                    if (item.key != (catching ? "catchingact" : "caughtact")) continue;
+                    if (!item.values.empty()) slots[0] = item.values[0];
+                    if (item.values.size() > 1) slots[1] = item.values[1];
+                }
+            }
         } else if (token_ == "pickingact:" || token_ == "pickedact:") {
             // Legacy slots keep the 2.0a behavior; Darkfiren's left/right pair is exposed as well.
             const bool picking = token_ == "pickingact:";

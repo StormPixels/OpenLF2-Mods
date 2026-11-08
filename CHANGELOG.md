@@ -238,3 +238,4 @@ All notable changes to this project are documented in this file.
 - UI: a combo counter ("N hit") is drawn above the attacker, read from the `<combo>` block of the mode file and `fx.combo`.
 - Battle mode: the squad fall height uses the mode tag `centery` (below 0) when present; without the tag it stays -300.
 - LF2 Darkfiren: itr kind 30-89 platforms (stage 1, kind X0) act as a landing plane through `platform.plane_at`, and every "on the ground" check follows that plane; without platforms nothing changes.
+- LF2 Darkfiren: itr `catchingact:` and `caughtact:` read one or two numbers (LF2 2.0a writes two), and a platform keeps carrying an item standing on it when the platform rises (`physics.lua`).
