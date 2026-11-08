@@ -74,6 +74,7 @@ end
 local default_files = {[constants.screen.wide_width] = "data/mode/mode4.dat", [wide_1018_width] = "data/mode/mode2.dat"}
 
 local sources = {}
+local combo_cache = {}   -- ui_modes.combo_settings, per layout
 -- The mode file text of a battlefield layout and where it came from: "host" or "file" (the game's own file) or
 -- "builtin" (the layout blocks that are part of OpenLF2, used when the game's file cannot be read; only for the 1018
 -- layout). nil in the classic layouts (the built-in menu stands) and when there is nothing to read.
@@ -101,6 +102,7 @@ end
 -- Forgets what layout_source knows and the files decoded (tests, a host that reloads the game data).
 function ui_modes.reset()
     sources = {}
+    combo_cache = {}
     data_text.reset()
 end
 
@@ -146,7 +148,28 @@ function ui_modes.combo(text)
     if not block then return nil end
     return {name = block.name, pic = block.pic and tostring(block.pic):gsub("^%s+", ""):gsub("\\", "/"):lower() or nil,
         w = tonumber(block.w), h = tonumber(block.h), offset_x = tonumber(block.offset_x), offset_y = tonumber(block.offset_y),
-        times = tonumber(block.times), respond = tonumber(block.respond)}
+        times = tonumber(block.times), respond = tonumber(block.respond), bound = tonumber(block.bound),
+        facing = tonumber(block.facing), caughtact = tonumber(block.caughtact), effect = tonumber(block.effect)}
+end
+
+-- What the combo display of a battlefield layout needs: the <combo> block of the mode file that layout is made for
+-- (classic and expand: mode1.dat, the 794 wide mode; wide layouts: their own), as {pic, w, h, offset_x, offset_y, times,
+-- name} with defaults filled in; nil when the mode has no <combo>, switched it off (`bound: 0`) or names no picture.
+function ui_modes.combo_settings(layout)
+    local key = tostring(layout)
+    if combo_cache[key] ~= nil then return combo_cache[key] or nil end
+    local width = ui_modes.layout_width(layout) or classic_width
+    local listing = data_text.read(list_path)
+    local entry = listing and ui_modes.for_width(ui_modes.parse(listing), width) or nil
+    local text = entry and ui_modes.text(entry) or nil
+    local block = text and ui_modes.combo(text) or nil
+    local settings = false
+    if block and block.bound ~= 0 and block.pic and block.pic ~= "" then
+        settings = {pic = block.pic, w = block.w or 15, h = block.h or 15, offset_x = block.offset_x or 0, offset_y = block.offset_y or 0,
+            times = block.times or 30, name = (block.name and block.name ~= "") and block.name or "%d_hit", facing = block.facing or 1}
+    end
+    combo_cache[key] = settings
+    return settings or nil
 end
 
 return ui_modes

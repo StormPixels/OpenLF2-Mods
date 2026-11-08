@@ -14,6 +14,7 @@ local controls = require("base/ui/controls")
 local options = require("base/game/options")
 local user_options = options   -- screen.create() has a parameter named options
 local ui_hud = require("base/game/ui_hud")
+local ui_modes = require("base/game/ui_modes")
 -- The HUD, pause picture and mode line are laid out for the classic 794 wide picture. In LF2 Darkfiren's super
 -- widescreen layout the picture is 1333 wide: wide_gap() is the extra width (for things at the right corner) and
 -- wide_center() half of it (for things in the middle). Both are 0 in the classic layout.
@@ -127,6 +128,10 @@ function screen.snapshot(state, snapshot)
             entry.pic_offset, entry.weapon, entry.team = value.pic_offset, value.weapon, value.team
             entry.hp, entry.max_hp, entry.human = value.hp, value.max_hp, value.human
             entry.dark_hp, entry.mp = value.dark_hp, value.mp   -- minibar bars
+            -- Combo counter (value.fx.combo hits in a row, value.fx.combo_age ticks since the last one; AI 3).
+            local fx = value.fx
+            entry.combo = type(fx) == "table" and fx.combo or 0
+            entry.combo_age = type(fx) == "table" and fx.combo_age or 0
             entry.lives = value.lives
             -- I10: state 20/21 hide the object. The frame tag center_z corrects the z the drawing order uses by
             -- (center_z - 20000), or by (center_z - 200000) in the 100000..299999 range (Darkfiren: "the object with the
@@ -341,6 +346,29 @@ local function draw_minibar(context, entry, camera, shake)
     end
 end
 
+-- The combo display (<combo> of the mode file, readme/mode dat.txt): "N_hit" (`name`, %d = the hits) written with the
+-- picture as a 16 x 16 grid of blocks w x h by character code, above the attacker, for `times` ticks after the last hit.
+-- [BELUM PASTI] from two hits on, the anchor (centred over the head, `offset_y` upwards, `offset_x` to the right) and
+-- `facing: 0` (above the victim; not drawn).
+local combo_settings
+local combo_known = {}
+local function draw_combo(context, entry, frame, camera, shake)
+    local settings = combo_settings
+    if not settings or settings.facing ~= 1 then return end
+    local hits = entry.combo
+    if type(hits) ~= "number" or hits < 2 or (entry.combo_age or 0) >= settings.times then return end
+    if combo_known[settings.pic] == nil then combo_known[settings.pic] = pcall(engine.read_resource, settings.pic) end
+    if not combo_known[settings.pic] then return end
+    local text = (settings.name:gsub("%%d", tostring(math.floor(hits))))
+    local x = entry.draw_offset + entry.x - camera + shake + settings.offset_x - math.floor(#text * settings.w / 2)
+    local y = entry.z - frame.center_y + entry.y - settings.offset_y
+    for position = 1, #text do
+        local code = text:byte(position)
+        context.sprite(settings.pic, {(code % 16) * settings.w, math.floor(code / 16) * settings.h, settings.w, settings.h},
+            x + (position - 1) * settings.w, y, true)
+    end
+end
+
 local function draw_item(context, stage, view, entry, bounds, lighting)
     local frame = entry.record.frame(entry.frame)
     local blink = math.abs(entry.blink)
@@ -423,7 +451,10 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         end
         glyphs(context, sheet, label, x, entry.z + 3, 9)
     end
-    if entry.blink > -25 and not entry.invisible then draw_minibar(context, entry, camera, shake) end
+    if entry.blink > -25 and not entry.invisible then
+        draw_minibar(context, entry, camera, shake)
+        draw_combo(context, entry, frame, camera, shake)
+    end
     for _, spark in ipairs(entry.sparks) do
         local source = spark_source(spark.frame)
         -- Frames 0, 5, 10 and 15 are never given a rectangle (assumed empty; see docs).
@@ -761,6 +792,7 @@ function screen.draw(state, context, window_bounds)
         passable_bounds and passable_bounds.right - passable_bounds.left or constants.screen.width, constants.screen.height - 128)
     local lighting = options.current()
     minibar_mode = current.mode == constants.modes.stage and 1 or 0
+    combo_settings = ui_modes.combo_settings(options.current().battlefield_layout)
     for _, entry in ipairs(view.items) do
         draw_item(arena, current.stage, view, entry, passable_bounds, lighting)
     end

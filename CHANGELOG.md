@@ -75,6 +75,9 @@ All notable changes to this project are documented in this file.
 
 - AI 2: paket uji ponsel R7 (karakter uji AI2STAT, `PANDUAN_UJI_R7.md`) dan tes otomatis `st_testpack_r7_test`; tidak ada perubahan perilaku permainan.
 
+- LF2 Darkfiren: `ppoint` makes an object follow its owner at an offset (x, y, z).
+- LF2 Darkfiren: extended `cpoint` (daction/faction/baction/uzaction/dzaction while holding, `z`, drain/gain/recover) and itr `respond` as holding time for catch itrs.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -226,3 +229,7 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: the window title follows `name:` of `system.dat` (a no-op where the platform has no title bar), and the cheat words come from `cheat1:` and `cheat2:` of `system.dat` (defaults LF2.NET and HEROFIGHTER.COM).
 - UI: the D key on the character select screen cycles the fighter skin (`options.slots[slot].skin`), and the face and small HUD face follow the skin.
 - LF2 Darkfiren: background modes read `shadow` and `shadowsize`, and the frame interval comes from `fps_value` and `fps_value_f5` of `system.dat` (a 0 keeps the original value).
+- LF2 Darkfiren: `ppoint` makes an object follow its owner at an offset (x, y, z).
+- LF2 Darkfiren: extended `cpoint` (daction/faction/baction/uzaction/dzaction while holding, `z`, drain/gain/recover) and itr `respond` as holding time for catch itrs.
+- UI: a combo counter ("N hit") is drawn above the attacker, read from the `<combo>` block of the mode file and `fx.combo`.
+- Battle mode: the squad fall height uses the mode tag `centery` (below 0) when present; without the tag it stays -300.

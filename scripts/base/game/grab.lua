@@ -15,6 +15,7 @@ local item_slots = constants.item_slots
 local cpoint_kinds = constants.cpoint_kinds
 local objects = require("base/game/objects")
 local battle = require("base/game/battle")
+local fx_point = require("base/game/fx_point")
 local fx_stats = require("base/game/fx_stats")
 local grab = {}
 
@@ -61,7 +62,9 @@ function grab.update_holds(state)
                     end
                     if not released then
                         local keys = holder.keys
+                        local acted = false
                         local function act(frame_id)
+                            acted = true
                             enter(holder, frame_id)
                             target.frame = cpoint(holder, holder.frame).vaction
                             target.wait_counter = 0
@@ -76,6 +79,10 @@ function grab.update_holds(state)
                             act(hit.taction)
                         end
                         if keys.jump and holder.jump_press > 0 and hit.jaction ~= 0 then act(hit.jaction) end
+                        if not acted then -- Darkfiren: daction / faction / baction / uzaction / dzaction
+                            local extra = fx_point.cpoint_action(holder, hit)
+                            if extra then act(extra) end
+                        end
                     end
                 else
                     released = true
@@ -174,6 +181,7 @@ function grab.place_victims(state)
                         if owner then owner.damage_dealt = owner.damage_dealt + damage end
                         battle.count_damage(state, target, damage)
                         fx_stats.hit(state, holder, target, true)
+                        fx_point.cpoint_hit(holder, target, hit)
                     else
                         target.hp = target.hp + hit.injury
                         target.dark_hp = target.dark_hp + cdiv(hit.injury, damage_dark_hp_divisor)
@@ -190,7 +198,10 @@ function grab.place_victims(state)
                 else target.x_int = other.x - target_frame.center_x + x end
                 target.y_int = target_frame.center_y - other.y + y
                 target.z_int = holder.z_int
-                if hit.cover % 10 == 0 then
+                local depth = fx_point.cpoint_z(hit)
+                if depth ~= nil then
+                    target.z_int = holder.z_int + depth -- Darkfiren z: the cover shift does not apply
+                elseif hit.cover % 10 == 0 then
                     target.z_int = target.z_int - 1
                     target.y_int = target.y_int + 1
                 else

@@ -6,6 +6,7 @@ local record_kinds = constants.record_kinds
 local objects = require("base/game/objects")
 local catalog = require("base/game/catalog")
 local sounds = require("base/game/sounds")
+local fx_point = require("base/game/fx_point")
 local weapons = {}
 
 local function cdiv(a, b)
@@ -160,6 +161,7 @@ function weapons.carry(state)
             end
         end
     end
+    fx_point.follow_all(state) -- Darkfiren ppoint: objects stay at an offset from their owner
 end
 
 function weapons.check_holders(state)

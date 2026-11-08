@@ -165,7 +165,9 @@ function battle.update(state, run)
                         value.team = constants.teams.independent
                     end
                     value.battle_side = side
-                    value.y_int = -300
+                    -- LF2 Darkfiren: the mode's `centery` (below 0) is the height the battle mode army drops from.
+                    local drop_y = state.bg_area and state.bg_area.centery
+                    value.y_int = (drop_y and drop_y < 0) and drop_y or -300
                     value.y = value.y_int
                     if character or value.record.kind == record_kinds.prisoner then value.vy = 0.0 end
                     run.stock[index] = run.stock[index] - 1

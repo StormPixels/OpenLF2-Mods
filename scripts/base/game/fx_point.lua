@@ -52,4 +52,58 @@ function fx.extend(index, parent, value, record, point, random, state)
         end
     end
 end
+
+-- ppoint (docs/txt/readme/frame/ppoint.txt): an object whose current frame has a ppoint stays at (x, y, z) relative to its
+-- owner. Called once per tick after the owner has moved. Objects without ppoint, or without a live owner, are untouched.
+local fx_constants = require("base/game/fx_constants")
+local owner_none = 99 -- item.create default owner
+function fx.follow(state, index, value)
+    local point = value.record.frame(value.frame).ppoint
+    if not point or point.kind ~= 1 then return end
+    local owner = value.owner
+    if owner == owner_none or owner == index then return end
+    local parent = state.items[owner]
+    if not parent then return end
+    local dx = point.x or 0
+    local left = parent.facing == constants.facings.left
+    if left and fx_constants.ppoint_mirror_x then dx = -dx end
+    value.x_int = parent.x_int + dx
+    value.y_int = parent.y_int + (point.y or 0)
+    value.z_int = parent.z_int + (point.z or 0)
+    value.x, value.y, value.z = value.x_int, value.y_int, value.z_int
+    if fx_constants.ppoint_copy_facing then value.facing = parent.facing end
+end
+
+function fx.follow_all(state)
+    for index = 0, constants.item_slots - 1 do
+        local value = state.items[index]
+        if value and value.record.kind ~= K.character then fx.follow(state, index, value) end
+    end
+end
+
+-- cpoint extras (docs/txt/readme/frame/cpoint.txt). All keys are nil unless the data wrote them, so original cpoints
+-- behave exactly as before. A holder pressing a key during a hold jumps to the named frame (not based on mp).
+-- UNCERTAIN: "forward"/"backward" are taken relative to the holder's facing; a key counts when its press counter is > 0
+-- (same rule as aaction/jaction in grab.lua); order when several fire in one tick: d, forward, backward, up, down.
+function fx.cpoint_action(holder, hit)
+    local keys = holder.keys
+    local right = holder.facing ~= constants.facings.left
+    local forward, backward = right and "right" or "left", right and "left" or "right"
+    local function pressed(key) return keys[key] and (holder[key .. "_press"] or 0) > 0 end
+    local function pick(action, key)
+        if action and action ~= 0 and pressed(key) then return action end
+    end
+    return pick(hit.daction, "defend") or pick(hit.faction, forward) or pick(hit.baction, backward)
+        or pick(hit.uzaction, "up") or pick(hit.dzaction, "down")
+end
+
+-- cpoint z: the victim's depth is the holder's z plus z (negative = up the screen); the cover shift is then skipped.
+function fx.cpoint_z(hit) return hit.z end
+
+-- cpoint drain / gain / recover work like the itr keys; reuse the itr code (heal gain 17xxx included).
+function fx.cpoint_hit(holder, target, hit)
+    if (hit.drain and hit.drain ~= 0) or (hit.gain and hit.gain ~= 0) or (hit.recover and hit.recover ~= 0) then
+        require("base/game/fx_itr").after_hit(holder, target, {drain = hit.drain, gain = hit.gain, recover = hit.recover, kind = 0}, false)
+    end
+end
 return fx

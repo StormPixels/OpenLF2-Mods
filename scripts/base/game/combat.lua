@@ -1086,7 +1086,7 @@ local function catch(state, p, v, attacker, victim, itr)
     attacker.x_int = trunc(attacker.x)
     attacker.catching = v
     victim.caught_by = p
-    attacker.catch_timer = 300
+    attacker.catch_timer = (itr.respond and itr.respond > 0) and itr.respond or 300 -- Darkfiren: itr respond = holding time (default 300)
     victim.timer_b0 = 0
 end
 
