@@ -5,6 +5,7 @@
 -- Every function is nil-safe: an itr without these tags behaves exactly like an original LF2 itr.
 local constants = require("base/game/constants")
 local fx_status = require("base/game/fx_status")
+local fx_point = require("base/game/fx_point")
 local fx = {}
 
 -- UNCERTAIN (documented in docs/darkfiren/ai3_interactions.md): the exact number formats are not
@@ -67,6 +68,7 @@ function fx.after_hit(attacker, victim, itr, defended)
     if recover == 2 or recover == 3 then victim.hit_lag = 0 end
     if itr.dvz and itr.dvz ~= 0 and not defended then victim.impulse_z = victim.impulse_z + itr.dvz end
     fx_status.apply(attacker, victim, itr, defended, engine.random)
+    fx_point.bounce_mark(attacker, victim, itr, defended)
 end
 -- Catching itr (kind 1) frames per side (docs/txt/readme/frame/cpoint.txt, ai1_data_fields.md "itr: catchingact ..."):
 -- the LEFT side (attacker facing left) uses catchingact / caughtact, the RIGHT side pickingact / pickedact, each falling

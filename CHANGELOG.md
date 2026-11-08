@@ -246,3 +246,6 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: combat and chase/projectile code treat the platform plane (`value.floor_y`) as the ground, and an item that starts on the ground with a `start_frame` keeps that frame instead of being replaced by the landing frame.
 - LF2 Darkfiren: catching itr (kind 1) frames per side (catchingact/caughtact left, pickingact/pickedact right, negative = turn around); fixes a crash on negative frames.
 - LF2 Darkfiren: team HP bars and background quests are filtered by the mode tags `wait` and `fall` (not `respond`), and a rising platform carries an item standing on it via `platform.plane_at(match, value, current)`.
+- UI: the battle viewport takes the height of a taller background (`background.view_height`, at most 1000), so the whole picture and the floor are visible; the platform scales it to the window.
+- LF2 Darkfiren: absolute-block platforms (itr kind X1, e.g. floor.dat frame 350 kind 31/61) push items out of the block box (`st_block.lua`).
+- LF2 Darkfiren: itr bounce (`dx/dy/dz`) and per-side `pickingact`/`pickedact` for kind 1 catches.

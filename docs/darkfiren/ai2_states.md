@@ -107,3 +107,11 @@ Perbaikan R10 (platform naik): platform.lua membiarkan item yang kakinya di bawa
 Perbaikan R12 (start_frame): item baru dibuat dengan vy 0.1; di tanah `physics.step` membacanya sebagai pendaratan dan mengganti frame dengan frame pendaratan (219) pada tick pertama, sehingga `start_frame` tidak pernah terlihat (ditemukan lewat uji ponsel). `st_spawn.start_frame` kini mengisi `vy = 0` bila petarung mulai di tanah (`y_int >= 0`). Mulai di udara (mode dvy) tidak diubah. Tes `st_testpack_r7_test`: pose awal bertahan 60 tick lalu kembali ke frame biasa.
 
 R13 (platform naik, dengan AI 3): `physics.lua` kini memanggil `platform.plane_at(match, value, value.floor_y)` (parameter `current`, rise_limit 24 di `fx_constants.platform`) dan trik "kaki diturunkan 24" dibuang. Perilaku sama; satu tempat konstanta (milik AI 3). Tes `st_platform_test`: `current` diteruskan, dan platform naik/turun tetap membawa karakter.
+
+## Putaran 14 (platform tahap 2a: blok mutlak, kind X1)
+
+Dasar: base-20261108-2-427e8d9. AI 3 berhenti di X1 (tidak ada kode X1-X5 di BASE), jadi X1 dikerjakan di sisi AI 2: `st_block.lua` (modul baru, `physics.step` memanggil `st_block.resolve` sebelum `x_int` dihitung).
+- Kotak blok dari itr kind 31/41/51/61/71/81: x dan jendela z seperti `platform.lua`; rentang vertikal `y_int objek + itr.y - centery` sampai `+ tinggi itr`. Pada floor.dat frame 350: x 419..582, z 547..607, kaki y -38..+6 (badan di bawah bidang -40). Di atas bidang (y -40) item berdiri bebas; di tanah (y 0) item ditahan.
+- Item yang titik tengahnya masuk kotak didorong ke tepi tempat ia datang (posisi tick sebelumnya), atau tepi terdekat bila sudah di dalam atau masuk di sudut. Komponen kecepatan ke arah blok dinolkan. Siapa yang terkena mengikuti kind (31 semua tipe 0, 41 sekutu, 51 musuh; 61/71/81 untuk tipe 1,2,4,5,6; bola tipe 3 tidak).
+- Daftar kotak dibuat sekali per tick (cache di `match.st_block_list`, berdasarkan `frame_number`), jadi tanpa blok biayanya hanya satu pemindaian slot per tick; tanpa itr X1 perilaku identik (hash regresi 2336476036).
+- [BELUM PASTI] readme tidak menjelaskan arah dorong, kecepatan, dan apakah tinggi diukur dari kaki item. X2/X3 (bergerak), X4 (resistansi, readme "???") dan X5 (pantul) belum dikerjakan: tidak ada data atau satuan.

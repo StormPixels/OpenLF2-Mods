@@ -162,6 +162,7 @@ function weapons.carry(state)
         end
     end
     fx_point.follow_all(state) -- Darkfiren ppoint: objects stay at an offset from their owner
+    fx_point.bounce_all(state) -- Darkfiren itr bounce: victims marked by a dx / dy / dz itr bounce when they land
 end
 
 function weapons.check_holders(state)

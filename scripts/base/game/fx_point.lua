@@ -106,4 +106,43 @@ function fx.cpoint_hit(holder, target, hit)
         require("base/game/fx_itr").after_hit(holder, target, {drain = hit.drain, gain = hit.gain, recover = hit.recover, kind = 0}, false)
     end
 end
+
+-- itr bounce (docs/txt/readme/frame/itr.txt "bounce in itr"): an itr with dx / dy / dz (and pickingact / pickedact) makes a
+-- character victim, when it hits the ground after the hit, gain x / y / z velocity (dx mirrored by the attacker's facing)
+-- and be forced into a frame: pickingact when the attacker faced right, pickedact when it faced left (the same sides as a
+-- catching itr). [BELUM PASTI]: which frame belongs to which side, the sign convention of dx and that the frame is
+-- forced on the landing tick. State lives in value.fx.bounce (marked on the hit, consumed on the first landing).
+function fx.bounce_mark(attacker, victim, itr, defended)
+    if defended or victim.record.kind ~= K.character or not victim.fx then return end
+    local dx, dy, dz = itr.dx or 0, itr.dy or 0, itr.dz or 0
+    local right = attacker.facing ~= constants.facings.left
+    local frame = right and itr.pickingact or itr.pickedact
+    frame = frame and frame[1] or 0
+    if dx == 0 and dy == 0 and dz == 0 and frame == 0 then return end
+    victim.fx.bounce = {dx = dx, dy = dy, dz = dz, frame = frame, facing = attacker.facing, air = false, age = 0}
+end
+
+function fx.bounce_step(value)
+    local mark = value.fx and value.fx.bounce
+    if not mark then return end
+    local floor = value.floor_y or 0
+    mark.age = mark.age + 1
+    if value.y_int < floor then
+        mark.air = true
+    elseif mark.air then -- landed after having been in the air
+        local sign = mark.facing == constants.facings.left and -1 or 1
+        value.vx, value.vy, value.vz = mark.dx * sign, mark.dy, mark.dz
+        if mark.frame ~= 0 then value.frame = mark.frame end
+        value.fx.bounce = nil
+        return
+    end
+    if mark.age > fx_constants.bounce_ticks then value.fx.bounce = nil end
+end
+
+function fx.bounce_all(state)
+    for index = 0, constants.item_slots - 1 do
+        local value = state.items[index]
+        if value then fx.bounce_step(value) end
+    end
+end
 return fx

@@ -65,6 +65,7 @@ module=game/st_frame|game/st_frame.lua
 module=game/st_states|game/st_states.lua
 module=game/st_spawn|game/st_spawn.lua
 module=game/st_stats|game/st_stats.lua
+module=game/st_block|game/st_block.lua
 module=game/st_status|game/st_status.lua
 module=game/fx_constants|game/fx_constants.lua
 module=game/fx_itr|game/fx_itr.lua

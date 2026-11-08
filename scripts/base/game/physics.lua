@@ -32,6 +32,7 @@ local cpoint_kinds = constants.cpoint_kinds
 local record_kinds = constants.record_kinds
 local sounds = require("base/game/sounds")
 local st_frame = require("base/game/st_frame")
+local st_block = require("base/game/st_block")
 local physics = {}
 
 -- LF2 Darkfiren platforms (itr kind 30-89, platform.lua of AI 3): the plane an item lands on instead of the ground.
@@ -287,6 +288,7 @@ function physics.step(match, value)
         end
     end
     st_frame.direct_move(value)
+    st_block.resolve(match, value, value.x_int, value.z_int)
     value.x_int = truncate(value.x)
     value.y_int = truncate(value.y)
     value.z_int = truncate(value.z)
