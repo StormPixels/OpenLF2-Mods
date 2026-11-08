@@ -324,6 +324,30 @@ Result<std::unique_ptr<DirectoryArchive>> DirectoryArchive::open(const std::file
     return archive;
 }
 
+Result<void> DirectoryArchive::write(std::string_view path, std::string_view text) const {
+    constexpr std::size_t write_limit = 1024 * 1024;
+    if (text.size() > write_limit) return fail(ErrorCode::limit, "game file text exceeds 1 MiB");
+    auto normalized = virtual_path(path);
+    if (!normalized) return std::unexpected(normalized.error());
+    const auto slash = normalized->rfind('/');
+    const std::string directory_name = slash == std::string::npos ? std::string() : normalized->substr(0, slash);
+    const std::string file_name = slash == std::string::npos ? *normalized : normalized->substr(slash + 1);
+    std::filesystem::path directory;
+    std::string name = file_name;
+    if (const auto existing = files_.find(*normalized); existing != files_.end()) {
+        directory = existing->second.parent_path();
+        name = existing->second.filename().string();  // keep the file's own letter case
+    } else {
+        // A new file goes next to the other files of its virtual directory.
+        for (const auto& entry : files_) {
+            const auto other = entry.first.rfind('/');
+            const std::string other_directory = other == std::string::npos ? std::string() : entry.first.substr(0, other);
+            if (other_directory == directory_name) { directory = entry.second.parent_path(); break; }
+        }
+        if (directory.empty()) return fail(ErrorCode::io, "no directory known for " + *normalized);
+    }
+    return replace_file(directory, name, std::span<const char>(text.data(), text.size()));
+}
 Result<Bytes> DirectoryArchive::read(std::string_view path) const {
     auto normalized = virtual_path(path);
     if (!normalized) return std::unexpected(normalized.error());

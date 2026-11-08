@@ -21,11 +21,16 @@ end
 local classic_width = constants.screen.width
 
 -- The classic HUD: 4 boxes of 198 x 54 per row, bars of 124 x 10 read from the BARS sheet at the `col_*` rows.
-function ui_hud.default_style()
-    return {frame_pic = "pe/frame", bars_pic = "pe/bars", frame_x = 0, frame_y = 0, frame_w = 198, frame_h = 54,
+function ui_hud.default_style(facing)
+    local style = {frame_pic = "pe/frame", bars_pic = "pe/bars", frame_x = 0, frame_y = 0, frame_w = 198, frame_h = 54,
         small_x = 9, small_y = 7, row = 4, col_dhp = 30, col_hp = 20, col_bhp = 40, col_dmp = 10, col_mp = 0,
         hp_bar = {x = 57, y = 16, w = 124, h = 10}, mp_bar = {x = 57, y = 36, w = 124, h = 10},
-        team_flag = {x = 5, y = 0}, centered = true}
+        team_flag = {x = 5, y = 0}, centered = true, slots = 8}
+    if facing == 10 then
+        -- LF2 Darkfiren's 10 player HUD (data/frame/10/default.dat): five boxes a row from x 14 across the 1018 picture.
+        style.row, style.frame_x, style.slots, style.centered = 5, 14, 10, false
+    end
+    return style
 end
 
 local function path_of(value)
@@ -90,9 +95,9 @@ end
 
 -- The style a picture of `width` pixels shows by default: the first listed style that is not hidden, is made for no
 -- width or this one, and is for 8 players (`facing` 10 marks the 10 player styles).
-function ui_hud.pick(list, width)
+function ui_hud.pick(list, width, facing)
     for _, entry in ipairs(list or {}) do
-        if permitted(entry.hidden) and (entry.respond == nil or entry.respond == width) and (entry.facing or 8) == 8 then
+        if permitted(entry.hidden) and (entry.respond == nil or entry.respond == width) and (entry.facing or 8) == (facing or 8) then
             return entry
         end
     end
@@ -189,40 +194,53 @@ end
 function ui_hud.current(layout, width, name)
     local key = tostring(layout) .. ":" .. tostring(width) .. ":" .. tostring(name)
     if cache[key] then return cache[key] end
+    local ten = layout == "wide 1018 10P"
+    local facing = ten and 10 or 8
     local style
-    if name and name ~= "Default" then
+    -- A style read from its file, with the pictures the game has; centred unless it is made for this exact width.
+    local function load_style(chosen)
+        local text = chosen and data_text.read(chosen.file)
+        if not (text and text:find("<frame>", 1, true)) then return nil end
+        local loaded = ui_hud.parse(text)
+        -- A style made for this exact width (`respond`) lays its boxes out across the whole picture (the 1018 style has
+        -- its radar right of the 792 wide boxes); one without `respond` is classic sized and is centred. The 10 player
+        -- styles are laid out for the 1018 picture and never centred.
+        loaded.centered = chosen.respond == nil and not ten
+        loaded.slots = ten and 10 or 8
+        if loaded.frame_file and readable(loaded.frame_file) then loaded.frame_pic = loaded.frame_file end
+        if loaded.bars_file and readable(loaded.bars_file) then loaded.bars_pic = loaded.bars_file end
+        local radar = loaded.radar
+        if radar then
+            -- Only pictures the game has are drawn; without the base picture there is no radar.
+            local function keep(path) if path and readable(path) then return path end end
+            radar.pic = keep(radar.pic)
+            for index, path in pairs(radar.team_pics) do radar.team_pics[index] = keep(path) end
+            for index, path in pairs(radar.type_pics) do radar.type_pics[index] = keep(path) end
+            for _, picture in ipairs({"pic_dead", "pic_hidden", "pic_clone", "pic_heal"}) do radar[picture] = keep(radar[picture]) end
+            radar.centered = loaded.centered
+            if not radar.pic then loaded.radar = nil end
+        end
+        return loaded
+    end
+    if ten or (name and name ~= "Default") then
         local listing = data_text.read(list_path)
+        local list = listing and ui_hud.list(listing) or {}
         local picture_width = width or classic_width
         local chosen
-        for _, entry in ipairs(listing and ui_hud.list(listing) or {}) do
-            if entry.name == name and permitted(entry.hidden) and (entry.facing or 8) == 8
-               and (entry.respond == nil or entry.respond == picture_width) then
-                chosen = entry
-                break
+        if name and name ~= "Default" then
+            for _, entry in ipairs(list) do
+                if entry.name == name and permitted(entry.hidden) and (entry.facing or 8) == facing
+                   and (entry.respond == nil or entry.respond == picture_width) then
+                    chosen = entry
+                    break
+                end
             end
         end
-        local text = chosen and data_text.read(chosen.file)
-        if text and text:find("<frame>", 1, true) then
-            style = ui_hud.parse(text)
-            -- A style made for this exact width (`respond`) lays its boxes out across the whole picture (the 1018 style has
-            -- its radar right of the 792 wide boxes); one without `respond` is classic sized and is centred.
-            style.centered = chosen.respond == nil
-            if style.frame_file and readable(style.frame_file) then style.frame_pic = style.frame_file end
-            if style.bars_file and readable(style.bars_file) then style.bars_pic = style.bars_file end
-            local radar = style.radar
-            if radar then
-                -- Only pictures the game has are drawn; without the base picture there is no radar.
-                local function keep(path) if path and readable(path) then return path end end
-                radar.pic = keep(radar.pic)
-                for index, path in pairs(radar.team_pics) do radar.team_pics[index] = keep(path) end
-                for index, path in pairs(radar.type_pics) do radar.type_pics[index] = keep(path) end
-                for _, name in ipairs({"pic_dead", "pic_hidden", "pic_clone", "pic_heal"}) do radar[name] = keep(radar[name]) end
-                radar.centered = chosen.respond == nil
-                if not radar.pic then style.radar = nil end
-            end
-        end
+        -- The 10 player layout always has a style of its own: the chosen one when it exists for 10, else the default.
+        if not chosen and ten then chosen = ui_hud.pick(list, picture_width, 10) end
+        style = load_style(chosen)
     end
-    style = style or ui_hud.default_style()
+    style = style or ui_hud.default_style(facing)
     cache[key] = style
     return style
 end

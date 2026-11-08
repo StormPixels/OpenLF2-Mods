@@ -11,6 +11,7 @@ local random = openlf2_random
 local crt_random = openlf2_crt_random
 local read_settings = openlf2_read_settings
 local write_settings = openlf2_write_settings
+local write_game_file = openlf2_write_game_file
 local random_state, set_random_state = openlf2_random_state, openlf2_set_random_state
 local reset_random_sequence = openlf2_reset_random_sequence
 local save_recording, take_recording = openlf2_save_recording, openlf2_take_recording
@@ -45,7 +46,7 @@ local function evaluate(declaration, previous)
         engine = {read_resource = read_resource, read_object_data = read_object_data,
             read_background_data = read_background_data, read_stage_data = read_stage_data,
             random = random, crt_random = crt_random, new_array = new_array,
-            read_settings = read_settings, write_settings = write_settings,
+            read_settings = read_settings, write_settings = write_settings, write_game_file = write_game_file,
             random_state = random_state, set_random_state = set_random_state,
             reset_random_sequence = reset_random_sequence, save_recording = save_recording,
             take_recording = take_recording, local_time = local_time, build_label = build_label,

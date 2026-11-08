@@ -2,6 +2,7 @@
 // Copyright (c) 2026 OpenLF2 contributors
 
 #include "openlf2/resources/global_dat_text.hpp"
+#include "openlf2/core/files.hpp"
 #include "openlf2/resources/data_file.hpp"
 #include <string>
 
@@ -100,5 +101,34 @@ FrameSteps frame_steps_from_system_dat(std::string_view text) {
         steps.fast = static_cast<std::uint32_t>(*fast);
     if (steps.fast > steps.normal) steps.fast = steps.normal;
     return steps;
+}
+
+std::string saves_path_from_system_dat(std::string_view text) {
+    const std::string fallback = "data/saves.txt";
+    std::size_t position = 0;
+    while (position <= text.size()) {
+        auto end = text.find('\n', position);
+        if (end == std::string_view::npos) end = text.size();
+        auto line = text.substr(position, end - position);
+        position = end + 1;
+        while (!line.empty() && (line.front() == ' ' || line.front() == '\t')) line.remove_prefix(1);
+        if (!line.empty() && line.front() == '<') break;
+        if (!line.starts_with("file")) continue;
+        auto rest = line.substr(4);
+        while (!rest.empty() && (rest.front() == ' ' || rest.front() == '\t')) rest.remove_prefix(1);
+        if (rest.empty() || rest.front() != ':') continue;
+        rest.remove_prefix(1);
+        if (const auto comment = rest.find(';'); comment != std::string_view::npos) rest = rest.substr(0, comment);
+        std::string value(rest);
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\t' || value.back() == '\r')) value.pop_back();
+        std::size_t start = 0;
+        while (start < value.size() && (value[start] == ' ' || value[start] == '\t')) ++start;
+        value.erase(0, start);
+        auto normalized = virtual_path(value);
+        if (!normalized) return fallback;
+        if (!normalized->starts_with("data/") || !normalized->ends_with(".txt") || normalized->size() <= 9) return fallback;
+        return *normalized;
+    }
+    return fallback;
 }
 }

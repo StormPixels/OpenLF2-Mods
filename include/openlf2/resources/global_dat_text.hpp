@@ -32,6 +32,10 @@ std::optional<std::string> window_title_from_system_dat(std::string_view text);
 // normal value). A tag that is missing, not a number or out of range keeps the original's value, so original data
 // and the shipped Darkfiren system.dat (33 and 3) schedule exactly as before. Only the top-level tags before the
 // first `<block>` count.
+// LF2 Darkfiren: the game file that stores the unlocked keys, from system.dat `file:` (default data/saves.txt), as a
+// normalized virtual path. Only a path under data/ that ends in .txt is accepted; anything else is the default.
+std::string saves_path_from_system_dat(std::string_view text);
+
 struct FrameSteps {
     std::uint32_t normal = 33;
     std::uint32_t fast = 3;

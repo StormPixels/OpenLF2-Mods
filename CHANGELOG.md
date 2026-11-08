@@ -249,3 +249,7 @@ All notable changes to this project are documented in this file.
 - UI: the battle viewport takes the height of a taller background (`background.view_height`, at most 1000), so the whole picture and the floor are visible; the platform scales it to the window.
 - LF2 Darkfiren: absolute-block platforms (itr kind X1, e.g. floor.dat frame 350 kind 31/61) push items out of the block box (`st_block.lua`).
 - LF2 Darkfiren: itr bounce (`dx/dy/dz`) and per-side `pickingact`/`pickedact` for kind 1 catches.
+- LF2 Darkfiren: absolute-block platforms (X1) follow the original routine: all limits exclusive, per-axis correction to the entry edge, blocked from below, speed kept, type-5 objects and balls are not blocked.
+- LF2 Darkfiren: itr bounce, per-side catching frames for kind 1/3, and Leaf.F effects 8-16 (type filter, respond state, catchingact/caughtact -1/-2/-3).
+- UI: layout "wide 1018 10P" (mode3.dat, only when opened by `unlock.allows`) with 10 slots on the character screen, a 10-player HUD and a 10-row score board.
+- LF2 Darkfiren: unlock keys are saved to the game file `saves.txt` (path from `file:` of `system.dat`, default `data/saves.txt`), with a fallback to `config.json`; both are merged on load.

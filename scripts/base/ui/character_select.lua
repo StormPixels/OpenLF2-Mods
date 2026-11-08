@@ -120,9 +120,9 @@ function selection.create(options)
     local previous = options.previous or {}
     local mode = assert(constants.modes[options.mode], "unknown character menu mode")
     local slots = {}
-    for slot = 0, 7 do
+    for slot = 0, 9 do   -- ten slots exist; state.slot_count (8 or 10, by the layout) says how many are used
         -- Teams persist between visits except where the mode prescribes them.
-        local team = previous.slots and previous.slots[slot].team or 0
+        local team = previous.slots and previous.slots[slot] and previous.slots[slot].team or 0
         if mode == constants.modes.stage then team = constants.teams.player_one
         elseif mode == constants.modes.battle then team = math.floor(slot / 4) + 1 end
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
@@ -153,6 +153,11 @@ function selection.create(options)
         countdown = idle_countdown, computers = previous.computers or -100,
         order = {}, cursor = 0, previous_random = false, blink = 0, display = {}, wide = wide_wanted(width, mode_text)}
     state.width = state.wide and width or nil
+    -- Ten player slots only in the 10 player layout, and only when it really drew (a layout that fell back is the classic menu).
+    state.slot_count = state.wide and user_options.slot_count and user_options.slot_count(layout_name) or 8
+    if mode == constants.modes.battle and state.slot_count == 10 then
+        for slot = 0, 9 do slots[slot].team = math.floor(slot / 5) + 1 end   -- two sides of five
+    end
     -- The mode file's <name> block: the mode's title at its own position, in a wide layout.
     state.title = state.wide and ui_modes.title(mode_text) or nil
     -- The player cannot read the log: a wide layout that is not drawn as chosen says so on the screen.
@@ -171,7 +176,7 @@ local function pick_fighter(state)
             else allowed = fighter.id < constants.record_id_ranges.random_fighter_end_exclusive end
             if fighter.record >= 1 and allowed then
                 local taken = false
-                for slot = 0, 7 do
+                for slot = 0, (state.slot_count or 8) - 1 do
                     if state.slots[slot].fighter == index then taken = true end
                 end
                 if not taken then list[#list + 1] = index end
@@ -186,8 +191,8 @@ local function pick_fighter(state)
     return candidates[engine.random(#candidates) + 1]
 end
 local function resolve_random(state)
-    for index = 0, 7 do state.slots[index].was_random = state.slots[index].fighter == 0 end
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do state.slots[index].was_random = state.slots[index].fighter == 0 end
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.was_random then slot.fighter, slot.skin = pick_fighter(state), nil end
     end
@@ -255,7 +260,7 @@ end
 -- The last slot to pick a team may not join the side every other ready slot is on.
 local function avoided_team(state, current)
     local avoid = -1
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local other = state.slots[index]
         if index ~= current and other.phase % 10 == slot_phases.ready then
             if other.team == constants.teams.independent then avoid = -2
@@ -334,7 +339,7 @@ end
 local function team_slot(state, index, slot, keys, col, row)
     local avoid = -1
     local ready = 0
-    for other = 0, 7 do
+    for other = 0, (state.slot_count or 8) - 1 do
         if state.slots[other].phase == slot_phases.ready then ready = ready + 1 end
     end
     if ready == 7 and (state.mode == constants.modes.versus or state.mode == constants.modes.battle) then
@@ -391,12 +396,12 @@ local function slots_pass(state, held)
     local all_empty = false
     if state.menu == menus.human_slots then
         all_empty = true
-        for index = 0, 7 do
+        for index = 0, (state.slot_count or 8) - 1 do
             if state.slots[index].phase ~= slot_phases.empty then all_empty = false end
         end
     end
     local ready_count, idle_count, skip = 0, 0, false
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         local keys = held[index] or ""
         local col, row = origin(index)
@@ -442,7 +447,7 @@ local function computer_count_menu(state, previous_menu)
     local dx = state.wide and math.floor(((state.width or constants.screen.wide_width) - constants.screen.width) / 2 + 0.5) or 0
     image(state, "pe/cmc", 218 + dx, 215)
     local free, sides, teams = 0, 0, {}
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if not slot.ready then free = free + 1
         elseif slot.team == constants.teams.independent or not teams[slot.team] then
@@ -456,7 +461,7 @@ local function computer_count_menu(state, previous_menu)
         state.computers = minimum
     end
     local accept = previous_menu == menus.computer_count
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.ready then
             local keys = state.held[index] or ""
@@ -485,7 +490,7 @@ local function computer_count_menu(state, previous_menu)
                         resolve_random(state)
                         state.menu = menus.options
                     else
-                        for other = 0, 7 do
+                        for other = 0, (state.slot_count or 8) - 1 do
                             if not state.slots[other].ready and #state.order < state.computers then
                                 state.order[#state.order + 1] = other
                                 state.slots[other].phase = computer_phase
@@ -499,7 +504,7 @@ local function computer_count_menu(state, previous_menu)
             end
         end
     end
-    for number = 0, 7 do
+    for number = 0, (state.slot_count or 8) - 1 do
         local x = 280 + number * 30 + dx
         -- Digits the choice cannot reach (below the minimum, or more than the free slots) are greyed.
         local unavailable = number < minimum or free < number
@@ -518,7 +523,7 @@ local function computer_keys(state, previous_menu)
     local actions = {}
     if state.menu ~= menus.computer_slots then return actions end
     local accept = previous_menu == menus.computer_slots
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.ready then
             local keys = state.held[index] or ""
@@ -581,7 +586,7 @@ local function computer_menu(state, previous_menu)
             sounds.direct(state, "cancel")
             if state.cursor == 0 then
                 state.menu = menus.computer_count
-                for other = 0, 7 do
+                for other = 0, (state.slot_count or 8) - 1 do
                     if state.slots[other].phase == computer_phase then state.slots[other].phase = slot_phases.empty end
                 end
             else
@@ -856,7 +861,7 @@ local function grid_popup(state, previous_menu)
     end
     local keys = {}
     local accept = previous_menu == menus.options
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.ready then
             local keys_held = state.held[index] or ""
@@ -921,7 +926,7 @@ local function mode_popup(state, previous_menu)
     end
     local keys = {}
     local accept = previous_menu == menus.options
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.ready then
             local keys_held = state.held[index] or ""
@@ -1021,7 +1026,7 @@ local function stage_popup(state, previous_menu)
     end
     local keys = {}
     local accept = previous_menu == menus.options
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.ready then
             local keys_held = state.held[index] or ""
@@ -1102,7 +1107,7 @@ local function option_action(state, context, row, extras)
     elseif row == option_rows.exit then
         context.action("title")
     elseif row == option_rows.reselect then
-        for index = 0, 7 do
+        for index = 0, (state.slot_count or 8) - 1 do
             local slot = state.slots[index]
             slot.phase = slot_phases.empty
             slot.latched = true
@@ -1130,7 +1135,7 @@ local function option_action(state, context, row, extras)
             end
         end
     elseif row == option_rows.reroll then
-        for index = 0, 7 do
+        for index = 0, (state.slot_count or 8) - 1 do
             local slot = state.slots[index]
             if slot.was_random then slot.fighter, slot.skin = pick_fighter(state), nil end
         end
@@ -1211,7 +1216,7 @@ local function small_menu(state, previous_menu, context)
 
     local keys = {}
     local accept = previous_menu == menus.options
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.ready then
             local held = state.held[index] or ""
@@ -1338,7 +1343,7 @@ local function options_menu(state, previous_menu, context)
 
     local keys = {}
     local accept = previous_menu == menus.options
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.ready then
             local held = state.held[index] or ""
@@ -1365,7 +1370,7 @@ local function options_menu(state, previous_menu, context)
 end
 
 function selection.reset_all(state)
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         slot.phase = slot_phases.empty
         slot.latched = true
@@ -1379,7 +1384,7 @@ end
 
 function selection.resume_options(state, outcome)
     if outcome and outcome.stage_level then state.options.stage_level = outcome.stage_level end
-    for index = 0, 7 do state.slots[index].latched = true end
+    for index = 0, (state.slot_count or 8) - 1 do state.slots[index].latched = true end
     state.menu, state.last_menu = menus.options, menus.options
     state.display = {}
     return state
@@ -1388,7 +1393,7 @@ end
 -- Match setup for base/game/match: human slots are joined (1-10), computers 11 and up.
 function selection.match_options(state)
     local slots = {}
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.phase >= slot_phases.choosing_fighter and slot.phase <= slot_phases.computer_fighter - 1 then
             slots[index] = {kind = "human", fighter = slot.fighter, team = slot.team, random = slot.was_random, skin = chosen_skin(slot)}
@@ -1440,7 +1445,7 @@ local function roster_pass(state, held)
             local x, y = roster_cell(position - 1)
             if held.pointer_x >= x and held.pointer_x < x + roster.step_x - 10
                and held.pointer_y >= y and held.pointer_y < y + roster.height + 16 then
-                for index = 0, 7 do
+                for index = 0, (state.slot_count or 8) - 1 do
                     local slot = state.slots[index]
                     if slot.phase == slot_phases.choosing_fighter then
                         slot.fighter = fighter_index
@@ -1453,7 +1458,7 @@ local function roster_pass(state, held)
         end
     end
     local owners = {}
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         if slot.phase >= slot_phases.choosing_fighter and not (state.options.hide_random and slot.was_random) then
             local computer = slot.phase >= computer_phase
@@ -1552,7 +1557,7 @@ end
 -- Headless traces: menu, countdown and each slot's phase:fighter:team.
 function selection.describe(state)
     local slots = {}
-    for index = 0, 7 do
+    for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
         slots[#slots + 1] = string.format("%d:%d:%d", slot.phase, slot.fighter, slot.team)
     end

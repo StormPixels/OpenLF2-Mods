@@ -535,10 +535,18 @@ Result<Configuration> configuration(std::span<const std::string> arguments,
 }
 class GameResources final : public ResourceSource {
 public:
-    GameResources(const ResourceSource& archive, Bytes executable, std::span<const PackageAsset> assets)
-        : archive_(archive), executable_(std::move(executable)) {
+    GameResources(const ResourceSource& archive, Bytes executable, std::span<const PackageAsset> assets, std::string saves_path)
+        : archive_(archive), executable_(std::move(executable)), saves_path_(std::move(saves_path)) {
         for (const auto& asset : assets) assets_.emplace(asset.resource, asset);
         names_ = load_resource_names(archive_);
+    }
+    // Scripts may write one game file, the saves file named by system.dat (data/saves.txt); the source decides whether
+    // it can be written at all (a folder yes, an installer no).
+    Result<void> write(std::string_view path, std::string_view text) const override {
+        auto normalized = virtual_path(path);
+        if (!normalized) return std::unexpected(normalized.error());
+        if (*normalized != saves_path_) return fail(ErrorCode::unsupported, "only " + saves_path_ + " can be written");
+        return archive_.write(*normalized, text);
     }
     Result<Bytes> read(std::string_view path) const override {
         auto normalized = virtual_path(path);
@@ -606,6 +614,7 @@ public:
 private:
     const ResourceSource& archive_;
     Bytes executable_;
+    std::string saves_path_;  // the only game file scripts may write (LF2 Darkfiren: the unlocked keys)
     ResourceNames names_;
     std::map<std::string, PackageAsset, std::less<>> assets_;
 };
@@ -1009,12 +1018,13 @@ Result<void> run(const Configuration& config) {
         if (auto file = read_recording_file(*archive)) constants = std::move(file);
     }
     if (!constants) return std::unexpected(constants.error());
-    const auto& resources = game_data.attach(std::make_unique<GameResources>(*archive, std::move(executable), scripts->assets));
-    // LF2 Darkfiren: the window takes the title of system.dat's `name:` (the game keeps "OpenLF2" without one).
     std::string system_dat_text;  // data/system.dat as text; empty without the file
     if (const auto system_dat = read_data_text(*archive, "data/system.dat", 1024 * 1024)) {
         system_dat_text.assign(system_dat->begin(), system_dat->end());
     }
+    const auto& resources = game_data.attach(std::make_unique<GameResources>(*archive, std::move(executable), scripts->assets,
+                                                                              saves_path_from_system_dat(system_dat_text)));
+    // LF2 Darkfiren: the window takes the title of system.dat's `name:` (the game keeps "OpenLF2" without one).
     if (platform) {
         if (const auto title = window_title_from_system_dat(system_dat_text)) platform->set_window_title(*title);
     }

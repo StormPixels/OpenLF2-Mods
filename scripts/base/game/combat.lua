@@ -141,6 +141,7 @@ local function eligible(state, a_entry, b_entry, itr, force_friendly)
     local attacker, defender = a_entry.value, b_entry.value
     local attack_kind = itr.kind
     if itr.dbdefend and not fx_itr.dbdefend_allows(attacker, defender, itr.dbdefend) then return false end
+    if fx_itr.leaf_blocks(itr, defender.record.kind, recent_state(defender)) then return false end -- Leaf.F effects 13-16
     if attack_kind == 17 or attack_kind == 18 then
         if not fx_itr.whirl_matches(attack_kind, defender.record.kind) then return false end
         attack_kind = fx_itr.base_kind(attack_kind)
@@ -517,6 +518,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
     local victim_frame = victim.record.frame(victim.frame_at_pass)
     local victim_kind = victim.record.kind
     local spark_kind = 0
+    local leaf = fx_itr.leaf_extras(itr, victim_kind, recent_state(victim)) -- Leaf.F effects 8-16 extras, nil otherwise
     victim.timer_b8 = 45
     if victim.record.id == constants.record_ids.criminal then
         local body = victim.record.frame(victim.frame).bodies[1]
@@ -587,13 +589,13 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
     if b0 > 60 and victim_kind ~= record_kinds.ball then victim.timer_b0 = combat_knockdown_fall_points
     elseif victim_kind == record_kinds.ball then
         -- Balls keep their frame; the accumulated value only matters at 80.
-    elseif b0 > 40 then
+    elseif b0 > 40 and not (leaf and leaf.no_injured) then
         victim.frame = character_frames.injured + 6
         victim.timer_b0 = victim.y_int < (victim.floor_y or 0) and combat_knockdown_fall_points or 60
-    elseif b0 > 20 then
+    elseif b0 > 20 and not (leaf and leaf.no_injured) then
         victim.frame = character_frames.injured + 2 + same_facing * 2
         victim.timer_b0 = victim.y_int < (victim.floor_y or 0) and combat_knockdown_fall_points or 40
-    elseif b0 > 0 then
+    elseif b0 > 0 and not (leaf and leaf.no_injured) then
         victim.frame = character_frames.injured
         victim.timer_b0 = 20
         if victim.y_int < (victim.floor_y or 0) then victim.frame = character_frames.injured + 2 + same_facing * 2 end
@@ -617,6 +619,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
         sounds.item(state, victim.x_int, victim.record.data.weapon.hit_sound, victim.record.id)
     end
     local attacker_state = attacker.record.frame(attacker.frame).state
+    local impulse_x_before = victim.impulse_x
     if victim.timer_b0 ~= combat_knockdown_fall_points or victim.vx >= 5.0 or victim.vx <= -5.0 or itr.dvx ~= 0 then
         if attacker_state == state_flying_heavy_item then
             push(victim, attacker.x_int < victim.x_int and itr.dvx or -itr.dvx)
@@ -648,6 +651,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
     else
         push(victim, (attacker.facing * -2 + 1) * 5.0)
     end
+    if leaf and leaf.no_fall then victim.impulse_x = impulse_x_before end -- caughtact -2 / -3 cancels the attacker's dvx
     if attacker_state == constants.frame_states.flying_ball
        and (victim_kind == record_kinds.character or attacker.record.id ~= object_freeze_ball
             or not (breakable[victim.record.id] or (victim.record.id == object_freeze_ball and victim.frame == ball_frame_vanishing))) then
@@ -656,7 +660,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
         attacker.vx = 0.0
         attacker.vz = attacker.record.frame(ball_frame_hitting).dvy
     end
-    if victim.timer_b0 == combat_knockdown_fall_points then
+    if victim.timer_b0 == combat_knockdown_fall_points and not (leaf and leaf.no_fall) then -- caughtact -2 / -3: no falling frames, no dvy
         local light = (victim_kind ~= record_kinds.heavy_item and victim_kind ~= record_kinds.ball) or itr.fall > 40
         if itr.dvy == 0 then
             if light then victim.impulse_y = victim.impulse_y - 7.0 end
@@ -736,6 +740,10 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
         victim.facing = victim.impulse_x < 0.0 and facing_right or facing_left
     end
     if itr.effect == effects.burn_sound then sounds.effect(state, victim.x_int, 16, victim.record.id) end
+    if leaf then -- Leaf.F catchingact / caughtact: move the attacker / the victim to the given frame
+        if leaf.victim_frame > 0 then victim.frame, victim.wait_counter = leaf.victim_frame, 0 end
+        if leaf.attacker_frame > 0 then attacker.frame, attacker.wait_counter = leaf.attacker_frame, 0 end
+    end
     return spark_kind
 end
 

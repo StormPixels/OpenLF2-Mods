@@ -567,7 +567,7 @@ end
 
 local function draw_status(context, state, style)
     style = style or fallback_hud
-    for slot = 0, 7 do
+    for slot = 0, (style.slots or 8) - 1 do
         local row = math.floor(slot / style.row) * style.frame_h + style.frame_y
         local column = style.frame_x + (slot % style.row) * style.frame_w + (style.centered == false and 0 or wide_center())
         context.image(style.frame_pic, column, row, false)
@@ -601,8 +601,10 @@ end
 local function draw_scoreboard(context, current)
     local counter = current.round_counter
     if counter < 101 or counter >= constants.round_counters.finished then return end
+    -- Eight player slots, ten in the 10 player layout (items 8 and 9, or 18 and 19 for computers).
+    local slot_total = options.slot_count and options.slot_count(options.current().battlefield_layout) or 8
     local players = 0
-    for slot = 0, 7 do
+    for slot = 0, slot_total - 1 do
         if current.items[slot] or current.items[slot + 10] then players = players + 1 end
     end
     local players_alive = false
@@ -620,7 +622,7 @@ local function draw_scoreboard(context, current)
     local top = math.floor((530 - height) / 2)
     local row_y = top + 16
     context.image("pe/score_board1", 150, top, false)
-    for slot = 0, 7 do
+    for slot = 0, slot_total - 1 do
         local index = current.items[slot] and slot or slot + 10
         local value = current.items[index]
         if value then

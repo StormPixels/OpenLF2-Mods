@@ -19,7 +19,7 @@ Skalar penting: spark_w/h, fps_value, fps_value_f5, slow_motion, slow_power, st_
 
 ### unlock (kunci buka dan cheat) — BASE (kata cheat: R11)
 `allows(hidden)`: 0 atau kosong selalu; 1 kode LF2.NET; 2 HEROFIGHTER.COM; 3 keduanya; 4 tidak pernah; 10..1000 kunci di saves atau `join: -1` (membuka semua); 5..9 dan >1000 terkunci **[BELUM PASTI]**.
-`grant(key)`, `serialize()`, `load_saves(text)`, `parse_saves(text)`, `reset_saves()`, `on_change` (fungsi yang dipanggil dengan teks saves setelah grant baru). **[BELUM PASTI]** format saves.txt (berkas bawaan kosong): dibaca sebagai semua bilangan bulat 10..1000 (negatif diabaikan). Penulisan ke berkas belum bisa (tidak ada API tulis berkas di Lua).
+`grant(key)`, `serialize()`, `load_saves(text)`, `parse_saves(text)`, `reset_saves()`, `on_change` (fungsi yang dipanggil dengan teks saves setelah grant baru). **[BELUM PASTI]** format saves.txt (berkas bawaan kosong): dibaca sebagai semua bilangan bulat 10..1000 (negatif diabaikan). Penyimpanan (R14): `grant` menulis semua kunci (satu per baris, menaik) ke berkas saves lewat `engine.write_game_file(jalur, teks)` bila data game berupa folder (jalur dari system.dat `file:`, bawaan `data/saves.txt`; hanya berkas itu yang boleh ditulis, maks 1 MiB, lewat berkas sementara lalu diganti); bila data tidak dapat ditulis (installer) atau penulisan gagal, kunci disimpan di config.json pada `unlock.keys` (anggota lain config.json tetap). Saat dimuat, kunci dari saves.txt dan config.json digabung.
 Kata cheat (R11): `cheat1:` (maks 7 karakter) dan `cheat2:` (maks 15) di system.dat menggantikan LF2.NET dan HEROFIGHTER.COM; huruf kapital, angka dan titik; kata tidak sah atau tag hilang memakai kata bawaan **[BELUM PASTI]** reaksi aslinya. `word_keys`, `configure_words`, `reset_words`. Kedua peer harus memakai system.dat yang sama.
 
 ### music (bgm.dat) — BASE
@@ -49,13 +49,14 @@ Layer `state:` (1 saat ronde mulai, 2 saat selesai): `set_phase(view, fase)`; `t
 ## 3. C++ milik AI5
 - `src/resources/global_dat_text.cpp`: dat_text, mode_file/<k>, `window_title_from_system_dat`, `frame_steps_from_system_dat`.
 - R11: judul jendela dari `name:` (`Platform::set_window_title`, bawaan tidak berbuat apa-apa; SDL memanggil SDL_SetWindowTitle); interval frame dari `fps_value` (10..100 ms, bawaan 33) dan `fps_value_f5` (1..100 ms, tidak lebih lambat dari normal, bawaan 3). Di luar batas atau tanpa tag = nilai asli. Gerak lambat akhir ronde (slow_motion, slow_power) tidak diubah. Kecepatan simulasi mengikuti system.dat: untuk jaringan dan replay semua pemain harus memakai system.dat yang sama.
+- R14 (penyimpanan kunci): `ResourceSource::write` (bawaan galat `unsupported`), `DirectoryArchive::write` (di samping berkas yang ada atau berkas lain di direktori maya yang sama; indeks tidak diubah), `GameResources::write` (hanya jalur saves dari system.dat), opcode `openlf2_write_game_file` di runtime.cpp dan `engine.write_game_file` di bootstrap.lua (disetujui pengguna).
 - background_data (BASE: R7): layer `state:`, `frame:` dan `quest:`; stage_data (R11): `join_pic`, `<protect>`, `max`.
 
 ## 4. Yang menunggu pihak lain
 - AI2: `background.set_phase` (ronde mulai dan selesai), tracker `sd_quest` per pemain dan hadiahnya, logika akhir `<protect>`, pembaca `max:`, `background.switch_state` di st_states.lua, `centery` untuk pasukan battle mode.
 - AI3: `sounds.weapon_path`, `attacking` (`bg_modes.damage_percent(state.bg_area)`), data sd_global.
 - AI4: menggambar `data.team_frames` dan `paint_front`, menandai centery/attacking sebagai supported, mengisi `effects.index` (nomor mode 0-based) agar `weapon_path` tahu mode pilihan pemain.
-- Pengguna: API tulis berkas Lua untuk saves.txt.
+- Pengguna: uji penulisan saves.txt di perangkat (folder game; di Android folder file milik aplikasi).
 
 ## 5. Pengujian
 `bash RESULT/tests/run.sh` dari akar repo (tes Lua `*_test.lua` dan tes C++ mandiri) dengan fixture data Darkfiren asli di `RESULT/tests/fixtures`. Tes C++ memakai g++ -std=c++23; `platform.cpp` (SDL) dan perilaku di perangkat tidak teruji di sandbox.

@@ -89,4 +89,44 @@ function fx.catch_frames(itr, facing)
     return catching, caught
 end
 
+-- Leaf.F effects 8-16 (docs/txt/readme/addons by Leaf.F.txt, "New effects working"). Types are record_kinds values.
+-- 8-12: the extras (respond state, catchingact, caughtact) work only on the listed victim types; other types get a normal
+-- hit. 13-16: the itr hits only the listed types. respond (non-zero) = only victims whose current frame state equals it
+-- ([BELUM PASTI]: for 8-12 a state mismatch only drops the extras; for 13-16 it drops the whole hit).
+local leaf_types = {
+    [8] = {[0] = true}, [9] = {[3] = true}, [10] = {[0] = true, [3] = true}, [11] = {[1] = true, [2] = true, [4] = true, [6] = true},
+    [13] = {[0] = true}, [14] = {[3] = true}, [15] = {[0] = true, [3] = true}, [16] = {[1] = true, [2] = true, [4] = true, [6] = true},
+}
+local function leaf_fits(itr, victim_kind, victim_state)
+    local effect = itr.effect
+    if effect == 12 then return true end
+    local types = leaf_types[effect]
+    if not types or not types[victim_kind] then return false end
+    return (itr.respond or 0) == 0 or victim_state == itr.respond
+end
+-- true when the hit must not happen at all (effects 13-16 on a victim that does not fit)
+function fx.leaf_blocks(itr, victim_kind, victim_state)
+    local effect = itr.effect
+    if not effect or effect < 13 or effect > 16 then return false end
+    return not leaf_fits(itr, victim_kind, victim_state)
+end
+-- The extras of a hit by effect 8-16 that fits the victim, or nil.
+function fx.leaf_extras(itr, victim_kind, victim_state)
+    local effect = itr.effect
+    if not effect or effect < 8 or effect > 16 then return nil end
+    if effect == 12 then
+        if (itr.respond or 0) ~= 0 and victim_state ~= itr.respond then return nil end
+    elseif not leaf_fits(itr, victim_kind, victim_state) then
+        return nil
+    end
+    local attacker_frame = itr.catchingact and itr.catchingact[1] or 0
+    local victim_frame = itr.caughtact and itr.caughtact[1] or 0
+    return {
+        attacker_frame = attacker_frame > 0 and attacker_frame or 0,
+        victim_frame = victim_frame > 0 and victim_frame or 0,
+        no_injured = victim_frame == -1 or victim_frame == -3,
+        no_fall = victim_frame == -2 or victim_frame == -3,
+    }
+end
+
 return fx

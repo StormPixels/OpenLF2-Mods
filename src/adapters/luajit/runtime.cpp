@@ -161,6 +161,16 @@ struct ResourceBridge {
             return false;
         }
     }
+    // LF2 Darkfiren: stores text as a game file (the saves file); the source decides what may be written.
+    bool write_file(std::string_view path, std::string_view text) noexcept {
+        try {
+            pending_save = resources.write(path, text);
+            return true;
+        } catch (...) {
+            pending_save.reset();
+            return false;
+        }
+    }
     bool read_data(ScriptData kind, std::string_view path) noexcept {
         try {
             pending_value = data.read(kind, path);
@@ -615,6 +625,26 @@ int write_settings(lua_State* state) {
     lua_pushboolean(state, 1);
     return 1;
 }
+// openlf2_write_game_file(path, text): true, or nil and a message (read-only game data, a path that may not be written).
+int write_game_file(lua_State* state) {
+    auto* bridge = resource_bridge(state);
+    if (lua_type(state, 1) != LUA_TSTRING || lua_type(state, 2) != LUA_TSTRING) return luaL_error(state, "write_game_file needs a path and a text");
+    std::size_t path_size = 0, text_size = 0;
+    const auto* path = lua_tolstring(state, 1, &path_size);
+    const auto* text = lua_tolstring(state, 2, &text_size);
+    if (path_size == 0 || path_size > 512) return luaL_error(state, "invalid game file path length");
+    if (!bridge->write_file(std::string_view(path, path_size), std::string_view(text, text_size))) return luaL_error(state, "game file allocation failed");
+    if (!bridge->pending_save->has_value()) {
+        const auto& message = bridge->pending_save->error().message;
+        lua_pushnil(state);
+        lua_pushlstring(state, message.data(), message.size());
+        bridge->pending_save.reset();
+        return 2;
+    }
+    bridge->pending_save.reset();
+    lua_pushboolean(state, 1);
+    return 1;
+}
 // Upvalues: the bridge and the ScriptData kind as a number.
 int read_data(lua_State* state) {
     auto* bridge = resource_bridge(state);
@@ -695,6 +725,9 @@ int open_libraries(lua_State* state) {
     lua_pushvalue(state, -1);
     lua_pushcclosure(state, write_settings, 1);
     lua_setglobal(state, "openlf2_write_settings");
+    lua_pushvalue(state, -1);
+    lua_pushcclosure(state, write_game_file, 1);
+    lua_setglobal(state, "openlf2_write_game_file");
     const std::pair<const char*, lua_CFunction> recording_functions[] = {
         {"openlf2_network", network_operation}, {"openlf2_network_time", network_time},
         {"openlf2_random_state", random_state}, {"openlf2_set_random_state", set_random_state},

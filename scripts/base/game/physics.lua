@@ -288,7 +288,7 @@ function physics.step(match, value)
         end
     end
     st_frame.direct_move(value)
-    st_block.resolve(match, value, value.x_int, value.z_int)
+    st_block.resolve(match, value, value.x_int, value.z_int, value.y_int)
     value.x_int = truncate(value.x)
     value.y_int = truncate(value.y)
     value.z_int = truncate(value.z)

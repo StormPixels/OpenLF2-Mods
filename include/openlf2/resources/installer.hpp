@@ -60,6 +60,10 @@ public:
     DirectoryArchive() = default;
     static Result<std::unique_ptr<DirectoryArchive>> open(const std::filesystem::path& root);
     Result<Bytes> read(std::string_view path) const override;
+    // Writes the file through a temporary file that replaces it, next to the existing file of that name or, for a
+    // new file, next to the other files of its directory. The index is not changed (a new file is seen at the next
+    // start). At most 1 MiB; an error when the directory is unknown.
+    Result<void> write(std::string_view path, std::string_view text) const override;
     [[nodiscard]] std::size_t file_count() const { return files_.size(); }
     // Normalized virtual paths in lexical order.
     [[nodiscard]] std::vector<std::string> paths() const {

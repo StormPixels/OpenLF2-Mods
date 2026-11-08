@@ -13,12 +13,18 @@ local options = {}
 options.wide_layout = "wide 1333"
 -- "wide 1018" is LF2 Darkfiren's 8P widescreen (mode2.dat) on a fixed 1018 wide picture.
 options.wide_layout_1018 = "wide 1018"
-options.battlefield_layouts = {"classic", "expand", options.wide_layout, options.wide_layout_1018}
+-- LF2 Darkfiren's 10 player widescreen (mode3.dat, hidden until its unlock code is in): 1018 wide with ten player slots.
+options.wide_layout_10p = "wide 1018 10P"
+options.battlefield_layouts = {"classic", "expand", options.wide_layout, options.wide_layout_1018, options.wide_layout_10p}
 -- The width of the fixed picture a wide layout draws on; nil for classic and expand.
 function options.wide_width(layout)
     if layout == options.wide_layout then return require("base/game/constants").screen.wide_width end
-    if layout == options.wide_layout_1018 then return 1018 end
+    if layout == options.wide_layout_1018 or layout == options.wide_layout_10p then return 1018 end
     return nil
+end
+-- How many player slots a layout has: 10 in the 10 player layout, 8 otherwise.
+function options.slot_count(layout)
+    return layout == options.wide_layout_10p and 10 or 8
 end
 local function valid_layout(value)
     for _, layout in ipairs(options.battlefield_layouts) do

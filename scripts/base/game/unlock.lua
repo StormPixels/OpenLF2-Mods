@@ -177,12 +177,55 @@ function unlock.reset_saves()
     unlock.keys, saves_settled = {}, false
 end
 
+-- The game file that keeps the keys: system.dat `file:` (data\\saves.txt by default), as a resource path.
+local function saves_path()
+    return (system_data.string("file", "data\\saves.txt"):lower():gsub("\\", "/"))
+end
+
+-- The keys config.json keeps when the saves file could not be written (a read-only installer, a failed write).
+local function stored_keys()
+    local keys = {}
+    if type(engine) ~= "table" or type(engine.read_settings) ~= "function" then return keys end
+    local ok, document = pcall(engine.read_settings)
+    local list = ok and type(document) == "table" and type(document.unlock) == "table" and document.unlock.keys or nil
+    if type(list) == "table" then
+        for _, key in ipairs(list) do
+            if type(key) == "number" and key >= 10 and key <= 1000 and key == math.floor(key) then keys[key] = true end
+        end
+    end
+    return keys
+end
+
 local function ensure_saves()
     if saves_settled then return end
-    local path = system_data.string("file", "data\\saves.txt")
-    local text, message = sd_text.read((path:lower():gsub("\\", "/")))
+    local text, message = sd_text.read(saves_path())
     if text then unlock.keys, saves_settled = unlock.parse_saves(text), true
     elseif not sd_text.not_ready(message) then saves_settled = true end
+    if saves_settled then
+        for key in pairs(stored_keys()) do unlock.keys[key] = true end  -- keys saved to config.json earlier
+    end
+end
+
+-- Stores the keys: in the game's saves file (a folder game; engine.write_game_file) like the original, otherwise,
+-- when the data cannot be written, in config.json under `unlock.keys`. Never raises.
+local function persist()
+    local text = unlock.serialize()
+    if type(unlock.on_change) == "function" then pcall(unlock.on_change, text) end
+    if type(engine) ~= "table" then return false end
+    if type(engine.write_game_file) == "function" then
+        local ran, written = pcall(engine.write_game_file, saves_path(), text)
+        if ran and written == true then return true end
+    end
+    if type(engine.read_settings) ~= "function" or type(engine.write_settings) ~= "function" then return false end
+    local ran, document = pcall(engine.read_settings)
+    if not ran or type(document) ~= "table" then document = {} end
+    local list = {}
+    for key in pairs(unlock.keys) do list[#list + 1] = key end
+    table.sort(list)
+    document.version = document.version or 1
+    document.unlock = {keys = list}
+    local saved, stored = pcall(engine.write_settings, document)
+    return saved and stored == true
 end
 
 -- The text to store in the saves file: one key per line, ascending.
@@ -202,7 +245,7 @@ function unlock.grant(key)
     ensure_saves()
     if unlock.keys[key] then return false end
     unlock.keys[key] = true
-    if type(unlock.on_change) == "function" then pcall(unlock.on_change, unlock.serialize()) end
+    persist()
     return true
 end
 
