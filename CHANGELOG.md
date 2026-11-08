@@ -253,3 +253,4 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: itr bounce, per-side catching frames for kind 1/3, and Leaf.F effects 8-16 (type filter, respond state, catchingact/caughtact -1/-2/-3).
 - UI: layout "wide 1018 10P" (mode3.dat, only when opened by `unlock.allows`) with 10 slots on the character screen, a 10-player HUD and a 10-row score board.
 - LF2 Darkfiren: unlock keys are saved to the game file `saves.txt` (path from `file:` of `system.dat`, default `data/saves.txt`), with a fallback to `config.json`; both are merged on load.
+- UI: with the 10 player layout the character screen counts down once every one of the 10 slots is idle or ready (the slot count was fixed at 8).

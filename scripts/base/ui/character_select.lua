@@ -342,7 +342,7 @@ local function team_slot(state, index, slot, keys, col, row)
     for other = 0, (state.slot_count or 8) - 1 do
         if state.slots[other].phase == slot_phases.ready then ready = ready + 1 end
     end
-    if ready == 7 and (state.mode == constants.modes.versus or state.mode == constants.modes.battle) then
+    if ready == (state.slot_count or 8) - 1 and (state.mode == constants.modes.versus or state.mode == constants.modes.battle) then
         avoid = avoided_team(state, index)
     end
     normalize_team(state, slot, avoid)
@@ -433,12 +433,12 @@ local function slots_pass(state, held)
         if slot.phase == slot_phases.empty or slot.phase == slot_phases.ready then idle_count = idle_count + 1 end
     end
     local previous = state.countdown
-    if ready_count < 1 or idle_count ~= 8 then
+    if ready_count < 1 or idle_count ~= (state.slot_count or 8) then
         state.countdown = idle_countdown
     else
         state.countdown = state.countdown - 1
         if skip then state.countdown = previous - 31 end
-        if ready_count == 8 then state.countdown = 0 end
+        if ready_count == (state.slot_count or 8) then state.countdown = 0 end
     end
 end
 
