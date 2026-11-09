@@ -15,20 +15,17 @@ local default_zwidth = constants.combat.default_zwidth
 local item_slots = constants.item_slots
 local config = fx_constants.platform
 
--- kind 30-39 / 40-49 / 50-59 act on type 0 (characters); 60-69 / 70-79 / 80-89 on types 1, 2, 4, 5, 6.
--- Within a decade: 0-9 = all teams, 4x/7x = allied to the platform's team, 5x/8x = enemy of it.
-local object_types = {[K.light_item] = true, [K.heavy_item] = true, [K.baseball] = true, [K.prisoner] = true, [K.drink] = true}
+-- Who is affected, read from PDK.exe by the user's helper (AI2 round 18, [KODE]): kind 30-59 act on types 0 and 3 (characters
+-- and energy balls), kind 60-89 on types 1, 2, 4 and 6; type 5 (prisoner) is never affected. Within a decade: 3x / 6x = all
+-- teams, 4x / 7x = the platform's team, 5x / 8x = any other team. (st_block.lua, AI2, applies X1-X5 to characters only.)
+local lower_types = {[K.character] = true, [K.ball] = true}
+local upper_types = {[K.light_item] = true, [K.heavy_item] = true, [K.baseball] = true, [K.drink] = true}
 
 function platform.is_platform_kind(kind) return kind >= 30 and kind <= 89 end
 
 local function affects(itr_kind, platform_item, item)
     local tens = (itr_kind - itr_kind % 10) / 10
-    local character = item.record.kind == K.character
-    if tens <= 5 then
-        if not character then return false end
-    elseif not object_types[item.record.kind] then
-        return false
-    end
+    if not (tens <= 5 and lower_types or upper_types)[item.record.kind] then return false end
     local group = tens <= 5 and tens or tens - 3 -- 3 all, 4 allied, 5 enemy
     if group == 3 then return true end
     local same = item.team == platform_item.team
@@ -57,23 +54,30 @@ local function record_has_platform(record)
     return found
 end
 
--- Is the item's centre inside the platform itr (x range and z window)?
-local function inside(platform_item, frame, itr, item)
-    local x
-    if platform_item.facing == facing_left then x = frame.center_x + platform_item.x_int - itr.width - itr.x
-    else x = itr.x + platform_item.x_int - frame.center_x end
-    if item.x_int < x or item.x_int >= x + itr.width then return false end
+-- The itr's x range and z window in world coordinates: x_int in (left, right) and |z_int - z_centre| < z_window, all bounds
+-- exclusive (PDK, [KODE]). [BELUM PASTI] the x range is mirrored when the platform faces left (the PDK notes do not say).
+function platform.itr_box(platform_item, frame, itr)
+    local left
+    if platform_item.facing == facing_left then left = frame.center_x + platform_item.x_int - itr.width - itr.x
+    else left = itr.x + platform_item.x_int - frame.center_x end
     local window = itr.zwidth ~= 0 and itr.zwidth or default_zwidth
-    local centre = platform_item.z_int + (itr.z or 0) -- [BELUM PASTI] itr z shifts the window, zwidth is its half width
-    local depth = item.z_int - centre
-    return depth >= -window and depth <= window
+    return left, left + itr.width, platform_item.z_int + (itr.z or 0), window
 end
 
+-- Is the item's centre inside the platform itr (x range and z window)?
+function platform.inside(platform_item, frame, itr, item)
+    local left, right, centre, window = platform.itr_box(platform_item, frame, itr)
+    if item.x_int <= left or item.x_int >= right then return false end
+    local depth = item.z_int - centre
+    return depth > -window and depth < window
+end
+platform.affects = affects
+
 -- Height (<= 0, negative = up) of the highest platform plane at or below the item's feet that affects it, or nil.
--- plane = the platform object's y plus the itr's dvy (readme). An item whose feet were already below the plane on
--- the previous tick passes through it (walking under, jumping up through it). `current` (optional) is the plane the item
--- stood on last tick (value.floor_y): a plane that is at most `rise_limit` above it still holds the item, so a rising
--- platform carries it along.
+-- plane = the platform object's y plus the itr's dvy, rounded (readme / PDK). An item whose feet are below the plane both
+-- now and a tick ago passes through it (walking under, jumping up); once its feet are above the plane it is held by it. `current` (optional) is the plane the item
+-- stood on last tick (value.floor_y): a plane that is at most `rise_limit` above it still holds the item (a safety net for a
+-- platform that rises without a frame dvy; AI2's st_block.carry normally moves such items).
 function platform.plane_at(match, value, current)
     if not match or not match.items then return nil end
     local best
@@ -85,11 +89,13 @@ function platform.plane_at(match, value, current)
             for _, itr in ipairs(frame.interactions or {}) do
                 local kind = itr.kind
                 if platform.is_platform_kind(kind) and config.supported_subtypes[kind % 10]
-                   and affects(kind, object, value) and inside(object, frame, itr, value) then
-                    local plane = object.y_int + (itr.dvy or 0)
+                   and affects(kind, object, value) and platform.inside(object, frame, itr, value) then
+                    local plane = math.floor(object.y_int + (itr.dvy or 0) + 0.5) -- rounded to the nearest (PDK)
                     local slack = config.land_tolerance
                     if current and plane <= current and current - plane <= config.rise_limit then slack = config.rise_limit end
-                    if plane <= 0 and previous_feet <= plane + slack and (best == nil or plane < best) then
+                    -- recorded when the feet were above the plane a tick ago or are above it now (PDK: plane >= y)
+                    local above = value.y <= plane + slack or previous_feet <= plane + slack
+                    if plane <= 0 and above and (best == nil or plane < best) then
                         best = plane
                     end
                 end

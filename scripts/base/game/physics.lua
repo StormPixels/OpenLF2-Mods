@@ -141,6 +141,7 @@ function physics.step(match, value)
     end
     if value.weapon < 0 then return end
     if frame(value.frame).cpoint.kind == cpoint_kinds.caught then return end
+    if value.floor_object then st_block.carry(match, value) end
     local floor_before = value.floor_y or 0
     local air_frame, was_airborne = value.frame, value.y - floor_before < -0.0001
     if not ((value.vx > 0.0 and value.blocked_right) or (value.vx < 0.0 and value.blocked_left)) then
@@ -183,6 +184,7 @@ function physics.step(match, value)
     -- A platform that rose under a fighter standing on it carries the fighter up.
     if floor < floor_before and value.vy == 0.0 and value.y == floor_before + 0.0 then value.y = floor + 0.0 end
     value.floor_y = floor ~= 0 and floor or nil
+    if floor ~= 0 then value.floor_object, value.floor_index = st_block.owner(match, value, floor) else value.floor_object, value.floor_index = nil, nil end
     if value.y - floor < -0.0001 then
         -- Airborne: gravity by kind and state.
         local kind = record.kind

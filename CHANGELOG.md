@@ -254,3 +254,4 @@ All notable changes to this project are documented in this file.
 - UI: layout "wide 1018 10P" (mode3.dat, only when opened by `unlock.allows`) with 10 slots on the character screen, a 10-player HUD and a 10-row score board.
 - LF2 Darkfiren: unlock keys are saved to the game file `saves.txt` (path from `file:` of `system.dat`, default `data/saves.txt`), with a fallback to `config.json`; both are merged on load.
 - UI: with the 10 player layout the character screen counts down once every one of the 10 slots is idle or ready (the slot count was fixed at 8).
+- LF2 Darkfiren: platforms X1-X5 follow the original PDK routines (blocks, moving, resistance, bounce) and carry items; platform.plane_at and the combat code agree on the plane height.

@@ -163,6 +163,7 @@ function weapons.carry(state)
     end
     fx_point.follow_all(state) -- Darkfiren ppoint: objects stay at an offset from their owner
     fx_point.bounce_all(state) -- Darkfiren itr bounce: victims marked by a dx / dy / dz itr bounce when they land
+    fx_point.heal_mp_all(state) -- Leaf.F kind 8 caughtact: MP regeneration
 end
 
 function weapons.check_holders(state)

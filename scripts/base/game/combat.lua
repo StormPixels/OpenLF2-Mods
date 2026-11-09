@@ -151,7 +151,8 @@ local function eligible(state, a_entry, b_entry, itr, force_friendly)
     if breakable[attacker.record.id] and defender.record.id == object_freeze_ball and attack_kind ~= attack_kinds.reflect_ball then return false end
     local defender_kind = defender.record.kind
     if attack_kind == attack_kinds.catch and defender_kind ~= record_kinds.character then return false end
-    if attack_kind == attack_kinds.heal and defender_kind ~= record_kinds.character then return false end
+    if attack_kind == attack_kinds.heal and not (fx_itr.heal_type_ok(itr, defender_kind)
+        and fx_itr.heal_team_ok(itr, attacker, a_entry.index, defender, b_entry.index)) then return false end -- Leaf.F itk8
     if attack_kind == attack_kinds.plain then
         local effect = itr.effect
         if effect == effects.skip_characters and defender_kind == record_kinds.character then return false end
@@ -1145,7 +1146,7 @@ function combat.apply(state, p)
                     held.vy = -1.0
                 end
             end
-            if itr and victim.record.kind == record_kinds.heavy_item then
+            if itr and victim.record.kind == record_kinds.heavy_item and itr.kind ~= attack_kinds.heal then -- Leaf.F: kind 8 skips the halving
                 itr = copy_itr(itr)
                 itr.dvx, itr.dvy = cdiv(itr.dvx, 2), cdiv(itr.dvy, 2)
             end
@@ -1173,10 +1174,17 @@ function combat.apply(state, p)
                 victim.super_window = 3
             elseif itr.kind == attack_kinds.heal then
                 -- Healing: the victim regenerates, the healer jumps onto it.
-                victim.regen_timer = itr.injury + constants.healing.timer_base
-                attacker.frame = itr.dvx
-                attacker.x = victim.x
-                attacker.z = victim.z + 1.0
+                local heal = fx_itr.heal_params(itr)
+                if victim.record.kind == record_kinds.character then
+                    if itr.injury ~= 0 then victim.regen_timer = itr.injury + constants.healing.timer_base end -- injury 0 keeps the old value
+                    if heal.mp > 0 then victim.fx = victim.fx or {}; victim.fx.mp_regen = heal.mp end -- caughtact: MP regeneration ticks
+                end
+                if itr.dvx ~= 999 then attacker.frame = itr.dvx end -- 999 = keep the frame
+                if heal.move ~= -1 then -- dvy: -1 none, 0 x / z (original), 1 y / z, 2 x / y / z
+                    if heal.move ~= 1 then attacker.x = victim.x end
+                    if heal.move >= 1 then attacker.y = victim.y end
+                    attacker.z = victim.z + 1.0
+                end
             elseif itr.kind == attack_kinds.reflect_ball then
                 reflect_ball(state, p, attacker, victim)
             elseif itr.kind == attack_kinds.whirlwind or (itr.kind == attack_kinds.conditional_whirlwind and victim.fall_damage < 0) then

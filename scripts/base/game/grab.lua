@@ -216,4 +216,15 @@ function grab.place_victims(state)
         end
     end
 end
+-- Releases the victim `victim_index` from outside (platform X5 on a caught victim). The holder returns to its standing frame
+-- and stops holding; the next update_holds drops the victim (frame jump + 2, vy -3). Returns true when it was held.
+function grab.release_victim(state, victim_index)
+    local victim = state.items[victim_index]
+    if not victim then return false end
+    local holder = objects.lookup(state, victim.caught_by)
+    if not holder or holder.catching ~= victim_index or cpoint(holder, holder.frame).kind ~= cpoint_kinds.holder then return false end
+    holder.catching, holder.frame, holder.wait_counter = 0, 0, 0
+    return true
+end
+
 return grab

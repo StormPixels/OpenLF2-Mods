@@ -145,4 +145,22 @@ function fx.bounce_all(state)
         if value then fx.bounce_step(value) end
     end
 end
+-- Leaf.F kind 8 caughtact: heals MP over time, like injury heals HP (+8 every 8 ticks); MP may exceed 500 up to heal_mp_limit.
+function fx.heal_mp_step(value)
+    local fx_state = value.fx
+    local ticks = fx_state and fx_state.mp_regen
+    if not ticks or ticks <= 0 then return end
+    if value.hp <= 0 then fx_state.mp_regen = nil return end
+    ticks = ticks - 1
+    fx_state.mp_regen = ticks > 0 and ticks or nil
+    if ticks % 8 == 0 then value.mp = math.min(value.mp + 8, fx_constants.heal_mp_limit) end
+end
+
+function fx.heal_mp_all(state)
+    for index = 0, constants.item_slots - 1 do
+        local value = state.items[index]
+        if value then fx.heal_mp_step(value) end
+    end
+end
+
 return fx

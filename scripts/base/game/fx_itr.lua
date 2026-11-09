@@ -129,4 +129,32 @@ function fx.leaf_extras(itr, victim_kind, victim_state)
     }
 end
 
+-- Leaf.F itk8 (kind 8, docs/txt/readme/addons by Leaf.F.txt "itk8 strengthen"). Every key falls back to the original
+-- behaviour when absent or out of range: bdefend 0 = characters only, respond 0 = all teams, dvy 0 = x / z move.
+local weapon_types = {[1] = true, [2] = true, [4] = true, [6] = true}
+function fx.heal_type_ok(itr, defender_kind)
+    local mode = itr.bdefend or 0
+    if mode < 0 or mode > 8 then mode = 0 end
+    if mode == 8 then return true end
+    if mode == 7 then return weapon_types[defender_kind] == true end
+    return defender_kind == mode
+end
+-- respond: 0 all, 1 teammates, 2 enemies, 3 self incl. clones and objects created by self, 4 self only.
+function fx.heal_team_ok(itr, attacker, attacker_index, defender, defender_index)
+    local mode = itr.respond or 0
+    if mode < 1 or mode > 4 then return true end
+    if mode == 1 then return attacker.team == defender.team end
+    if mode == 2 then return attacker.team ~= defender.team end
+    local creator = (attacker.owner and attacker.owner ~= 99) and attacker.owner or attacker_index
+    if defender_index == creator or defender_index == attacker_index then return true end
+    if mode == 4 then return false end
+    return defender.owner == creator or (defender.fx ~= nil and defender.fx.clone_owner == creator)
+end
+function fx.heal_params(itr)
+    local move = itr.dvy
+    if move == nil or move < -1 or move > 2 then move = 0 end
+    local mp = itr.caughtact and itr.caughtact[1] or 0
+    return {move = move, mp = mp > 0 and mp or 0}
+end
+
 return fx
