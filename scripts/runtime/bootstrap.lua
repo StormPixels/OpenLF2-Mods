@@ -108,7 +108,7 @@ local state = screen.create(runtime_settings or {menu_seed = 0})
 local FrameOpcode = {
     viewport = 1, sprite = 2, fill = 3, overlay = 4, render_area = 5,
     clip = 6, sound = 7, rumble = 8, music = 9, speed = 10,
-    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18, icon = 19,
+    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18, icon = 19, slow = 20,
 }
 local RumbleTarget = {gamepad = 0, phone = 1}
 local MusicKind = {play = 0, stop = 1, resume = 2, volume = 3}
@@ -172,6 +172,7 @@ local function render(input)
         command(FrameOpcode.music, MusicKind[kind] or INVALID_ENUM, value or false)
     end
     function context.speed(fast) command(FrameOpcode.speed, fast) end
+    function context.slow(extra) command(FrameOpcode.slow, extra) end
     function context.render_filter(filter)
         command(FrameOpcode.render_filter, RenderFilter[filter] or INVALID_ENUM)
     end

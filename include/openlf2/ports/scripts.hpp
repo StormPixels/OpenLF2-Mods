@@ -55,6 +55,7 @@ struct ScriptFrame {
     Viewport viewport;
     bool waiting = false;
     std::optional<bool> fast, text_input, fullscreen, replay_drop;
+    std::optional<std::int32_t> slow_ms;  // LF2 Darkfiren: milliseconds added to the frame step (slow motion), 0 = none
     std::optional<RenderFilter> render_filter;
     std::vector<DrawCommand> commands;
     std::vector<SoundCommand> sounds;

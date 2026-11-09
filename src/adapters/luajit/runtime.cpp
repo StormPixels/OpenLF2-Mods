@@ -192,7 +192,7 @@ int create_bridge_slot(lua_State* state) {
 // Private protocol, matching the fixed-size opcodes in runtime/bootstrap.lua.
 enum class FrameOpcode {
     viewport = 1, sprite, fill, overlay, render_area, clip, sound, rumble,
-    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite, icon
+    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite, icon, slow
 };
 class FrameReader {
 public:
@@ -262,7 +262,7 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
         int commands = 0;
         while (reader.remaining()) {
             if (++commands > 4096) throw std::runtime_error("too many frame commands");
-            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 19));
+            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 20));
             switch (opcode) {
             case FrameOpcode::viewport:
                 if (frame.viewport.width) throw std::runtime_error("duplicate viewport");
@@ -345,6 +345,7 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
                 break;
             }
             case FrameOpcode::speed: set_flag(frame.fast); break;
+            case FrameOpcode::slow: frame.slow_ms = reader.integer(0, 1000); break;
             case FrameOpcode::render_filter:
                 if (frame.render_filter) throw std::runtime_error("duplicate render filter");
                 frame.render_filter = static_cast<RenderFilter>(reader.integer(0, 2));

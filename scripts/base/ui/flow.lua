@@ -529,6 +529,7 @@ function flow.update(state, raw, context)
     music.flush(context)
     recording.tick_status(state.active == "match" and state.match.match.paused)
     context.speed(speed.fast)
+    if context.slow then context.slow(state.active == "match" and speed.slow or 0) end  -- HOOK(AI5): slow motion at the end of a round
     -- Show FPS (OpenLF2 extension): measured FPS, nil for a trace unless given; drawn in flow.draw.
     state.fps = input.fps
 end

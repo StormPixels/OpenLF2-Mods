@@ -1430,6 +1430,7 @@ Result<void> run(const Configuration& config) {
         auto rumbled = platform->rumble(frame->rumbles);
         if (!rumbled) return std::unexpected(rumbled.error());
         if (frame->fast) fast = *frame->fast;
+        if (frame->slow_ms) clock.set_slow(static_cast<std::uint32_t>(*frame->slow_ms));
         // Estimate serial cost even while requests overlap. Exclude blocking
         // simulation time already included in the main-thread elapsed time.
         const double main_ms = elapsed_ms(frame_started) - blocking_simulation_ms;
