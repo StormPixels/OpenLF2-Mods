@@ -27,6 +27,9 @@ local function wide_gap()
 end
 local function wide_center() return math.floor(wide_gap() / 2 + 0.5) end
 local screen = {}
+-- The canvas the battle is drawn on: 794, 1018 or 1333 wide and 550 up to 1000 high. Updated by screen.draw; the status line
+-- texts (mode, FPS, volume) sit at its bottom edge, so flow.lua reads it as well.
+screen.view = {width = constants.screen.width, height = constants.screen.height}
 local replay_lines, mode_line
 
 -- options: see base/game/match create().
@@ -241,7 +244,7 @@ replay_lines = function(context, current)
         bold_text(context, "  Info:", 10, y)
         wrapped_text(context, replay.info, 0x4b, y, 4)
     end
-    bold_text(context, clock(current.elapsed) .. " / " .. clock(replay.total_time), 5, 0x1fe)
+    bold_text(context, clock(current.elapsed) .. " / " .. clock(replay.total_time), 5, screen.view.height - 40)
 end
 local mode_text = ""
 mode_line = function(context, current, replaying)
@@ -261,7 +264,7 @@ mode_line = function(context, current, replaying)
         -- `base` ends with a space; its parts are translated one by one.
         mode_text = i18n.tr(base:sub(1, -2)) .. " " .. i18n.tr(suffixes[current.difficulty] or "")
     end
-    if mode_text ~= "" then bold_text(context, mode_text, 0x316 + wide_gap() - font.width(mode_text), replaying and 0x1fe or 0x213) end
+    if mode_text ~= "" then bold_text(context, mode_text, screen.view.width - 4 - font.width(mode_text), screen.view.height - (replaying and 40 or 19)) end
 end
 
 local words_known = {}
@@ -733,6 +736,7 @@ function screen.draw(state, context, window_bounds)
             right = math.max(window_bounds and window_bounds.right or 0, view_width),
             bottom = math.max(window_bounds and window_bounds.bottom or 0, view_height)}
     end
+    screen.view.width, screen.view.height = view_width, view_height
     context.viewport(view_width, view_height, 0, 0, 0)
     local view = state.view
     local current = state.match

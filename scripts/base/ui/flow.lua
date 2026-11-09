@@ -313,14 +313,21 @@ function flow.draw(state, context)
     if gamepad_mode(state) then
         touch_gamepad.draw(state.touch_gamepad, context)
     end
+    -- The status line sits at the bottom of the canvas: 531 on the classic 794 x 550, lower and wider in the battle's
+    -- 1018 / 1333 wide or taller layouts.
+    local status_y, status_width = 0x213, constants.screen.width
+    if state.active == "match" then
+        local view = screen_module("match").view
+        if view then status_y, status_width = view.height - 19, view.width end
+    end
     local status = recording.status_text()
-    if status then font.gdi(context, i18n.clip(status, 128), 3, 0x213, recording.status_color())
-    elseif state.volume_text then font.gdi(context, state.volume_text, 3, 0x213, 0x00ff00) end
+    if status then font.gdi(context, i18n.clip(status, 128), 3, status_y, recording.status_color())
+    elseif state.volume_text then font.gdi(context, state.volume_text, 3, status_y, 0x00ff00) end
     -- Show FPS (OpenLF2 extension): centered on the statusbar line so it never overlaps the
     -- left-aligned text.
     if shown_options.show_fps and state.fps then
         local fps_text = "FPS: " .. state.fps
-        font.gdi(context, fps_text, math.floor((constants.screen.width - font.gdi_width(fps_text)) / 2), 0x213)
+        font.gdi(context, fps_text, math.floor((status_width - font.gdi_width(fps_text)) / 2), status_y)
     end
     if state.quit_dialog then quit_dialog.draw(state.quit_dialog, context) end
 end

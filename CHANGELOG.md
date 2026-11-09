@@ -256,3 +256,4 @@ All notable changes to this project are documented in this file.
 - UI: with the 10 player layout the character screen counts down once every one of the 10 slots is idle or ready (the slot count was fixed at 8).
 - LF2 Darkfiren: platforms X1-X5 follow the original PDK routines (blocks, moving, resistance, bounce) and carry items; platform.plane_at and the combat code agree on the plane height.
 - LF2 Darkfiren: slow motion at the end of a round from slow_motion and slow_power of system.dat (milliseconds added to the frame step; F5 fast mode is not slowed).
+- UI: the mode line, FPS, volume and replay clock sit at the bottom of the real battle canvas (794, 1018 or 1333 wide, 550 to 1000 high) instead of fixed classic coordinates.
