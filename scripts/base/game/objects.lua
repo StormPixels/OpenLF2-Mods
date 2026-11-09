@@ -18,6 +18,7 @@ local state_thrown_item = constants.frame_states.thrown_item
 local item_slots = constants.item_slots
 local fx_constants = require("base/game/fx_constants")
 local fx_point = require("base/game/fx_point")
+local platform = require("base/game/platform")
 local object_bat_ball = constants.object_ids.bat_ball
 local object_bat_chase = constants.object_ids.bat_chase
 local object_broken_weapon = constants.object_ids.broken_weapon
@@ -353,6 +354,9 @@ local function ground(me) return me.floor_y or 0.0 end
 
 function objects.update(state, index)
     local me = state.items[index]
+    if me.record.kind == record_kinds.ball and me.floor_y ~= nil and me.record.frame(me.frame).state == fx_constants.platform.ball_state then
+        platform.land_ball(me) -- state 3007: stopped by a platform plane, goes to hit_g
+    end
     local hit_fa_mode = me.record.frame(me.frame).hits.Fa
     if hit_fa_mode == hit_fa_modes.explosion then
         local c = objects.create

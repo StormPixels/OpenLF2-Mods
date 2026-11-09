@@ -31,7 +31,7 @@ local function value_set(text)
     return set
 end
 
--- The tags of a mode that change the background's area or the round's start: `shadow`, `shadowsize`, `dicontrol`, `start_frame`, `reserve`,
+-- The tags of a mode that change the background's area or the round's start: `zcam`, `zcamera`, `cam_pause`, `shadow`, `shadowsize`, `dicontrol`, `start_frame`, `reserve`,
 -- `dx`, `dvx`, `dz`, `dvz` (the round's start and control, read by the round) and `width` (the battlefield's width,
 -- -1 = the window width), `zboundary` ("near far"), `dvy` (the start height of every fighter, below 0), `centery`
 -- (the height weapons, criminals and battle-mode armies drop from, below 0) and `attacking` (the damage percent
@@ -54,6 +54,13 @@ function bg_modes.area(mode)
     if type(mode.shadow) == "string" and mode.shadow:match("%S") then area.shadow = (mode.shadow:gsub("^%s+", ""):gsub("%s+$", "")) end
     local shadow_width, shadow_height = tostring(mode.shadowsize or ""):match("^%s*(%d+)[%s,]+(%d+)")
     if shadow_width then area.shadow_size = {tonumber(shadow_width), tonumber(shadow_height)} end
+    -- Camera tags: `zcam` 1 scrolls a background taller than the screen in parallel, `zcamera` follows the z of every
+    -- character chosen at the menu (humans and computers, "like xcamera"), `cam_pause` 1 stops the camera while the game is
+    -- paused. 0 or 1 only. [UNCERTAIN] zcamera: the developer names it beside zcam but does not say whether it is a <mode> tag.
+    for _, key in ipairs({"zcam", "zcamera", "cam_pause"}) do
+        local flag = tonumber(mode[key])
+        if flag == 0 or flag == 1 then area[key] = flag end
+    end
     -- Round start and control tags: whole numbers, nil when the mode has none. `dicontrol` is 0 (vanilla) or 1 (pdk).
     for _, key in ipairs({"start_frame", "reserve", "dx", "dvx", "dz", "dvz"}) do
         local number = tonumber(mode[key])

@@ -8,7 +8,7 @@
 -- * Gate (every unit): item centre x_int in (x, x + width), |object z + itr.z - item z| < zwidth (0 = 15), and for X1-X5 also
 --   top < y < bottom (top = object y_int + itr.y - frame centery, bottom = top + itr.h; the integer y of the item), every edge
 --   EXCLUSIVE. The itr's x comes from the frame's centerx (mirrored when the object faces left). Who: 3x all, 4x same team as
---   the object, 5x other team (6x-8x as 3x-5x); 3x-5x characters only (balls ignore X1-X5), 6x-8x types 1, 2, 4 and 6.
+--   the object, 5x other team (6x-8x as 3x-5x); 3x-5x characters only (balls ignore X1-X5), 6x-8x types 1, 2, 4, 5 and 6 (type 5: Darkfiren added it on purpose, the PDK.exe code has none).
 -- * X1 absolute block: per axis, an axis that was outside the box last tick and is inside now is put back on the edge the item
 --   came from (corner entry: two axes); an item already inside is left alone; from below y goes back to the bottom edge, from
 --   above nothing. No velocity change, no bounce.
@@ -16,7 +16,7 @@
 -- * X3 acceleration: every tick inside vx += dvx, vz += dvy, and the position moves by the same (x += dvx, z += dvy).
 -- * X4 resistance: every tick inside vx = vx * dvx / 1000, vz = vz * dvy / 1000, the position moves by the velocity change.
 -- * X5 bounce: when inside and last tick's y was outside the vertical range (above the top or at/below the bottom): vx += dvx,
---   vy += dvy (negative = up). The platform's facing and the item's facing are not used.
+--   vy += dvy (negative = up); a held victim is let go (grab.release_victim). The platform's facing and the item's facing are not used.
 -- The velocity fields (vx, vy, vz) are the engine's own; the routine's are read as +0x40/+0x48/+0x50 [DUGAAN, consistent with the
 -- readme]. [BELUM PASTI] what runs before or after the routine in the original tick: it runs after all objects have moved
 -- (pair phase 0x419380); here it runs at the end of each item's own physics.step.
@@ -27,7 +27,7 @@ local K = constants.record_kinds
 local facing_left = constants.facings.left
 local default_zwidth = constants.combat.default_zwidth
 local item_slots = constants.item_slots
-local object_types = {[K.light_item] = true, [K.heavy_item] = true, [K.baseball] = true, [K.drink] = true}
+local object_types = {[K.light_item] = true, [K.heavy_item] = true, [K.baseball] = true, [K.prisoner] = true, [K.drink] = true}
 
 local function is_block_kind(kind) local unit = kind % 10 return kind >= 30 and kind <= 89 and unit <= 5 end
 
@@ -90,6 +90,17 @@ local function boxes(match)
     return list
 end
 
+-- X5 on a victim that is being held (a grab): the PDK routine clears the held state (field +0x98 == 2) and ends the hold. AI 3's
+-- grab.release_victim(state, victim_index) does that (false when the item is not held, nothing changes); the slot is found by a
+-- scan, which only runs when an X5 bounce happens. Without grab.lua or the function nothing is done.
+local function release_hold(match, value)
+    local ok, grab_module = pcall(require, "base/game/grab")
+    if not ok or type(grab_module) ~= "table" or not grab_module.release_victim then return end
+    for index = 0, item_slots - 1 do
+        if match.items[index] == value then grab_module.release_victim(match, index) return end
+    end
+end
+
 -- Apply every platform box to `value`. `prev_x`, `prev_z`, `prev_y`: where it was last tick (integers).
 function st_block.resolve(match, value, prev_x, prev_z, prev_y)
     if not match.items then return end
@@ -129,6 +140,7 @@ function st_block.resolve(match, value, prev_x, prev_z, prev_y)
                     if prev_y ~= nil and (prev_y < box.top or prev_y >= box.bottom) then
                         value.vx = (value.vx or 0.0) + box.dvx
                         value.vy = (value.vy or 0.0) + box.dvy
+                        release_hold(match, value)
                     end
                 end
             end

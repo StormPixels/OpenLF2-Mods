@@ -118,6 +118,9 @@ function st_states.after_control(match, index, value)
     st = st or ensure(value)
     local entered = st.seen_frame ~= value.frame
     st.seen_frame = value.frame
+    -- A charge ends when the fighter is no longer in a charge frame (hit, fell, defended); with fall: -1 the victim stays in the
+    -- frame, so the charge goes on. (Darkfiren: nothing special happens to a victim in a 6XXX frame.)
+    if st.charge and kind ~= "charge" then st.charge = nil end
     if st.in_camera and kind ~= "camera" then
         st.in_camera = nil
         st_camera.release(match, index)

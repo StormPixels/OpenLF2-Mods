@@ -83,6 +83,20 @@ local function install(parsed)
     return true
 end
 
+-- LF2 Darkfiren `st_vol:` (bgm.dat first, then system.dat; 0..100): the music volume at startup. It is applied once,
+-- when the game data is first read, and never over a volume the player already changed. Without the tag the volume
+-- starts at its maximum, as before.
+local start_volume_done = false
+local function apply_start_volume(from_bgm)
+    if start_volume_done then return end
+    start_volume_done = true
+    if music.volume_touched then return end
+    local value = from_bgm
+    if value == nil then value = require("base/game/system_data").number("st_vol", nil) end
+    if type(value) ~= "number" then return end
+    music.master = math.max(0, math.min(music_volume.maximum, math.floor(value)))
+end
+
 -- Loads bgm.dat now: from `text` when given, else through the engine. Returns true when the file's list is in use.
 function music.load(text)
     local message
@@ -90,10 +104,13 @@ function music.load(text)
     if text == nil then
         if sd_text.not_ready(message) then return false end
         settled = true
+        apply_start_volume(nil)
         return false
     end
     settled = true
-    return install(music.parse_bgm(text))
+    local parsed = music.parse_bgm(text)
+    apply_start_volume(parsed.volume)
+    return install(parsed)
 end
 
 do
@@ -165,6 +182,7 @@ function music.resume()
 end
 
 function music.change_volume(step)
+    music.volume_touched = true
     music.master = math.max(0, math.min(music_volume.maximum, music.master + step))
 end
 

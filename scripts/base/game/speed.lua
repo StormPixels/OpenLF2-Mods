@@ -18,7 +18,8 @@ function speed.slow_extra()
 end
 
 -- The extra frame time of a round that has been ending for `counter` ticks (1 = the tick the last team stood alone):
--- slow motion lasts until the end jingle at counter 80.
+-- slow motion lasts until the end jingle at counter 80. It applies in every mode, the demo and F5 included.
+-- [UNCERTAIN] the counter values (the Darkfiren developer did not answer that part).
 function speed.round_end_slow(counter)
     if counter >= 1 and counter < round_end_jingle then return speed.slow_extra() end
     return 0

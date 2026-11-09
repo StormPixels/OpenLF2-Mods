@@ -86,6 +86,11 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren: catching itr (kind 1) frames per side (catchingact/caughtact left, pickingact/pickedact right, negative = turn around); fixes a crash on negative frames.
 
+- AI 2: bug charge macet diperbaiki (`st_states.after_control`: charge berakhir bila frame bukan frame charge, kecuali fall -1); `st_block.lua` menyertakan prisoner (tipe 5) pada kind 60-89; dokumen jawaban pengembang Darkfiren.
+
+- LF2 Darkfiren: platform kind 60-89 now also affect type 5 (prisoner), as added on purpose by the Darkfiren developer.
+- LF2 Darkfiren: an energy ball in a state 3007 frame is stopped by a platform plane (y := plane, velocity 0) and goes to its hit_g frame.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -257,3 +262,6 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: platforms X1-X5 follow the original PDK routines (blocks, moving, resistance, bounce) and carry items; platform.plane_at and the combat code agree on the plane height.
 - LF2 Darkfiren: slow motion at the end of a round from slow_motion and slow_power of system.dat (milliseconds added to the frame step; F5 fast mode is not slowed).
 - UI: the mode line, FPS, volume and replay clock sit at the bottom of the real battle canvas (794, 1018 or 1333 wide, 550 to 1000 high) instead of fixed classic coordinates.
+- LF2 Darkfiren: an X5 bounce platform releases a held victim (grab.release_victim) and X3/X4 platform rules follow the original routines; difficulty-gated unlock keys and the volume text (st_vol) are read; music is kept in sync after a flush.
+- LF2 Darkfiren: a stuck charge (6XXX) ends when the frame is no longer a charge frame; platforms kind 60-89 also affect prisoners (type 5), and an energy ball in a 3007 frame is stopped by a platform plane.
+- LF2 Darkfiren: slow motion at the end of a round now applies to every mode (demo included) and to the F5 fast step; background mode camera tags zcam, zcamera and cam_pause are read.

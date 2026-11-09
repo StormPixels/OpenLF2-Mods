@@ -249,6 +249,33 @@ function unlock.grant(key)
     return true
 end
 
+-- LF2 Darkfiren difficulty locks (system.dat `bound:`, "difficulty lock for crazy and dummy only"): 0 none, 1 Crazy is
+-- locked until the LF2.NET cheat, 2 Dummy until the HEROFIGHTER.COM cheat, 3 both. Without the tag (or with a value
+-- outside 0..3) Crazy is locked by LF2.NET, the way the game has always had it.
+function unlock.difficulty_lock()
+    local value = system_data.number("bound", 1)
+    if type(value) ~= "number" or value < 0 or value > 3 then return 1 end
+    return math.floor(value)
+end
+
+function unlock.crazy_allowed()
+    return unlock.difficulty_lock() % 2 == 0 or unlock.flags.characters == 1
+end
+
+function unlock.dummy_allowed()
+    return math.floor(unlock.difficulty_lock() / 2) % 2 == 0 or unlock.flags.function_keys == 1
+end
+
+-- May this difficulty be chosen? Crazy (constants.difficulties.crazy) and, when the game defines it, Dummy
+-- (constants.difficulties.dummy) follow the locks above; every other level is always open. [UNCERTAIN] the number
+-- of Dummy: OpenLF2 has no such level yet, so without constants.difficulties.dummy only Crazy is locked.
+function unlock.difficulty_allowed(level)
+    local difficulties = require("base/game/constants").difficulties
+    if level == difficulties.crazy then return unlock.crazy_allowed() end
+    if difficulties.dummy ~= nil and level == difficulties.dummy then return unlock.dummy_allowed() end
+    return true
+end
+
 -- Does a `hidden:` value allow the item to be used? nil, 0 and negative values always allow (nothing locks).
 -- [UNCERTAIN] 5..9 and values above 1000 are not described anywhere; they stay locked.
 function unlock.allows(hidden)

@@ -10,6 +10,7 @@ return {
     frozen_can_be_hit = true,  -- time stop: a frozen object never attacks; true = the user of the time stop can still hit it
     platform = {               -- itr kind 30-89 (docs/txt/readme/platform.txt), see platform.lua
         supported_subtypes = {[0] = true}, -- stage 1: only kind X0 (landing plane); X1..X5 are ignored until specified
+        ball_state = 3007,                 -- a ball in a frame of this state is stopped by a platform plane (platform.land_ball)
         rise_limit = 24,                   -- [BELUM PASTI] a platform may rise this far per tick under an item standing on it (AI2)
         land_tolerance = 0.0001,           -- feet may be this far below the plane and still land on it
     },

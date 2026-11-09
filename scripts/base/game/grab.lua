@@ -221,6 +221,7 @@ end
 function grab.release_victim(state, victim_index)
     local victim = state.items[victim_index]
     if not victim then return false end
+    if victim.caught_by == nil then return false end
     local holder = objects.lookup(state, victim.caught_by)
     if not holder or holder.catching ~= victim_index or cpoint(holder, holder.frame).kind ~= cpoint_kinds.holder then return false end
     holder.catching, holder.frame, holder.wait_counter = 0, 0, 0

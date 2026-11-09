@@ -34,11 +34,12 @@ public:
         return wait <= 0 ? 0 : std::min(static_cast<std::uint32_t>(wait), max_sleep);
     }
 
-    // LF2 Darkfiren slow motion at the end of a round: `extra` milliseconds are added to the normal step (system.dat
-    // slow_power); 0 returns to the normal step. The F5 fast step is not slowed.
+    // LF2 Darkfiren slow motion at the end of a round: `extra` milliseconds are added to the frame step, the normal and
+    // the F5 one alike (system.dat slow_power; the Darkfiren developer: it affects all modes and the F5 timer); 0 returns
+    // to the normal steps.
     void set_slow(std::uint32_t extra) { slow_ = extra; }
 private:
-    std::uint32_t current_step(bool fast) const { return fast ? fast_ : normal_ + slow_; }
+    std::uint32_t current_step(bool fast) const { return (fast ? fast_ : normal_) + slow_; }
     std::uint32_t scheduled_;
     std::uint32_t slow_ = 0;
     std::uint32_t normal_;

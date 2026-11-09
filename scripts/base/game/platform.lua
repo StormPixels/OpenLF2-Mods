@@ -15,11 +15,11 @@ local default_zwidth = constants.combat.default_zwidth
 local item_slots = constants.item_slots
 local config = fx_constants.platform
 
--- Who is affected, read from PDK.exe by the user's helper (AI2 round 18, [KODE]): kind 30-59 act on types 0 and 3 (characters
--- and energy balls), kind 60-89 on types 1, 2, 4 and 6; type 5 (prisoner) is never affected. Within a decade: 3x / 6x = all
--- teams, 4x / 7x = the platform's team, 5x / 8x = any other team. (st_block.lua, AI2, applies X1-X5 to characters only.)
+-- Who is affected: kind 30-59 act on types 0 and 3 (characters and energy balls), kind 60-89 on types 1, 2, 4, 5 and 6 (PDK.exe
+-- has no type 5 there; the Darkfiren developer added it on purpose, and the readme lists it, so the readme wins). Within a
+-- decade: 3x / 6x = all teams, 4x / 7x = the platform's team, 5x / 8x = any other team.
 local lower_types = {[K.character] = true, [K.ball] = true}
-local upper_types = {[K.light_item] = true, [K.heavy_item] = true, [K.baseball] = true, [K.drink] = true}
+local upper_types = {[K.light_item] = true, [K.heavy_item] = true, [K.baseball] = true, [K.prisoner] = true, [K.drink] = true}
 
 function platform.is_platform_kind(kind) return kind >= 30 and kind <= 89 end
 
@@ -104,4 +104,21 @@ function platform.plane_at(match, value, current)
     end
     return best
 end
+-- State 3007 (a ball that interacts with platforms, PDK rule relayed by AI2): when its feet reach the plane stored in
+-- value.floor_y by physics.lua, the ball is put on the plane (y := plane), stopped (velocity 0) and sent to its hit_g frame.
+-- [BELUM PASTI]: without a hit_g frame the ball is still stopped on the plane; it is not moved again while it already is in
+-- its hit_g frame. Returns true when the ball was put on a plane.
+function platform.land_ball(value)
+    local plane = value.floor_y
+    if plane == nil or value.y < plane then return false end
+    value.y, value.y_int = plane + 0.0, plane
+    value.vx, value.vy, value.vz = 0.0, 0.0, 0.0
+    local ext = value.record.frame(value.frame).hit_ext
+    local target = ext and ext.g
+    if target and target ~= 0 and target ~= value.frame and value.record.frames[target] then
+        value.frame, value.wait_counter = target, 0
+    end
+    return true
+end
+
 return platform

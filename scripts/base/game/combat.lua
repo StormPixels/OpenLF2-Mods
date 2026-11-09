@@ -873,6 +873,7 @@ local function weapon_strike(state, p, attacker, v, itr)
     for _, field in ipairs({"dvz", "drain", "gain", "spark", "recover", "dbdefend", "z", "sound", "cover", "selfinjury"}) do
         hit[field] = strength[field]
     end
+    if strength.caughtact then hit.caughtact = {strength.caughtact} end -- Leaf.F: the strength list carries one number (catchingact is invalid here)
     hit.from_weapon = true
     return hit
 end
@@ -1125,6 +1126,8 @@ function combat.apply(state, p)
                 if victim_state == state_burning or victim_state == state_burning_run then return end
             elseif itr.kind == attack_kinds.held_item and attacker.weapon < 0 then
                 itr = weapon_strike(state, p, attacker, v, itr)
+                -- Leaf.F effects 13-16 from the strength list: the held-weapon itr passed `eligible` as an ordinary one
+                if itr and fx_itr.leaf_blocks(itr, victim.record.kind, recent_state(victim)) then itr = nil end
             elseif itr.kind == attack_kinds.thrown_body and attacker.fall_damage > 0 then
                 -- A thrown body hits like a plain attack, pushing backward when moving backward.
                 local copy = copy_itr(itr)

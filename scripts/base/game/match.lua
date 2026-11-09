@@ -459,7 +459,7 @@ local function versus_counter(state)
     if teams < 2 and not state.finished and (state.mode ~= mode_battle or (state.battle_run and state.battle_run.over)) then
         if teams == 0 then state.winner = -1 end
         state.round_counter = state.round_counter + 1
-        if state.mode ~= constants.modes.demo then speed.slow = speed.round_end_slow(state.round_counter) end  -- HOOK(AI5): slow motion
+        speed.slow = speed.round_end_slow(state.round_counter)  -- HOOK(AI5): slow motion at the end of a round (all modes)
         -- At 80 the end jingle plays and normal speed returns; the music stop for other modes
         -- isn't ported.
         if state.round_counter == 80 then
