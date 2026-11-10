@@ -131,6 +131,7 @@ function screen.snapshot(state, snapshot)
             entry.pic_offset, entry.weapon, entry.team = value.pic_offset, value.weapon, value.team
             entry.hp, entry.max_hp, entry.human = value.hp, value.max_hp, value.human
             entry.dark_hp, entry.mp = value.dark_hp, value.mp   -- minibar bars
+            entry.floor_y = type(value.floor_y) == "number" and value.floor_y or 0   -- the platform plane under it (shadow)
             -- Combo counter (value.fx.combo hits in a row, value.fx.combo_age ticks since the last one; AI 3).
             local fx = value.fx
             entry.combo = type(fx) == "table" and fx.combo or 0
@@ -384,8 +385,9 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
     if casts_shadow and stage.shadow and not lighting.projected_shadows then
         local width, height = stage.shadow_size[1] or 0, stage.shadow_size[2] or 0
         local shadow = stage.shadow:gsub("\\", "/"):lower()
+        -- The shadow lies on the platform the object stands on (value.floor_y, negative = above the ground; 0 on the ground).
         context.image(shadow, entry.draw_offset + entry.x - camera - math.floor(width / 2),
-            entry.z - math.floor(height / 2), true)
+            entry.z + (entry.floor_y or 0) - math.floor(height / 2), true)
     end
     local shake = entry.hit_lag < 0 and view.shake * 6 - 3 or 0
     local visible = blink % 4 < 2 and entry.blink > -25 and not entry.invisible
@@ -401,7 +403,11 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
             if bounds then x = math.max(bounds.left, math.min(x, bounds.right - (constants.screen.width - 0x2ca)))
             else x = math.max(0, math.min(x, 0x2ca)) end
         end
-        if (lighting.character_shading or lighting.projected_shadows) and not on_screen then
+        -- A sprite far outside the picture (an opoint with y 20000 sends an object far below the screen) is skipped, not
+        -- handed to the host: Darkfiren allows such positions, the draw commands only hold +-8192.
+        if math.abs(x) > 8192 or math.abs(y) > 8192 then
+            -- nothing to draw
+        elseif (lighting.character_shading or lighting.projected_shadows) and not on_screen then
             local kind = entry.record.kind
             local physical = kind == record_kinds.light_item or kind == record_kinds.heavy_item
                 or kind == record_kinds.baseball or kind == record_kinds.drink
@@ -435,7 +441,8 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
     local is_character = entry.record.kind == record_kinds.character
     local label, sheet
     if entry.index < 20 or (entry.team ~= constants.teams.enemies and is_character) then
-        label = entry.index < 8 and controls.name(entry.index) or "Com"
+        -- Items 0..9 are the player slots (ten in the 10 player layout), 10..19 the computers picked in the menu.
+        label = entry.index < constants.player_slots and controls.name(entry.index) or "Com"
         sheet = label_font(entry.team)
     elseif is_character and entry.team == constants.teams.enemies
            and (entry.record.id < constants.record_id_ranges.enemy_character_first
@@ -721,9 +728,8 @@ end
 
 function screen.draw(state, context, window_bounds)
     local view_width = constants.screen.width
-    -- A background taller than the classic 550 is shown whole: the viewport takes its height and the platform scales it.
+    -- The viewport height is the classic 550; a taller background scrolls with the vertical camera (camera_z, zcam / zcamera).
     local view_height = constants.screen.height
-    if state.match and state.match.stage and background.view_height then view_height = background.view_height(state.match.stage) or view_height end
     local wide_picture = options.wide_width(options.current().battlefield_layout)
     if wide_picture then
         -- LF2 Darkfiren's widescreen: the picture is 1333 (or 1018) wide whatever the window; a window that is
@@ -791,7 +797,11 @@ function screen.draw(state, context, window_bounds)
             passable_bounds.right - passable_bounds.left, window_bounds.bottom - window_bounds.top)
     end
     local quake_x, quake_y = quake_offsets(current)
-    local arena = (quake_x ~= 0 or quake_y ~= 0) and shifted(context, quake_x, quake_y) or context
+    -- Vertical camera (match.camera_z, pixels, 0 or more; Darkfiren's zcam/zcamera for a background taller than the window):
+    -- the whole arena (background, objects, sparks) moves up by that much; the HUD stays. nil-safe: no field, no move.
+    local camera_z = type(current.camera_z) == "number" and current.camera_z == current.camera_z and math.max(0, math.floor(current.camera_z)) or 0
+    local shift_y = quake_y - camera_z
+    local arena = (quake_x ~= 0 or shift_y ~= 0) and shifted(context, quake_x, shift_y) or context
     if current.background_row == constants.background_rows.lee_on_road then
         background.paint_lee_on_road(arena, view.camera, bounds)
     else

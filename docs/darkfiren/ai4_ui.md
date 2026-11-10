@@ -132,3 +132,12 @@ Data contoh ada di `RESULT/tests/data` (salinan `mode.dat`, `mode1-4.dat`, `fram
 - **HUD 10 pemain**: gaya `facing: 10` dari `frame.dat` (`ui_hud.pick(list, width, 10)`, `data/frame/10/default.dat`: lima kotak per baris mulai x=14, tidak digeser ke tengah). Gaya pilihan pemain (nama) dicari di antara gaya `facing: 10`; nama yang tidak ada: default 10. Tanpa `frame.dat` ada gaya bawaan 10 pemain (`ui_hud.default_style(10)`). `draw_status` memakai `style.slots`; item komputer slot 8 dan 9 = item 18 dan 19.
 - **Papan skor akhir**: menampilkan 10 pemain di layout 10P (tinggi `players * 45 + 93` = 543, lewat 530 sehingga sedikit terpotong di atas; mode battle di 10P lebih tinggi lagi [BELUM PASTI]).
 - **Belum**: tombol pemain manusia untuk slot 8 dan 9 (`ui/input.lua` hanya menyampel slot 0..7 dan tidak ada set tombol/konfigurasi untuk keduanya, jadi keduanya praktis diisi komputer lewat menu komputer); radar dan minibar untuk slot 8 dan 9; gaya HUD 10 pemain tersembunyi lain selain lewat `unlock.allows`; demo, replay, dan championship di 10P.
+
+## 13. Putaran 12 (BASE base-20261109-1-f5cc706; dari Ringkasan balasan Darkfiren dan AI2)
+
+- **BG_FRAME**: `character_select.small_background` menggambar gambar dasar `sprite/ui/bg_frame.bmp` (atau `pe/bg_frame` bila hanya ada di resource game) di (`frame_x`, `frame_y`) sebelum `misc.frame_pic` dan gambar latar; tanpa kedua berkas tidak digambar. [BELUM PASTI] posisi dan urutan: dugaan dari jawaban Darkfiren ("BG_FRAME.bmp adalah gambar dasar; background atau gambar khusus mode ditampilkan di atasnya").
+- **Bayangan**: digambar di `z + value.floor_y` (snapshot `entry.floor_y`, 0 bila tidak ada); `floor_y` negatif = di atas tanah (platform).
+- **Sprite di luar +-8192**: sprite utama objek yang posisinya melewati +-8192 (mis. opoint y 20000) dilewati di `draw_item`, tidak diserahkan ke host. Spark, label, minibar, dan HUD tidak dijaga (penolakan di host sebaiknya diubah menjadi "lewati").
+- **Kamera vertikal** (`zcam` / `zcamera`): `match_screen` membaca `match.camera_z` (piksel, 0 atau lebih; nil-safe) dan menggeser seluruh arena (latar, objek, spark) ke atas sebesar itu, bersama gempa; HUD tetap. Yang belum: scroll paralel (latar lebih lambat) menunggu data dari AI 5, dan `camera_z` itu sendiri (AI 2, `camera.lua`).
+- **Label nama**: item 0..9 memakai nomor pemain (`entry.index < constants.player_slots`), item 10..19 "Com" (perbaikan R11 yang opsional kini ikut).
+- **HUD**: bar MP dijepit ke `constants.points.full` (500) sehingga MP sampai 1000 tampil penuh.

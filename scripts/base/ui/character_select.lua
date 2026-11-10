@@ -1500,6 +1500,12 @@ local function small_background(state)
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
     end
     if not grid_has(picture) then return end
+    -- BG_FRAME is the base image of the preview; the mode's frame and the background's picture go on top of it
+    -- (Darkfiren's answer). [BELUM PASTI] the exact position and order; the resource is looked for as a file and, as
+    -- the original keeps it, in the game's resources.
+    for _, base in ipairs({"sprite/ui/bg_frame.bmp", "pe/bg_frame"}) do
+        if grid_has(base) then image(state, base, misc.frame_x, misc.frame_y) break end
+    end
     if grid_has(misc.frame_pic) then image(state, misc.frame_pic, misc.frame_x, misc.frame_y) end
     image(state, picture, misc.small_x, misc.small_y)
 end

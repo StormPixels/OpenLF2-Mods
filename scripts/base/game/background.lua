@@ -307,55 +307,6 @@ local function paint_layers(context, data, state, camera_x, bounds, wide, front)
         end
     end
 end
--- Height of an original picture, read from its header (BMP or PNG; nil if it cannot be read).
-local picture_heights = {}
-local function picture_height(resource)
-    if not resource then return nil end
-    local height = picture_heights[resource]
-    if height == nil then
-        height = false
-        local ok, bytes = pcall(engine.read_resource, resource)
-        if ok and type(bytes) == "string" then
-            if #bytes >= 26 and bytes:sub(1, 2) == "BM" then
-                local b1, b2, b3, b4 = bytes:byte(23, 26)
-                height = b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
-                if height >= 2147483648 then height = 4294967296 - height end -- a top-down bitmap stores it negative
-            elseif #bytes >= 24 and bytes:sub(2, 4) == "PNG" then
-                local b1, b2, b3, b4 = bytes:byte(21, 24)
-                height = b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
-            end
-        end
-        picture_heights[resource] = height
-    end
-    return height or nil
-end
-
--- The logical height the battlefield picture needs so that the whole background and the floor the fighters stand
--- on are visible: at least the classic height, at most `max_view_height`. The platform scales the viewport to the
--- window (letterboxed), so a taller background is shown smaller instead of being cut off at the bottom.
-local min_view_height, max_view_height = 550, 1000
-local view_heights = {}
-local view_height_count = 0
-function background.view_height(data)
-    if type(data) ~= "table" then return min_view_height end
-    local height = view_heights[data]
-    if height == nil then
-        height = min_view_height
-        local far = type(data.zboundary) == "table" and tonumber(data.zboundary[2]) or nil
-        -- The feet are at z; leave room for the shadow and the name under them.
-        if far then height = math.max(height, far + 24) end
-        for _, layer in ipairs(data.layers or {}) do
-            local tall = layer.color ~= 0 and (layer.height or 0) or picture_height(layer.resource) or 0
-            height = math.max(height, (layer.y or 0) + tall)
-        end
-        height = math.floor(math.min(height, max_view_height))
-        if view_height_count >= 64 then view_heights, view_height_count = {}, 0 end
-        view_heights[data] = height
-        view_height_count = view_height_count + 1
-    end
-    return height
-end
-
 function background.paint(context, data, state, camera_x, bounds, wide)
     paint_layers(context, data, state, camera_x, bounds, wide, false)
 end

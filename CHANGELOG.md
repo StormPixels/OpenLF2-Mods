@@ -267,3 +267,5 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: slow motion at the end of a round now applies to every mode (demo included) and to the F5 fast step; background mode camera tags zcam, zcamera and cam_pause are read.
 - LF2 Darkfiren: vertical camera state.camera_z from the mode tags zcam and zcamera (camera.lua, with the 99XXX frame object as focus for zcamera); the renderer subtracts it from the screen y. Without the tags it is 0.
 - LF2 Darkfiren: platform kind 60-89 also affect prisoners (type 5), and an energy ball in a 3007 frame is stopped by a platform plane.
+- UI: the battle draws with the vertical camera `match.camera_z` (zcam/zcamera), shadows follow the platform plane (`z + floor_y`), sprites beyond +-8192 are skipped, and the background preview draws BG_FRAME first.
+- UI: the battle viewport is the classic 550 high again (the user's `background.view_height` is removed); a background taller than that scrolls with the vertical camera `camera_z` (zcam / zcamera), whose range is the feet line (zboundary far + 24) minus 550.
