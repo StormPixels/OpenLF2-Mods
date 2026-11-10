@@ -27,6 +27,9 @@ local function wide_gap()
 end
 local function wide_center() return math.floor(wide_gap() / 2 + 0.5) end
 local screen = {}
+-- The canvas the battle is drawn on: 794, 1018 or 1333 wide and 550 up to 1000 high. Updated by screen.draw; the status line
+-- texts (mode, FPS, volume) sit at its bottom edge, so flow.lua reads it as well.
+screen.view = {width = constants.screen.width, height = constants.screen.height}
 local replay_lines, mode_line
 
 -- options: see base/game/match create().
@@ -241,7 +244,7 @@ replay_lines = function(context, current)
         bold_text(context, "  Info:", 10, y)
         wrapped_text(context, replay.info, 0x4b, y, 4)
     end
-    bold_text(context, clock(current.elapsed) .. " / " .. clock(replay.total_time), 5, 0x1fe)
+    bold_text(context, clock(current.elapsed) .. " / " .. clock(replay.total_time), 5, screen.view.height - 40)
 end
 local mode_text = ""
 mode_line = function(context, current, replaying)
@@ -261,7 +264,7 @@ mode_line = function(context, current, replaying)
         -- `base` ends with a space; its parts are translated one by one.
         mode_text = i18n.tr(base:sub(1, -2)) .. " " .. i18n.tr(suffixes[current.difficulty] or "")
     end
-    if mode_text ~= "" then bold_text(context, mode_text, 0x316 + wide_gap() - font.width(mode_text), replaying and 0x1fe or 0x213) end
+    if mode_text ~= "" then bold_text(context, mode_text, screen.view.width - 4 - font.width(mode_text), screen.view.height - (replaying and 40 or 19)) end
 end
 
 local words_known = {}
@@ -567,7 +570,7 @@ end
 
 local function draw_status(context, state, style)
     style = style or fallback_hud
-    for slot = 0, 7 do
+    for slot = 0, (style.slots or 8) - 1 do
         local row = math.floor(slot / style.row) * style.frame_h + style.frame_y
         local column = style.frame_x + (slot % style.row) * style.frame_w + (style.centered == false and 0 or wide_center())
         context.image(style.frame_pic, column, row, false)
@@ -601,8 +604,10 @@ end
 local function draw_scoreboard(context, current)
     local counter = current.round_counter
     if counter < 101 or counter >= constants.round_counters.finished then return end
+    -- Eight player slots, ten in the 10 player layout (items 8 and 9, or 18 and 19 for computers).
+    local slot_total = options.slot_count and options.slot_count(options.current().battlefield_layout) or 8
     local players = 0
-    for slot = 0, 7 do
+    for slot = 0, slot_total - 1 do
         if current.items[slot] or current.items[slot + 10] then players = players + 1 end
     end
     local players_alive = false
@@ -620,7 +625,7 @@ local function draw_scoreboard(context, current)
     local top = math.floor((530 - height) / 2)
     local row_y = top + 16
     context.image("pe/score_board1", 150, top, false)
-    for slot = 0, 7 do
+    for slot = 0, slot_total - 1 do
         local index = current.items[slot] and slot or slot + 10
         local value = current.items[index]
         if value then
@@ -718,7 +723,7 @@ function screen.draw(state, context, window_bounds)
     local view_width = constants.screen.width
     -- A background taller than the classic 550 is shown whole: the viewport takes its height and the platform scales it.
     local view_height = constants.screen.height
-    if state.match and state.match.stage then view_height = background.view_height(state.match.stage) end
+    if state.match and state.match.stage and background.view_height then view_height = background.view_height(state.match.stage) or view_height end
     local wide_picture = options.wide_width(options.current().battlefield_layout)
     if wide_picture then
         -- LF2 Darkfiren's widescreen: the picture is 1333 (or 1018) wide whatever the window; a window that is
@@ -731,6 +736,7 @@ function screen.draw(state, context, window_bounds)
             right = math.max(window_bounds and window_bounds.right or 0, view_width),
             bottom = math.max(window_bounds and window_bounds.bottom or 0, view_height)}
     end
+    screen.view.width, screen.view.height = view_width, view_height
     context.viewport(view_width, view_height, 0, 0, 0)
     local view = state.view
     local current = state.match
