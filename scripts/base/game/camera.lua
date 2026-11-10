@@ -95,16 +95,17 @@ end
 -- the background's zboundary is greater than the window height use zcam: 1 for parallel scroll, or zcamera: like xcamera but it
 -- follows the z of all the characters selected in the menu, human and computer"). `state.camera_z` (integer >= 0, 0 without a tag or
 -- when the background fits) is how far the picture is scrolled down: the renderer subtracts it from every screen y (AI 4).
--- The scrollable range is the feet line (zboundary far + 24) minus the viewport height (550, constants.screen.height), so it is 0
--- for every background that fits.
+-- The scrollable range is the feet line (zboundary far + 24, as background.view_height) minus the viewport height
+-- (background.view_height, 550..1000), so it is 0 for every background that fits.
 -- [BELUM PASTI] (no source): the parallel formula of zcam (here: range * camera_x / (width - view width), i.e. it scrolls with the horizontal
 -- camera), the focus of zcamera (here: the object of a 99XXX frame when there is one, else the mean z of the live fighters of slots 0..9), its smoothing (the xcamera's) and that `zcamera` is a <mode> key.
 local function z_range(state)
+    if background_module == nil then view_width() end
     local stage = state.stage
     local zb = stage and stage.zboundary
     local far = type(zb) == "table" and tonumber(zb[2]) or nil
-    local view = constants.screen.height
-    if not far then return 0, view end
+    if not far or not background_module or not background_module.view_height then return 0, 550 end
+    local view = background_module.view_height(stage)
     local range = far + 24 - view
     if range < 0 then range = 0 end
     return range, view
