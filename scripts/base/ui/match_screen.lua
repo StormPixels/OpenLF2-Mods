@@ -728,8 +728,9 @@ end
 
 function screen.draw(state, context, window_bounds)
     local view_width = constants.screen.width
-    -- The viewport height is the classic 550; a taller background scrolls with the vertical camera (camera_z, zcam / zcamera).
+    -- A background taller than the classic 550 is shown whole: the viewport takes its height and the platform scales it.
     local view_height = constants.screen.height
+    if state.match and state.match.stage and background.view_height then view_height = background.view_height(state.match.stage) or view_height end
     local wide_picture = options.wide_width(options.current().battlefield_layout)
     if wide_picture then
         -- LF2 Darkfiren's widescreen: the picture is 1333 (or 1018) wide whatever the window; a window that is
