@@ -265,3 +265,5 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: an X5 bounce platform releases a held victim (grab.release_victim) and X3/X4 platform rules follow the original routines; difficulty-gated unlock keys and the volume text (st_vol) are read; music is kept in sync after a flush.
 - LF2 Darkfiren: a stuck charge (6XXX) ends when the frame is no longer a charge frame; platforms kind 60-89 also affect prisoners (type 5), and an energy ball in a 3007 frame is stopped by a platform plane.
 - LF2 Darkfiren: slow motion at the end of a round now applies to every mode (demo included) and to the F5 fast step; background mode camera tags zcam, zcamera and cam_pause are read.
+- LF2 Darkfiren: vertical camera state.camera_z from the mode tags zcam and zcamera (camera.lua, with the 99XXX frame object as focus for zcamera); the renderer subtracts it from the screen y. Without the tags it is 0.
+- LF2 Darkfiren: platform kind 60-89 also affect prisoners (type 5), and an energy ball in a 3007 frame is stopped by a platform plane.

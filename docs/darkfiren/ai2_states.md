@@ -154,3 +154,13 @@ Dasar: base-20261109-1-f5cc706 (memuat R19/R20, `platform.lua` dan `grab.release
 - **Batas**: opoint tanpa batas (y 20000 sah); lebar itr maksimal 10000 (exe asli 1000); sprite di luar rentang +-8192 harus dilewati, bukan ditolak (bukan berkas AI 2).
 - **Kamera**: bila zboundary background lebih besar dari tinggi layar, pakai `zcam: 1` di `<mode>` untuk background itu (scroll paralel), atau `zcamera` (seperti xcamera tetapi memakai posisi z semua karakter terpilih di menu, manusia dan komputer). Belum dikerjakan: `camera.lua` belum punya kamera vertikal; butuh rancangan bersama AI 4 (gambar dengan offset z) dan AI 5 (membaca tag mode).
 - **Slow motion** (system.dat `slow_motion`, `slow_power`: 33 + 65 = 98 ms/tick, semua mode termasuk F5): sudah dikerjakan AI 5 (`speed.lua`, hook di `match.lua`).
+
+## Putaran 22 (kamera vertikal: `state.camera_z`)
+
+Dasar: base-20261109-1-f5cc706. Tag mode `zcam` dan `zcamera` (0/1; AI 5 menaruhnya di `state.bg_area`, R18 AI 5; pengembang Darkfiren: bila zboundary background lebih besar dari tinggi layar pakai `zcam: 1` untuk scroll paralel, atau `zcamera` seperti xcamera tetapi memakai z semua karakter terpilih di menu, manusia dan komputer).
+- `camera.lua` menghitung `state.camera_z` (bilangan bulat >= 0; 0 tanpa tag atau bila background muat) tiap tick di `camera.step`. Renderer (AI 4) mengurangkannya dari setiap y layar (belum dikerjakan AI 4; tanpa itu tidak ada efek terlihat).
+- Rentang scroll = (zboundary far + 24) - `background.view_height(state.stage)` (550..1000), minimal 0. Untuk zboundary 350..1200: garis kaki 1224, viewport 1000, rentang 224.
+- `zcamera`: target = rata-rata z karakter hidup di slot 0..9 dikurangi setengah tinggi viewport, dijepit ke [0, rentang]; mulus memakai rumus kamera x. `zcam`: `rentang * camera_x / (lebar stage - lebar layar)` (scroll bersama kamera horizontal). Bila keduanya, `zcamera` menang.
+- [BELUM PASTI] tidak ada sumber untuk: rumus paralel `zcam`, fokus `zcamera` (rata-rata z slot 0..9), apakah `zcamera` kunci `<mode>`, dan bahwa lebar scroll diukur dari garis kaki + 24 (tanpa tinggi layer gambar). Tes `st_camera_z_test` (11 pemeriksaan) memakai `background.view_height` asli; kamera lama gagal.
+
+Putaran 23 (kamera vertikal, lanjutan): bila ada frame 99XXX (kamera mengikuti objek, `match.st.camera_follow`), `zcamera` memakai z objek itu sebagai fokus, seperti kamera horizontal; tanpa 99XXX tetap rata-rata z karakter hidup slot 0..9. [BELUM PASTI] update log Darkfiren (19 Maret 2026) menyebut "state 99xxx" dan "ycamera movement similar to xcamera ... z position of character selected at char menu" dalam satu entri; belum jelas apakah gerakan z ditentukan oleh 99xxx atau oleh tag `<mode>`. Tes `st_camera_z_test` 13 pemeriksaan.

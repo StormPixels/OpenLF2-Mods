@@ -104,21 +104,24 @@ function platform.plane_at(match, value, current)
     end
     return best
 end
--- State 3007 (a ball that interacts with platforms, PDK rule relayed by AI2): when its feet reach the plane stored in
--- value.floor_y by physics.lua, the ball is put on the plane (y := plane), stopped (velocity 0) and sent to its hit_g frame.
+-- State 3007 (a ball that interacts with platforms, PDK rule relayed by AI2): when the feet of an energy ball in a 3007 frame
+-- reach the plane stored in value.floor_y by physics.lua, the ball is put on the plane (y := plane), stopped (velocity 0) and
+-- sent to its hit_g frame. It must run AFTER physics.step of the same item in the same tick (floor_y only exists on the tick
+-- the ball crosses the plane); AI2 calls it from match.lua. Safe for any item: other kinds / states / no floor_y return false.
 -- [BELUM PASTI]: without a hit_g frame the ball is still stopped on the plane; it is not moved again while it already is in
 -- its hit_g frame. Returns true when the ball was put on a plane.
 function platform.land_ball(value)
     local plane = value.floor_y
-    if plane == nil or value.y < plane then return false end
+    if plane == nil or value.record.kind ~= K.ball or value.y < plane then return false end
+    local frame = value.record.frame(value.frame)
+    if frame.state ~= config.ball_state then return false end
     value.y, value.y_int = plane + 0.0, plane
     value.vx, value.vy, value.vz = 0.0, 0.0, 0.0
-    local ext = value.record.frame(value.frame).hit_ext
+    local ext = frame.hit_ext
     local target = ext and ext.g
     if target and target ~= 0 and target ~= value.frame and value.record.frames[target] then
         value.frame, value.wait_counter = target, 0
     end
     return true
 end
-
 return platform

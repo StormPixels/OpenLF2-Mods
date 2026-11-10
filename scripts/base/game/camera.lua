@@ -91,6 +91,72 @@ local function clamp(state)
     end
 end
 
+-- LF2 Darkfiren vertical camera (bg mode tags `zcam` and `zcamera`, AI 5 puts them in state.bg_area as 0/1; Darkfiren developer: "when
+-- the background's zboundary is greater than the window height use zcam: 1 for parallel scroll, or zcamera: like xcamera but it
+-- follows the z of all the characters selected in the menu, human and computer"). `state.camera_z` (integer >= 0, 0 without a tag or
+-- when the background fits) is how far the picture is scrolled down: the renderer subtracts it from every screen y (AI 4).
+-- The scrollable range is the feet line (zboundary far + 24, as background.view_height) minus the viewport height
+-- (background.view_height, 550..1000), so it is 0 for every background that fits.
+-- [BELUM PASTI] (no source): the parallel formula of zcam (here: range * camera_x / (width - view width), i.e. it scrolls with the horizontal
+-- camera), the focus of zcamera (here: the object of a 99XXX frame when there is one, else the mean z of the live fighters of slots 0..9), its smoothing (the xcamera's) and that `zcamera` is a <mode> key.
+local function z_range(state)
+    if background_module == nil then view_width() end
+    local stage = state.stage
+    local zb = stage and stage.zboundary
+    local far = type(zb) == "table" and tonumber(zb[2]) or nil
+    if not far or not background_module or not background_module.view_height then return 0, 550 end
+    local view = background_module.view_height(stage)
+    local range = far + 24 - view
+    if range < 0 then range = 0 end
+    return range, view
+end
+
+local function step_z(state)
+    local area = state.bg_area
+    local zcamera, zcam = area and area.zcamera == 1, area and area.zcam == 1
+    if not zcamera and not zcam then state.camera_z, state.camera_z_step = 0, 0 return end
+    local range, view = z_range(state)
+    if range == 0 then state.camera_z, state.camera_z_step = 0, 0 return end
+    local current = state.camera_z or 0
+    if zcamera then
+        local sum, count = 0, 0
+        -- A 99XXX frame (camera follow, st_camera) is the focus when there is one, like for the horizontal camera.
+        local follow = state.st and state.st.camera_follow
+        local focus_item = follow and state.items[follow.index]
+        if focus_item then
+            sum, count = focus_item.z_int, 1
+        else
+            for index = 0, 9 do
+                local value = state.items[index]
+                if value and value.record.kind == record_kinds.character and value.hp > 0 then
+                    sum = sum + value.z_int
+                    count = count + 1
+                end
+            end
+        end
+        local target = current
+        if count > 0 then
+            target = cdiv(sum, count) - view / 2
+            if target < 0 then target = 0 end
+            if target > range then target = range end
+        end
+        local step = cdiv(cdiv(target - current, camera_motion_target_distance_divisor) + (state.camera_z_step or 0) * camera_motion_previous_step_weight, camera_motion_step_weight_divisor)
+        if step == 0 then
+            if current < target then step = 1 elseif target < current then step = -1 end
+        end
+        state.camera_z_step = step
+        current = current + step
+    else
+        local width = (state.stage.width or screen_width) - view_width()
+        local fraction = width > 0 and (state.camera or 0) / width or 0
+        current = truncate(range * fraction)
+        state.camera_z_step = 0
+    end
+    if current < 0 then current = 0 end
+    if current > range then current = range end
+    state.camera_z = current
+end
+
 function camera.step(state)
     clamp(state)
     local sum, count = 0, 0
@@ -132,5 +198,6 @@ function camera.step(state)
     if state.camera < 0 then state.camera = 0 end
     if state.camera > width - view then state.camera = width - view end
     if pan and pan.active then pan.x = state.camera end
+    step_z(state)
 end
 return camera
