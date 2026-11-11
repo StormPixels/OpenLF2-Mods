@@ -26,6 +26,19 @@ local function wide_gap()
     return 0
 end
 local function wide_center() return math.floor(wide_gap() / 2 + 0.5) end
+-- Where a stage or battle command (game/stage.lua, game/battle.lua: written for 794 pixels) goes in a wider picture. The top rows
+-- (y < 200: the team lines at y 110 and 133) keep the left ones (x < 200) in place, move the middle ones (x < 400: the stage
+-- title) to the middle and the right ones to the right edge; the banners lower down (the stage clear and GO pictures) go to the
+-- middle, except the GO arrow at the right edge (x >= 600). [BELUM PASTI] the thresholds; they read the classic coordinates.
+local function stage_dx(x, y)
+    local gap = wide_gap()
+    if gap == 0 then return 0 end
+    if y < 200 then
+        if x < 200 then return 0 elseif x < 400 then return wide_center() end
+        return gap
+    end
+    return x >= 600 and gap or wide_center()
+end
 local screen = {}
 -- The canvas the battle is drawn on: 794, 1018 or 1333 wide and 550 up to 1000 high. Updated by screen.draw; the status line
 -- texts (mode, FPS, volume) sit at its bottom edge, so flow.lua reads it as well.
@@ -904,7 +917,7 @@ function screen.draw(state, context, window_bounds)
     end
     context.clip()
     for _, command in ipairs(view.stage or {}) do
-        if command[1] == "sprite" then context.sprite(command[2], command[3], command[4], command[5], true)
+        if command[1] == "sprite" then context.sprite(command[2], command[3], command[4] + stage_dx(command[4], command[5]), command[5], true)
         elseif command[1] == "fill" then
             if bounds and command[2] == 0 and command[4] == constants.screen.width then
                 -- Stage shutters cover the whole window, including blocked scenery.
@@ -916,11 +929,12 @@ function screen.draw(state, context, window_bounds)
             else
                 context.fill(command[2], command[3], command[4], command[5], 0, 0, 0)
             end
-        elseif command[1] == "text" then font.gdi(context, command[2], command[3], command[4], command[5] and colorref(command[5]))
+        elseif command[1] == "text" then font.gdi(context, command[2], command[3] + stage_dx(command[3], command[4]), command[4], command[5] and colorref(command[5]))
         elseif command[1] == "caption" then
             -- Outlined bitmap text in a team font (the original's four-way offset draw).
+            local caption_x = command[3] + stage_dx(command[3], command[4])
             for _, offset in ipairs({{-1, 1}, {-1, 0}, {0, 1}, {0, 0}}) do
-                glyphs(context, "pe/words" .. command[5], command[2], command[3] + offset[1], command[4] + offset[2], 8)
+                glyphs(context, "pe/words" .. command[5], command[2], caption_x + offset[1], command[4] + offset[2], 8)
             end
         end
     end
@@ -954,15 +968,15 @@ function screen.draw(state, context, window_bounds)
     -- After the end loop: the demo's exit hint and DEMO picture, or the function-key line (GDI
     -- text; font.gdi stands in).
     if current.random_game then
-        font.gdi(context, i18n.tr("Press F4 or 'Attack' to exit"), 0x262, 0x6e, 0x7d7d7d)
+        font.gdi(context, i18n.tr("Press F4 or 'Attack' to exit"), 0x262 + wide_gap(), 0x6e, 0x7d7d7d)
         font.gdi(context, "http://www.LittleFighter.com", 5, 0x6e, 0xc8c8c8)
-        context.image("pe/demo", 0x168, 0x120, true)
+        context.image("pe/demo", 0x168 + wide_center(), 0x120, true)
     elseif current.cheat_lock == 1 then
         local counts = current.function_counts
         local text = i18n.tr("Function Keys Used:    F6: %d time(s)    F7: %d time(s)    F8: %d time(s)    F9: %d time(s)",
             counts[6], counts[7], counts[8], counts[9])
         if current.mode == constants.modes.stage then
-            context.fill(0, 128, constants.screen.width, 21, 0, 0, 0)
+            context.fill(0, 128, constants.screen.width + wide_gap(), 21, 0, 0, 0)
             font.gdi(context, text, 0, 129)
         else
             font.gdi(context, text, 0, 109)
@@ -970,7 +984,8 @@ function screen.draw(state, context, window_bounds)
     elseif current.cheat_lock == 2 then
         font.gdi(context, i18n.tr("Function Keys Locked"), 0, 109)
     end
-    draw_scoreboard(context, current)
+    -- The summary is laid out for 794 pixels and sits in the middle of a wider picture.
+    draw_scoreboard(wide_center() ~= 0 and shifted(context, wide_center(), 0) or context, current)
     local replaying = current.replay and not current.replay_ended
     if replaying then
         context.sprite("pe/menu_clip4", {2, 586, 725, 12}, 0x43, 0x216, false)

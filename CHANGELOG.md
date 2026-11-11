@@ -278,3 +278,4 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: Leaf.F itr `sound` 1-18 plays the default sounds of effects 8-16 on characters, and `platform.land_ball` has a guard when `physics.step` has already moved a landed ball.
 - LF2 Darkfiren: `fx.last_killer_type` (record kind of the object that dealt the killing blow) for the kill board.
 - UI: who-killed-whom display (`<bmp_begin>` of the mode file): one row per kill with the attacker, a picture by killer type and the victim, in team letters with the character name, for `times` ticks and `loop` pixels apart.
+- UI: in the wide layouts (1018, 1333) the character select puts the background preview and the music line at the right edge and its popup lists in the middle, and the match summary, stage banners, team lines, demo and function key line follow the wider picture instead of the classic 794.

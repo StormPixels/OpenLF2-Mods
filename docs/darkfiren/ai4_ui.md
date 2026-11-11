@@ -163,3 +163,12 @@ memetakan `x`, `dx`, `dvx` kurang tepat; yang berlaku readme: `x` = posisi nama 
   kotak centang di jeda (`bound: 1`) belum ada (kotak ringkasan jeda belum ada di UI), `slot` korban yang dihapus pada tik yang sama tidak terlihat.
 - **Belum**: suara `sound1`/`sound2` (hanya stage mode); jenis pembunuh t1..t6 (menunggu `fx.last_killer_type` dari AI 3; pencatat exe punya tipe per pukulan).
 - Tes: `tests/kill_board_test.lua` (jalur nyata: mode1.dat/mode2.dat/mode4.dat asli, snapshot lalu draw).
+
+## 15. Putaran 14: tata letak di gambar lebar (1018 dan 1333)
+
+Semua tata letak AI 4 tadinya ditulis untuk gambar klasik 794 piksel. Di gambar lebar, selisih lebar = `gap` (1018: 224, 1333: 539) dan `gap / 2` = `center` (112, 270):
+
+- **Menu pilih karakter** (`ui/character_select.lua`): pratinjau latar (`frame_x`/`small_x` dari `<misc>`, 531/538 di file mode) dan baris musik (`music_x`) bergeser `gap`, jadi di pojok kanan atas gambar lebar seperti di klasik (musik 603, bingkai 531). Tiga popup (daftar latar, daftar mode, daftar stage; panel 790 lebar) digambar di tengah: `state.dx = center` selama popup dibuka, ditambahkan oleh `image/keyed_image/text/sprite/fill`, dan koordinat sentuh dikurangi `state.dx`. Dialog sudah di tengah sejak dulu (`dx` di baris 447).
+- **Pertandingan** (`ui/match_screen.lua`): papan ringkasan (`draw_scoreboard`) digeser `center`; perintah stage/battle (`view.stage`, ditulis `game/stage.lua`/`battle.lua` untuk 794) lewat `stage_dx(x, y)`: baris atas (y < 200): x < 200 tetap, x < 400 (judul) ke tengah, sisanya (tim kanan) ke tepi kanan (+gap); spanduk di bawah (stage clear, GO) ke tengah kecuali panah GO (x >= 600) ke tepi kanan. Petunjuk keluar demo (0x262) +gap, gambar DEMO (0x168) +center, batang hitam baris tombol fungsi selebar gambar. Gambar PAUSE sudah di tengah (360 + center, diuji).
+- **[BELUM PASTI]** ambang `stage_dx` (menebak dari koordinat klasik), baris musik ikut ke kanan (diputuskan agar tetap bersebelahan dengan pratinjau), `xpos` judul stage Darkfiren yang melewati 400, papan kill memakai koordinat dari berkas mode apa adanya, strip replay.
+- Tes: `tests/wide_match_test.lua`, `tests/wide_character_select_test.lua`; lima tes harness lama (`grid_test`, `mode_test`, `mode_filter_test`, `stage_grid_test`, `layout_integration_test`) menyimpan koordinat 794 untuk layout wide 1333 dan disesuaikan (`harness_update/`).

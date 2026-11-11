@@ -65,9 +65,15 @@ local function use_layout(state)
     else per_row, shift, step_x, step_y = 4, 0, 153, 212 end
 end
 local function pressed(keys, key) return keys:find(key, 1, true) ~= nil end
-local function image(state, path, x, y) state.display[#state.display + 1] = {"image", path, x, y} end
+-- What the wide menu adds to the classic 794 wide pictures: popup_gap is the extra width (for things at the right edge) and
+-- state.dx, set while a popup is drawn, moves everything the helpers draw (a popup is laid out for 794 and sits in the middle).
+local function popup_gap(state)
+    if not state.wide then return 0 end
+    return (state.width or constants.screen.wide_width) - constants.screen.width
+end
+local function image(state, path, x, y) state.display[#state.display + 1] = {"image", path, x + (state.dx or 0), y} end
 -- With black as the transparent colour (the options panel rows).
-local function keyed_image(state, path, x, y) state.display[#state.display + 1] = {"image", path, x, y, true} end
+local function keyed_image(state, path, x, y) state.display[#state.display + 1] = {"image", path, x + (state.dx or 0), y, true} end
 local white, computer_red, option_blue = 0xffffff, 0xff9b9b, 0x9b9bff
 local music_title, music_hint = 0x5a77d8, 0x223fa0
 local count_greyed, count_box = 0x5068c0, 0x2f479f
@@ -77,7 +83,7 @@ local function blink_color(state)
     return (step * 30 + 0x19) * 65536 + (step * 30 + 0x46) * 256 + 0xff
 end
 local function text(state, value, x, y, color, background, align)
-    state.display[#state.display + 1] = {"text", value, x, y, color, background, align}
+    state.display[#state.display + 1] = {"text", value, x + (state.dx or 0), y, color, background, align}
 end
 -- The name field below a slot. Translated text is centered in its black area; the original's bitmap text
 -- starts at a fixed column, padded with spaces.
@@ -87,10 +93,10 @@ local function slot_text(state, value, col, row, color, y, offset)
     else text(state, value, col + (offset or 177), y or row + 219, color) end
 end
 local function sprite(state, path, rectangle, x, y, keyed)
-    state.display[#state.display + 1] = {"sprite", path, rectangle, x, y, keyed}
+    state.display[#state.display + 1] = {"sprite", path, rectangle, x + (state.dx or 0), y, keyed}
 end
 local function fill(state, x, y, width, height, gray)
-    state.display[#state.display + 1] = {"fill", x, y, width, height, gray}
+    state.display[#state.display + 1] = {"fill", x + (state.dx or 0), y, width, height, gray}
 end
 
 -- LF2 Darkfiren's <random> of mode4.dat: the ids a random pick may give. Without it (and in the other menus) the
@@ -684,7 +690,7 @@ local function music_option(state, left, right)
         music.enabled = true
     end
     -- Top right corner: in the wide menu it follows the right edge of the wider picture.
-    local music_x = state.wide and misc.music_x or 603
+    local music_x = state.wide and misc.music_x + popup_gap(state) or 603
     local music_y = state.wide and misc.music_y or 3
     text(state, i18n.tr("Music: %s", i18n.tr(label)), music_x, music_y, state.wide and misc.music_title or music_title)
     text(state, i18n.tr("(Press Left/Right to change)"), music_x, music_y + 17, state.wide and misc.music_hint or music_hint)
@@ -840,7 +846,7 @@ local function grid_popup(state, previous_menu)
     local scrollable = #grid.cells > grid_bg.rows
     local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
     if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
-        local px, py = held.pointer_x, held.pointer_y
+        local px, py = held.pointer_x - (state.dx or 0), held.pointer_y
         for line = 0, grid_bg.rows - 1 do
             local row = grid.cells[grid.top + line + 1]
             if row and inside(px, py, grid_bg.x, grid_bg.y + line * grid_bg.step, grid_bg.w, grid_bg.h) then
@@ -907,7 +913,7 @@ local function mode_popup(state, previous_menu)
     local grid, held = state.mode_grid, state.held
     local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
     if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
-        local px, py = held.pointer_x, held.pointer_y
+        local px, py = held.pointer_x - (state.dx or 0), held.pointer_y
         local hit
         for line = 0, grid_mode.lines - 1 do
             for column = 0, grid_mode.columns - 1 do
@@ -1010,7 +1016,7 @@ local function stage_popup(state, previous_menu)
     local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
     local first = math.floor((grid.cursor - 1) / grid_stage.columns) * grid_stage.columns
     if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
-        local px, py = held.pointer_x, held.pointer_y
+        local px, py = held.pointer_x - (state.dx or 0), held.pointer_y
         for column = 0, grid_stage.columns - 1 do
             local info = grid.cells[first + column + 1]
             local x = grid_stage.x + column * grid_stage.step_x
@@ -1063,6 +1069,19 @@ local function stage_popup(state, previous_menu)
         end
     end
 end
+
+-- The three popups (background list, mode list, stage list) are laid out for 794 pixels: in the wide menu they sit in the middle
+-- of the wider picture (drawing and pointer both).
+local function centered_popup(state, popup, previous_menu)
+    state.dx = math.floor(popup_gap(state) / 2 + 0.5)
+    local result = popup(state, previous_menu)
+    state.dx = 0
+    return result
+end
+local grid_popup_body, mode_popup_body, stage_popup_body = grid_popup, mode_popup, stage_popup
+grid_popup = function(state, previous_menu) return centered_popup(state, grid_popup_body, previous_menu) end
+mode_popup = function(state, previous_menu) return centered_popup(state, mode_popup_body, previous_menu) end
+stage_popup = function(state, previous_menu) return centered_popup(state, stage_popup_body, previous_menu) end
 
 -- What attack does on a row of the options menu (the classic panel's rows, then the extra rows).
 -- LF2 Darkfiren's options panel (<menu_small> of mode4.dat, game/menu_small.lua): picture rows stacked from the top
@@ -1500,14 +1519,16 @@ local function small_background(state)
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
     end
     if not grid_has(picture) then return end
+    -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
+    local gap = popup_gap(state)
     -- BG_FRAME is the base image of the preview; the mode's frame and the background's picture go on top of it
     -- (Darkfiren's answer). [BELUM PASTI] the exact position and order; the resource is looked for as a file and, as
     -- the original keeps it, in the game's resources.
     for _, base in ipairs({"sprite/ui/bg_frame.bmp", "pe/bg_frame"}) do
-        if grid_has(base) then image(state, base, misc.frame_x, misc.frame_y) break end
+        if grid_has(base) then image(state, base, misc.frame_x + gap, misc.frame_y) break end
     end
-    if grid_has(misc.frame_pic) then image(state, misc.frame_pic, misc.frame_x, misc.frame_y) end
-    image(state, picture, misc.small_x, misc.small_y)
+    if grid_has(misc.frame_pic) then image(state, misc.frame_pic, misc.frame_x + gap, misc.frame_y) end
+    image(state, picture, misc.small_x + gap, misc.small_y)
 end
 
 function selection.update(state, held, context)
