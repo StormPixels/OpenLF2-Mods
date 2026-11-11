@@ -126,6 +126,9 @@ function fx.leaf_extras(itr, victim_kind, victim_state)
         victim_frame = victim_frame > 0 and victim_frame or 0,
         no_injured = victim_frame == -1 or victim_frame == -3,
         no_fall = victim_frame == -2 or victim_frame == -3,
+        -- `sound` n = fixed sound channel n - 1: 1-18 are the built-in list, higher numbers are entries a mod added to data\sound.dat
+        -- (update log: "you can add more sounds to it and use them with effect 8~16 with sound: tag"); sounds.lua keeps at most 1000.
+        sound = (itr.sound and itr.sound >= 1 and itr.sound <= 1000) and itr.sound or 0,
     }
 end
 

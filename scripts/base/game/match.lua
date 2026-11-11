@@ -28,6 +28,8 @@ local cost = require("base/game/cost")
 local item = require("base/game/item")
 local control = require("base/game/control")
 local physics = require("base/game/physics")
+local platform = require("base/game/platform")
+local fx_constants = require("base/game/fx_constants")
 local animation = require("base/game/animation")
 local camera = require("base/game/camera")
 local combat = require("base/game/combat")
@@ -781,7 +783,18 @@ end
 
 local function physics_item(state, index, value)
     if frame_rules.frozen(state, index, value) then return end
+    -- State 3007 ball over a platform plane (PDK rule relayed by AI 2; platform.land_ball is AI 3's): floor_y only exists on the tick
+    -- the ball crosses the plane, and physics.step itself moves a landing item to its hit_g frame on that tick, so whether the ball
+    -- was in a 3007 frame is read BEFORE the step. After it: y := plane and velocity 0 (land_ball also does that, and the hit_g frame
+    -- when the ball is still in its 3007 frame; objects.update calls it for hit_Fa objects too, which is harmless: it is idempotent).
+    local ball_3007 = value.record.kind == constants.record_kinds.ball and value.record.frame(value.frame).state == fx_constants.platform.ball_state
+    local frame_before = value.frame
     physics.step(state, value)
+    -- land_ball(value, frame_before): AI 3's R21 reads the 3007 state and hit_g from the frame before the step (older versions ignore it).
+    if ball_3007 and value.floor_y ~= nil and not platform.land_ball(value, frame_before) and value.y >= value.floor_y then
+        value.y, value.y_int = value.floor_y + 0.0, value.floor_y
+        value.vx, value.vy, value.vz = 0.0, 0.0, 0.0
+    end
     if value.record.frame(value.frame).state == constants.frame_states.removed then objects.remove(state, index) end
     frame_rules.after_physics(state, index, value)
 end

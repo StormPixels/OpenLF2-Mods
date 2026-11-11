@@ -605,6 +605,8 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
     -- other victims their own hit sound.
     if attacker.record.kind == record_kinds.ball then sounds.item(state, attacker.x_int, attacker.record.data.weapon.broken_sound, attacker.record.id) end
     if victim_kind == record_kinds.character then
+        -- Leaf.F `sound` (effects 8-16, characters only): the 18 default sounds are the 18 fixed channels, sound n = channel n - 1
+        if leaf and leaf.sound > 0 then sounds.effect(state, victim.x_int, leaf.sound - 1, victim.record.id) end
         if itr.effect == effects.plain_hit then sounds.effect(state, victim.x_int, victim.timer_b0 == combat_knockdown_fall_points and 2 or 0, victim.record.id) end
         if itr.effect == effects.sharp_hit then
             spark_kind = 1

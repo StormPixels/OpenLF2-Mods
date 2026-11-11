@@ -91,6 +91,10 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: platform kind 60-89 now also affect type 5 (prisoner), as added on purpose by the Darkfiren developer.
 - LF2 Darkfiren: an energy ball in a state 3007 frame is stopped by a platform plane (y := plane, velocity 0) and goes to its hit_g frame.
 
+- AI 2: bola ber-state 3007 di atas platform berhenti di bidang (match.physics_item membaca state sebelum physics.step; platform.land_ball sesudahnya).
+
+- LF2 Darkfiren: `platform.land_ball(value, frame_before)` also works after `physics.step` has already moved a landed ball to its hit_g frame.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -268,3 +272,5 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: vertical camera state.camera_z from the mode tags zcam and zcamera (camera.lua, with the 99XXX frame object as focus for zcamera); the renderer subtracts it from the screen y. Without the tags it is 0.
 - LF2 Darkfiren: platform kind 60-89 also affect prisoners (type 5), and an energy ball in a 3007 frame is stopped by a platform plane.
 - UI: the battle draws with the vertical camera `match.camera_z` (zcam/zcamera), shadows follow the platform plane (`z + floor_y`), sprites beyond +-8192 are skipped, and the background preview draws BG_FRAME first.
+- LF2 Darkfiren: an energy ball in a 3007 frame above a platform now really stops on the plane (`match.physics_item` reads the state before `physics.step`, `platform.land_ball` runs after it).
+- LF2 Darkfiren: Leaf.F itr `sound` 1-18 plays the default sounds of effects 8-16 on characters, and `platform.land_ball` has a guard when `physics.step` has already moved a landed ball.

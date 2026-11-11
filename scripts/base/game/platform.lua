@@ -107,13 +107,14 @@ end
 -- State 3007 (a ball that interacts with platforms, PDK rule relayed by AI2): when the feet of an energy ball in a 3007 frame
 -- reach the plane stored in value.floor_y by physics.lua, the ball is put on the plane (y := plane), stopped (velocity 0) and
 -- sent to its hit_g frame. It must run AFTER physics.step of the same item in the same tick (floor_y only exists on the tick
--- the ball crosses the plane); AI2 calls it from match.lua. Safe for any item: other kinds / states / no floor_y return false.
--- [BELUM PASTI]: without a hit_g frame the ball is still stopped on the plane; it is not moved again while it already is in
--- its hit_g frame. Returns true when the ball was put on a plane.
-function platform.land_ball(value)
+-- the ball crosses the plane); AI2 calls it from match.lua. physics.step itself already sends a landed item to its hit_g frame,
+-- so the caller may pass `frame_before` = the frame the ball was in BEFORE physics.step: the 3007 state and hit_g are read from
+-- it and the frame is left alone when it already is the target. Safe for any item: other kinds / states / no floor_y -> false.
+-- [BELUM PASTI]: without a hit_g frame the ball is still stopped on the plane. Returns true when the ball was put on a plane.
+function platform.land_ball(value, frame_before)
     local plane = value.floor_y
     if plane == nil or value.record.kind ~= K.ball or value.y < plane then return false end
-    local frame = value.record.frame(value.frame)
+    local frame = value.record.frame(frame_before or value.frame)
     if frame.state ~= config.ball_state then return false end
     value.y, value.y_int = plane + 0.0, plane
     value.vx, value.vy, value.vz = 0.0, 0.0, 0.0
