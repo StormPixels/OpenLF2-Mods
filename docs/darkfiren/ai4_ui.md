@@ -59,8 +59,7 @@ Perubahan tebakan: fungsi/kondisi ada di `draw_item` (blok `amount`/`loop`) dan 
 
 ## 4. Papan siapa-membunuh-siapa dan combo (§14.1, §16.7)
 
-Belum. Data yang ada: `kills`, `damage_dealt`, `hp_spent`, `mp_spent`, `pickings` (papan skor akhir yang sudah ada). Yang belum tersedia: siapa membunuh siapa
-(`killed_by`/matriks) dan penghitung combo; keduanya perlu field baru di `value.fx` (I6, AI 3) atau di `match.lua` (AI 2).
+Combo: lihat bagian 11. Papan siapa-membunuh-siapa: lihat bagian 14 (sejak putaran 13).
 
 ## 5. Rencana (P3): 10 pemain dan lainnya
 
@@ -141,3 +140,26 @@ Data contoh ada di `RESULT/tests/data` (salinan `mode.dat`, `mode1-4.dat`, `fram
 - **Kamera vertikal** (`zcam` / `zcamera`): `match_screen` membaca `match.camera_z` (piksel, 0 atau lebih; nil-safe) dan menggeser seluruh arena (latar, objek, spark) ke atas sebesar itu, bersama gempa; HUD tetap. Yang belum: scroll paralel (latar lebih lambat) menunggu data dari AI 5, dan `camera_z` itu sendiri (AI 2, `camera.lua`).
 - **Label nama**: item 0..9 memakai nomor pemain (`entry.index < constants.player_slots`), item 10..19 "Com" (perbaikan R11 yang opsional kini ikut).
 - **HUD**: bar MP dijepit ke `constants.points.full` (500) sehingga MP sampai 1000 tampil penuh.
+
+## 14. Putaran 13: papan siapa-membunuh-siapa (BASE base-20261110-1-96c6fa7; DOCX 14.1 dan 16.7, readme/mode dat.txt)
+
+Sumber aturan: blok `<bmp_begin>` pertama di berkas mode (readme/mode dat.txt, "CUSTOM NAME DISPLAY OF WHO KILLED WHOM"). Catatan: ringkasan di DOCX
+memetakan `x`, `dx`, `dvx` kurang tepat; yang berlaku readme: `x` = posisi nama penyerang, `dx` = posisi gambar tambahan, `dvx` = posisi nama korban.
+
+- **Pengaturan** (`game/ui_modes.lua`): `ui_modes.kill_board(text)` membaca blok (baris `mode:` dan `id:` boleh berulang; maksimal 20 id; nama gambar
+  `pic_type0..6` dan `sound1/2` dijadikan huruf kecil dengan `/`), `ui_modes.kill_settings(layout)` mengambil berkas mode layout itu (classic dan expand: mode1.dat,
+  wide 1018: mode2.dat; mode3 dan mode4 tidak punya blok, jadi tidak ada papan). `bound: 0` mematikan.
+- **Deteksi** (`ui/match_screen.lua`, `screen.snapshot`): `value.fx.killed_by` (AI 3) hanya menghitung per slot pembunuh, tanpa waktu. Snapshot menjumlahkannya per
+  karakter dan menganggap kenaikan total sebagai satu pembunuhan baru (pelaku = `fx.last_killer`). Total yang turun (`fx.reset` antar ronde), slot yang diisi
+  record lain, atau pertandingan baru (tabel state lain) hanya menjadi dasar baru, bukan kejadian. Kejadian pertama yang terlihat tidak dihitung (kill yang sudah ada).
+  Jam = `state.elapsed`; kejadian dibagi oleh dua buffer snapshot dan tidak berubah. Maksimal 12 kejadian, umur maksimal 1200 tik.
+- **Gambar** (`draw_kill_board`, sesudah HUD): satu baris per pembunuhan yang berumur < `times` tik, `loop` piksel antar baris mulai dari `y`, yang tertua di atas,
+  paling banyak `respond` baris. Baris: gambar menurut jenis objek pembunuh (`pic_type<n>`; sampai AI 3 mengisi `fx.last_killer_type`, selalu `pic_type0`) di `dx`,
+  nama penyerang di `x`, nama korban di `dvx`. Nama = label di atas kepala ("P1", "Com") ditambah nama karakter (dari `catalog.load`, `_` jadi spasi) bila
+  `caughtact` (penyerang) atau `catchingact` (korban) = 1; huruf tim bila `arest`/`vrest` = 1; `pickedact`/`pickingact` = 1 menulis "mundur" (di sini: berakhir di x).
+  Hanya mode yang disebut `mode:` (bila tidak ada baris `mode:`, semua mode); id yang dikecualikan (korban atau penyerang) tidak tampil.
+- **[BELUM PASTI]** posisi dan jangkar (gambar dan teks sama-sama di `y`), `respond` sebagai batas baris (readme tanpa keterangan), baris yang lama berhenti menggeser
+  yang baru (dipadatkan), "mundur" = rata kanan di x, penghitungan id kecualian untuk penyerang juga, PNG beralpha (`sprite\\kill\\*.png`) bisa digambar host,
+  kotak centang di jeda (`bound: 1`) belum ada (kotak ringkasan jeda belum ada di UI), `slot` korban yang dihapus pada tik yang sama tidak terlihat.
+- **Belum**: suara `sound1`/`sound2` (hanya stage mode); jenis pembunuh t1..t6 (menunggu `fx.last_killer_type` dari AI 3; pencatat exe punya tipe per pukulan).
+- Tes: `tests/kill_board_test.lua` (jalur nyata: mode1.dat/mode2.dat/mode4.dat asli, snapshot lalu draw).

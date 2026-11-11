@@ -95,6 +95,8 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren: `platform.land_ball(value, frame_before)` also works after `physics.step` has already moved a landed ball to its hit_g frame.
 
+- LF2 Darkfiren: who-killed-whom display (`<bmp_begin>` of the mode file): one row per kill with the attacker, a picture by killer type, and the victim, in team letters with the character name, for `times` ticks, `loop` pixels apart.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -274,3 +276,5 @@ All notable changes to this project are documented in this file.
 - UI: the battle draws with the vertical camera `match.camera_z` (zcam/zcamera), shadows follow the platform plane (`z + floor_y`), sprites beyond +-8192 are skipped, and the background preview draws BG_FRAME first.
 - LF2 Darkfiren: an energy ball in a 3007 frame above a platform now really stops on the plane (`match.physics_item` reads the state before `physics.step`, `platform.land_ball` runs after it).
 - LF2 Darkfiren: Leaf.F itr `sound` 1-18 plays the default sounds of effects 8-16 on characters, and `platform.land_ball` has a guard when `physics.step` has already moved a landed ball.
+- LF2 Darkfiren: `fx.last_killer_type` (record kind of the object that dealt the killing blow) for the kill board.
+- UI: who-killed-whom display (`<bmp_begin>` of the mode file): one row per kill with the attacker, a picture by killer type and the victim, in team letters with the character name, for `times` ticks and `loop` pixels apart.

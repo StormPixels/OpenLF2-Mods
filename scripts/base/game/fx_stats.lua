@@ -4,6 +4,7 @@
 -- Per-object statistics for the result screen (interface I6, read by AI 4), all kept in value.fx:
 --   fx.killed_by    = {[killer slot] = how many times this object was killed by that slot}
 --   fx.last_killer  = slot that dealt the killing blow (nil when none)
+--   fx.last_killer_type = record kind (0..6) of the object that actually dealt it: 0 character, 1 light weapon, 3 ball, ... (nil when unknown)
 --   fx.combo        = running number of hits this object (as an attacker) landed in a row, 0 when none
 --   fx.combo_age    = ticks since the last of those hits (0 on the tick of the hit)
 -- Existing item fields (kills, damage_dealt, hp_spent) are untouched.
@@ -37,13 +38,14 @@ local function extra_of(value)
 end
 
 -- The killing blow. `killer` is the slot of the attacker's owner (a ball or weapon counts for its owner).
-function fx.record_kill(victim, killer)
+function fx.record_kill(victim, killer, killer_type)
     local extra = extra_of(victim)
     local by = extra.killed_by
     if not by then by = {} extra.killed_by = by end
     if killer ~= nil and killer >= 0 then
         by[killer] = (by[killer] or 0) + 1
         extra.last_killer = killer
+        extra.last_killer_type = killer_type -- nil when the caller does not know
     end
 end
 
@@ -83,6 +85,6 @@ end
 -- For whoever starts a new round / match with the same objects.
 function fx.reset(value)
     local extra = value.fx
-    if extra then extra.killed_by, extra.last_killer, extra.combo, extra.combo_age = {}, nil, 0, 0 end
+    if extra then extra.killed_by, extra.last_killer, extra.last_killer_type, extra.combo, extra.combo_age = {}, nil, nil, 0, 0 end
 end
 return fx

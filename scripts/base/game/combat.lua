@@ -562,7 +562,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
         if victim.hp > 0 and applied >= victim.hp and counted then
             local owner = state.items[attacker.owner]
             if owner then owner.kills = owner.kills + 1 end
-            fx_stats.record_kill(victim, attacker.owner)
+            fx_stats.record_kill(victim, attacker.owner, attacker.record.kind)
             battle.count_kill(state, victim)
         end
         victim.hp = victim.hp - applied
@@ -769,7 +769,7 @@ local function defended_hit(state, p, attacker, victim, itr, rule)
     if victim.hp > 0 and applied >= victim.hp and victim.follow == -1 then
         local owner = state.items[attacker.owner]
         if owner then owner.kills = owner.kills + 1 end
-        fx_stats.record_kill(victim, attacker.owner)
+        fx_stats.record_kill(victim, attacker.owner, attacker.record.kind)
         battle.count_kill(state, victim)
     end
     victim.hp = victim.hp - applied
@@ -1049,7 +1049,7 @@ local function freeze_hit(state, p, v, attacker, victim, itr)
     local applied = dealt(state, damage)
     if victim.hp > 0 and applied >= victim.hp and victim.follow == -1 then
         if owner then owner.kills = owner.kills + 1 end
-        fx_stats.record_kill(victim, attacker.owner)
+        fx_stats.record_kill(victim, attacker.owner, attacker.record.kind)
         battle.count_kill(state, victim)
     end
     victim.hp = victim.hp - applied

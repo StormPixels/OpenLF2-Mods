@@ -117,9 +117,38 @@ local function advance_sparks(list, drawn)
     return drawn
 end
 
+-- Who killed whom (the kill display of the mode file, ui_modes.kill_settings). value.fx.killed_by (AI 3) counts the kills of a
+-- victim per killer slot and value.fx.last_killer names the slot of the last killing blow; neither says when it happened, so
+-- the snapshot watches each character's total: a rise of it is one new kill. Events are shared by both snapshot buffers and
+-- never change once made. A total that falls (fx.reset between rounds, a slot given to another record) is only a new base.
+-- [BELUM PASTI] `fx.last_killer_type` (0..6, the kind of the object that struck; nil until AI 3 sets it) picks pic_type<n>.
+local kill_tracker = {}
+local kill_max_events, kill_max_age = 12, 1200
+local function track_kill(tracker, state, index, value, clock)
+    local fx = value.fx
+    local by = type(fx) == "table" and fx.killed_by or nil
+    if type(by) ~= "table" or value.record.kind ~= record_kinds.character then tracker.seen[index] = nil return end
+    local total = 0
+    for _, count in pairs(by) do if type(count) == "number" then total = total + count end end
+    local seen = tracker.seen[index]
+    if seen and seen.record == value.record and total > seen.total and type(fx.last_killer) == "number" then
+        local killer = state.items[fx.last_killer]
+        local kind = type(fx.last_killer_type) == "number" and fx.last_killer_type >= 0 and fx.last_killer_type <= 6 and math.floor(fx.last_killer_type) or 0
+        tracker.events[#tracker.events + 1] = {born = clock, victim = index, victim_id = value.record.id, victim_team = value.team,
+            killer = fx.last_killer, killer_id = killer and killer.record and killer.record.id or nil, killer_team = killer and killer.team or nil, kind = kind}
+    end
+    tracker.seen[index] = {record = value.record, total = total}
+end
+
 function screen.snapshot(state, snapshot)
     snapshot = snapshot or {items = {}}
     local order, count = snapshot.items, 0
+    local tracker = kill_tracker
+    local clock = type(state.elapsed) == "number" and state.elapsed or 0
+    if tracker.state ~= state or clock < (tracker.clock or 0) then
+        tracker.state, tracker.seen, tracker.events = state, {}, {}
+    end
+    tracker.clock = clock
     for index = 0, constants.item_slots - 1 do
         local value = state.items[index]
         if value then
@@ -137,6 +166,7 @@ function screen.snapshot(state, snapshot)
             entry.combo = type(fx) == "table" and fx.combo or 0
             entry.combo_age = type(fx) == "table" and fx.combo_age or 0
             entry.lives = value.lives
+            track_kill(tracker, state, index, value, clock)
             -- I10: state 20/21 hide the object. The frame tag center_z corrects the z the drawing order uses by
             -- (center_z - 20000), or by (center_z - 200000) in the 100000..299999 range (Darkfiren: "the object with the
             -- smallest z is drawn first", so 10000 puts it behind everything, 29999 in front). It is a drawing order
@@ -169,6 +199,9 @@ function screen.snapshot(state, snapshot)
         end
         order[position] = entry
     end
+    local events = tracker.events
+    while #events > kill_max_events or (events[1] and clock - events[1].born > kill_max_age) do table.remove(events, 1) end
+    snapshot.kills, snapshot.kill_clock = events, clock
     snapshot.camera, snapshot.shake = state.camera, state.shake
     snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or state.stage_clock
     snapshot.time_row = state.stage_clock and 16 or 0
@@ -370,6 +403,59 @@ local function draw_combo(context, entry, frame, camera, shake)
         local code = text:byte(position)
         context.sprite(settings.pic, {(code % 16) * settings.w, math.floor(code / 16) * settings.h, settings.w, settings.h},
             x + (position - 1) * settings.w, y, true)
+    end
+end
+
+-- The kill display: one row per recent kill, `loop` pixels apart from `y` down, oldest first, each shown `times` ticks. A row is the
+-- attacker's name (x), a picture by the kind of the killing object (dx) and the victim's name (dvx). A name is the player label
+-- (as over the head: "P1", "Com"), with the character's name after it when caughtact / catchingact are 1, in the team's font when
+-- arest / vrest are 1; pickedact / pickingact write it backwards, here: ending at x. [BELUM PASTI] all positions and anchors,
+-- the picture's vertical place (same y as the text), `respond` as the row limit, backwards = right aligned, and that the host
+-- draws the PNG pictures (sprite\\kill\\*.png). Sounds (sound1, sound2) are not played.
+local fighter_names
+local function character_name(id)
+    if not fighter_names then
+        fighter_names = {}
+        local ok, catalog = pcall(require, "base/game/catalog")
+        local ok_list, list = false, nil
+        if ok and type(catalog) == "table" and type(catalog.load) == "function" then ok_list, list = pcall(catalog.load) end
+        if ok_list and type(list) == "table" then
+            for _, fighter in ipairs(list) do fighter_names[fighter.id] = (tostring(fighter.name):gsub("_", " ")) end
+        end
+    end
+    return fighter_names[id]
+end
+local kill_pic_known = {}
+local function kill_text(index, id, with_name)
+    local label = index < constants.player_slots and controls.name(index) or "Com"
+    local name = with_name and id and character_name(id) or nil
+    return name and (label .. " " .. name) or label
+end
+local function draw_kill_board(context, view, current)
+    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
+    if not settings or not view.kills or #view.kills == 0 then return end
+    if settings.modes and not settings.modes[current.mode] then return end
+    local visible = {}
+    for _, event in ipairs(view.kills) do
+        local age = (view.kill_clock or 0) - event.born
+        if age >= 0 and age < settings.times and not settings.ids[event.victim_id or -1] and not settings.ids[event.killer_id or -1] then
+            visible[#visible + 1] = event
+        end
+    end
+    for first = 1, #visible - settings.max_rows do table.remove(visible, 1) end
+    for row, event in ipairs(visible) do
+        local y = settings.y + (row - 1) * settings.loop
+        local pic = settings.pics[event.kind] or settings.pics[0]
+        if pic then
+            if kill_pic_known[pic] == nil then kill_pic_known[pic] = pcall(engine.read_resource, pic) end
+            if kill_pic_known[pic] then context.image(pic, settings.dx, y, settings.transparent) end
+        end
+        local attacker = kill_text(event.killer, event.killer_id, settings.attacker_name)
+        local victim = kill_text(event.victim, event.victim_id, settings.victim_name)
+        local attacker_x = settings.attacker_back and settings.x - #attacker * 9 or settings.x
+        local victim_x = settings.victim_back and settings.dvx - #victim * 9 or settings.dvx
+        glyphs(context, settings.arest and event.killer_team and label_font(event.killer_team) or "pe/words0", attacker, attacker_x, y, 9)
+        glyphs(context, settings.vrest and event.victim_team and label_font(event.victim_team) or "pe/words0", victim, victim_x, y, 9)
     end
 end
 
@@ -784,7 +870,7 @@ function screen.draw(state, context, window_bounds)
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
         view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage,
-            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool}
+            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock}
         -- Only matters for a stage narrower than the window.
         bounds = {left = math.max(window_bounds.left, -shift), right = math.min(window_bounds.right, stage_width - shift)}
         passable_bounds = {left = bounds.left, right = bounds.right}
@@ -844,6 +930,7 @@ function screen.draw(state, context, window_bounds)
         draw_status(context, current, style)
         if style and style.radar then draw_radar(context, view, current, style.radar, wide_center(), options.wide_width(layout) or constants.screen.width) end
     end
+    draw_kill_board(context, view, current)
     if view.time_left then
         -- The time limit's clock: the time left, in the middle under the HP frames.
         local seconds = math.ceil(view.time_left / 30)

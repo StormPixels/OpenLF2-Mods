@@ -93,6 +93,7 @@ local function entry_for(layout, list, width)
 end
 local sources = {}
 local combo_cache = {}   -- ui_modes.combo_settings, per layout
+local kill_cache = {}    -- ui_modes.kill_settings, per layout
 -- The mode file text of a battlefield layout and where it came from: "host" or "file" (the game's own file) or
 -- "builtin" (the layout blocks that are part of OpenLF2, used when the game's file cannot be read; only for the 1018
 -- layout). nil in the classic layouts (the built-in menu stands) and when there is nothing to read.
@@ -137,6 +138,7 @@ end
 function ui_modes.reset()
     sources = {}
     combo_cache = {}
+    kill_cache = {}
     allowed_cache = {}
     data_text.reset()
 end
@@ -204,6 +206,68 @@ function ui_modes.combo_settings(layout)
             times = block.times or 30, name = (block.name and block.name ~= "") and block.name or "%d_hit", facing = block.facing or 1}
     end
     combo_cache[key] = settings
+    return settings or nil
+end
+
+-- The kill display (readme/mode dat.txt, "CUSTOM NAME DISPLAY OF WHO KILLED WHOM"): the first <bmp_begin> block of a mode file.
+-- `mode` and `id` may repeat (the game modes it shows in, at most 20 excluded object ids), which mode_layout.blocks (first value
+-- of a key only) cannot give, so the block is read here line by line. Picture and sound names come back with "/" and lower case.
+-- nil when the file has no such block.
+local kill_numbers = {"bound", "respond", "times", "loop", "y", "x", "dx", "dvx", "arest", "vrest", "caughtact", "catchingact",
+    "pickedact", "pickingact", "transparency"}
+function ui_modes.kill_board(text)
+    local inside, found = false, nil
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag == "bmp_begin" and not found then inside, found = true, {modes = {}, ids = {}, pics = {}}
+        elseif tag == "bmp_end" and inside then break
+        elseif inside then
+            local key, value = line:match("^%s*([%w_]+)%s*:%s*(.-)%s*$")
+            if key then
+                local number = tonumber(value:match("^(-?%d+)"))
+                if key == "mode" then
+                    if number then found.modes[#found.modes + 1] = number end
+                elseif key == "id" then
+                    if number and #found.ids < 20 then found.ids[#found.ids + 1] = number end
+                elseif key:match("^pic_type[0-6]$") or key == "sound1" or key == "sound2" then
+                    local name = value:gsub("%s*;.*$", ""):gsub("\\", "/"):lower()
+                    if name ~= "" then
+                        if key:sub(1, 3) == "pic" then found.pics[tonumber(key:sub(-1))] = name else found[key] = name end
+                    end
+                elseif found[key] == nil and number then
+                    for _, known in ipairs(kill_numbers) do if known == key then found[key] = number end end
+                end
+            end
+        end
+    end
+    return found
+end
+
+-- What the kill display of a battlefield layout needs, from the mode file of that layout (classic and expand: mode1.dat, as the
+-- combo): nil when the file has no block or `bound: 0`; otherwise {times, loop, max_rows, y, x, dx, dvx, arest, vrest, attacker_name,
+-- victim_name, attacker_back, victim_back, transparent, pics = {[0..6] = path}, modes = {[mode] = true} or nil (every mode),
+-- ids = {[id] = true}, sound1, sound2}. [BELUM PASTI] `respond` (no comment in the readme) is taken as the most entries shown
+-- at once (5 when absent).
+function ui_modes.kill_settings(layout)
+    local key = tostring(layout)
+    if kill_cache[key] ~= nil then return kill_cache[key] or nil end
+    local width = ui_modes.layout_width(layout) or classic_width
+    local listing = data_text.read(list_path)
+    local entry = entry_for(layout, listing and ui_modes.parse(listing) or nil, width)
+    local text = entry and ui_modes.text(entry) or nil
+    local block = text and ui_modes.kill_board(text) or nil
+    local settings = false
+    if block and block.bound ~= 0 then
+        local modes, ids = nil, {}
+        if #block.modes > 0 then modes = {} for _, mode in ipairs(block.modes) do modes[mode] = true end end
+        for _, id in ipairs(block.ids) do ids[id] = true end
+        settings = {times = block.times or 70, loop = block.loop or 40, max_rows = (block.respond and block.respond > 0) and block.respond or 5,
+            y = block.y or 0, x = block.x or 0, dx = block.dx or 0, dvx = block.dvx or 0, arest = block.arest == 1, vrest = block.vrest == 1,
+            attacker_name = block.caughtact == 1, victim_name = block.catchingact == 1,
+            attacker_back = block.pickedact == 1, victim_back = block.pickingact == 1, transparent = block.transparency == 1,
+            pics = block.pics, modes = modes, ids = ids, sound1 = block.sound1, sound2 = block.sound2}
+    end
+    kill_cache[key] = settings
     return settings or nil
 end
 

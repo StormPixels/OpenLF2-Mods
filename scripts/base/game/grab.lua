@@ -169,7 +169,7 @@ function grab.place_victims(state)
                         if target.armor > 0 then damage = cdiv(damage * 100, target.armor) end
                         if target.hp > 0 and damage >= target.hp and target.follow == -1 then
                             if owner then owner.kills = owner.kills + 1 end
-                            fx_stats.record_kill(target, holder.owner)
+                            fx_stats.record_kill(target, holder.owner, holder.record.kind)
                             battle.count_kill(state, target)
                         end
                         target.hp = target.hp - damage
