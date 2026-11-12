@@ -85,6 +85,9 @@ function st_frame.landing(value, air_frame, was_airborne)
     local floor = value.floor_y or 0
     if not was_airborne or value.y < floor or value.y_int ~= floor then return end
     local air = value.record.frame(air_frame)
+    -- PDK 0x40e783: a character that lands from frame 212 (the jump's last frame) or from a state 6 (rowing) frame always goes to 215; hit_g
+    -- is read only after that check (hit_g itself is for every type in Darkfiren, but this exception is only for characters).
+    if value.record.kind == constants.record_kinds.character and (air_frame == constants.character_frames.jump + 2 or air.state == constants.frame_states.rowing) then return end
     local ext = air.hit_ext
     local target = ext and ext.g
     -- 9xxx: the frame's own state names the landing frame (0-399).

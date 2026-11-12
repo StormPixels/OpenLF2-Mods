@@ -7,7 +7,7 @@
 --   bound:   the victim cannot press the jump key (DOCX; the same as a background mode's bound 1)
 --   facing:  the mp a move costs is multiplied (st_constants.facing_mp_factor)
 --   weak:    hp recovery stops, mp recovery slows (regenerate in match.lua)
---   confus:  the keys are swapped (st_constants.confus_map)
+--   confus:  the keys are permuted at random (PDK 0x430e9e; see remap_keys)
 --   mimic:   the victim copies the keys of the fighter that applied it (value.fx.status.mimic_by = that slot)
 -- delay ("cannot move fast") is not applied yet: its exact effect is not settled. [UNCERTAIN]
 local st_constants = require("base/game/st_constants")
@@ -37,12 +37,28 @@ function st_status.mp_factor(value)
     return 1
 end
 
--- Swap the keys of a confused fighter once, where the keys are written (match.read_input).
+-- confus (PDK 0x430e9e-0x430eec, read from the code): when the effect lands the victim gets a RANDOM permutation of its seven keys (no key
+-- twice); every key press is replaced by the key it maps to, for the whole effect. A new application gets a new permutation. Applied once
+-- per control step, where the keys are written (match.read_input). The permutation lives in value.st.confus_perm.
+local key_names = {"up", "down", "left", "right", "attack", "jump", "defend"}
+local function new_permutation()
+    local order = {1, 2, 3, 4, 5, 6, 7}
+    for i = #order, 2, -1 do
+        local j = engine.random(i) + 1
+        order[i], order[j] = order[j], order[i]
+    end
+    return order
+end
 function st_status.remap_keys(value)
-    if not (is_fighter(value) and active(value, "confus")) then return end
-    local keys, map = value.keys, st_constants.confus_map
-    local swapped = {}
-    for key, other in pairs(map) do swapped[key] = keys[other] end
+    if not (is_fighter(value) and active(value, "confus")) then
+        if value.st and value.st.confus_perm then value.st.confus_perm = nil end
+        return
+    end
+    value.st = value.st or {}
+    local perm = value.st.confus_perm
+    if not perm then perm = new_permutation() value.st.confus_perm = perm end
+    local keys, swapped = value.keys, {}
+    for i = 1, 7 do swapped[key_names[i]] = keys[key_names[perm[i]]] end
     for key, down in pairs(swapped) do keys[key] = down end
 end
 

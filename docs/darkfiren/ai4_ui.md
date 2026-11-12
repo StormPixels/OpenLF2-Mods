@@ -172,3 +172,17 @@ Semua tata letak AI 4 tadinya ditulis untuk gambar klasik 794 piksel. Di gambar 
 - **Pertandingan** (`ui/match_screen.lua`): papan ringkasan (`draw_scoreboard`) digeser `center`; perintah stage/battle (`view.stage`, ditulis `game/stage.lua`/`battle.lua` untuk 794) lewat `stage_dx(x, y)`: baris atas (y < 200): x < 200 tetap, x < 400 (judul) ke tengah, sisanya (tim kanan) ke tepi kanan (+gap); spanduk di bawah (stage clear, GO) ke tengah kecuali panah GO (x >= 600) ke tepi kanan. Petunjuk keluar demo (0x262) +gap, gambar DEMO (0x168) +center, batang hitam baris tombol fungsi selebar gambar. Gambar PAUSE sudah di tengah (360 + center, diuji).
 - **[BELUM PASTI]** ambang `stage_dx` (menebak dari koordinat klasik), baris musik ikut ke kanan (diputuskan agar tetap bersebelahan dengan pratinjau), `xpos` judul stage Darkfiren yang melewati 400, papan kill memakai koordinat dari berkas mode apa adanya, strip replay.
 - Tes: `tests/wide_match_test.lua`, `tests/wide_character_select_test.lua`; lima tes harness lama (`grid_test`, `mode_test`, `mode_filter_test`, `stage_grid_test`, `layout_integration_test`) menyimpan koordinat 794 untuk layout wide 1333 dan disesuaikan (`harness_update/`).
+
+## 16. Putaran 15: darah (bpoint) dan bleed_hp (readme/frame/bpoint.txt, dat file/stats.txt)
+
+Di `ui/match_screen.lua` (`draw_blood`, sebelum `draw_item`):
+- Semua titik di `frame.bpoints` (sampai 5; bila tidak ada, `{frame.bpoint}`) yang `x > 0` meneteskan darah bila HP di bawah ambangnya. Ambang (persen dari `max_hp`): `point.respond` bila > 0, lalu `record.data.stats.bleed_hp` bila > 0 (dibaca langsung, bukan lewat `st_stats.of`), lalu sepertiga (bawaan lama).
+- Data lama (hanya x dan y): gambar 1x3 `pe/bars` seperti sebelumnya. Bila ada `w`, `h`, `rect` atau `rect32`: persegi `fill` (lebar bawaan 1, tinggi bawaan 3).
+- Warna: `rect` = RGB565 mentah, dikonversi seperti `convert_rgb565` di `background_data.cpp` ((r*0x200+g)*0x80+b)*8+0x070707, dipotong 24 bit; `rect32` = 24 bit (byte atas dibuang, seperti `background.lua`) dan menang bila keduanya ada; bawaan 0xF800 = (255,7,7). Contoh readme `rect: 4706` = (23,83,23), warna yang sama dengan tabel `remapped` di `background.lua`. Teks readme "0ff000" kemungkinan salah ketik untuk 0xF800 (merah RGB565).
+- Parser (`object_data.cpp`): tag yang tidak ditulis tidak ada di tabel (nil, bukan 0); `bpoint_tags` hanya `w h rect respond`, belum `rect32` (diminta ke AI 1).
+- [BELUM PASTI] persegi lebih lebar dari 1 yang menghadap kiri menutup piksel cermin; `respond`/`bleed_hp` 0 = tidak ditulis.
+- Tes: `tests/blood_test.lua`.
+
+## 17. Putaran 16: lebar kotak pesan ETC (`etc_width`)
+
+Penanda perintah tim (`team_order_marker`: "Come!", "Stay!", ...) dijepit ke layar di `draw_item`; lebar jepitnya dulu literal 80 (`0x2ca` = 794 - 80). Sekarang `snapshot.etc_width` = `state.bg_area.etc_width` (AI 5, RESULT_AI5_R19; bilangan bulat > 0, nil bila tidak ada) dan jepitan memakai nilai itu, dipotong ke bilangan bulat; tanpa nilai (atau nilai bukan angka, nol, negatif) tetap 80. Dibawa juga ke view layout lebar. Penempelan ke pemain (`etc_mode: 1`) adalah penempatan objek di sisi AI 2; AI 4 tidak membacanya. Tes: `tests/etc_width_test.lua`. [BELUM PASTI] satuan etc_width (piksel, cocok dengan 80).

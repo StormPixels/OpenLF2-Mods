@@ -61,6 +61,14 @@ function bg_modes.area(mode)
         local flag = tonumber(mode[key])
         if flag == 0 or flag == 1 then area[key] = flag end
     end
+    -- ETC message box (the team-order marker, "Come!/Stay!/Move!/I Join you!"): `etc_width` is a whole number above 0 (80 in
+    -- the stock normal and practice modes; [BELUM PASTI] the unit, probably pixels), `etc_mode` 0 or 1 (1 = the box sticks to
+    -- the player p1..p8 who sent it). Both nil when the mode does not carry a valid one. Only carried as state.bg_area:
+    -- AI4's match_screen reads etc_width for the clamp, the marker's placement (etc_mode) is AI2's.
+    local etc_width = tonumber(mode.etc_width)
+    if etc_width and etc_width > 0 then area.etc_width = math.floor(etc_width) end
+    local etc_mode = tonumber(mode.etc_mode)
+    if etc_mode == 0 or etc_mode == 1 then area.etc_mode = etc_mode end
     -- Round start and control tags: whole numbers, nil when the mode has none. `dicontrol` is 0 (vanilla) or 1 (pdk).
     for _, key in ipairs({"start_frame", "reserve", "dx", "dvx", "dz", "dvz"}) do
         local number = tonumber(mode[key])

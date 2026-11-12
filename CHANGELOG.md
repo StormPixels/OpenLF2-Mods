@@ -279,3 +279,5 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `fx.last_killer_type` (record kind of the object that dealt the killing blow) for the kill board.
 - UI: who-killed-whom display (`<bmp_begin>` of the mode file): one row per kill with the attacker, a picture by killer type and the victim, in team letters with the character name, for `times` ticks and `loop` pixels apart.
 - UI: in the wide layouts (1018, 1333) the character select puts the background preview and the music line at the right edge and its popup lists in the middle, and the match summary, stage banners, team lines, demo and function key line follow the wider picture instead of the classic 794.
+- LF2 Darkfiren: confused characters get a random permutation of the seven keys (PDK 0x430e9e), and a character landing from frame 212 or state 6 goes to frame 215 without `hit_g` (PDK 0x40e783).
+- LF2 Darkfiren: blood (`bpoint`) shows up to five points per frame, with width, height, colour and the HP percentage; the team order message box is as wide as the mode's `etc_width`; background mode `etc_width` and `etc_mode` are read.

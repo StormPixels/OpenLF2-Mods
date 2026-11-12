@@ -215,6 +215,7 @@ function screen.snapshot(state, snapshot)
     local events = tracker.events
     while #events > kill_max_events or (events[1] and clock - events[1].born > kill_max_age) do table.remove(events, 1) end
     snapshot.kills, snapshot.kill_clock = events, clock
+    snapshot.etc_width = type(state.bg_area) == "table" and state.bg_area.etc_width or nil
     snapshot.camera, snapshot.shake = state.camera, state.shake
     snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or state.stage_clock
     snapshot.time_row = state.stage_clock and 16 or 0
@@ -472,6 +473,56 @@ local function draw_kill_board(context, view, current)
     end
 end
 
+local draw_blood
+-- Blood (frame tag bpoint, readme/frame/bpoint.txt; up to five per frame in frame.bpoints, frame.bpoint = the first): a point with
+-- x > 0 drops blood once the HP is below `respond` percent of the maximum (point.respond, else the object's <stats> bleed_hp, else
+-- the classic third). Plain old data (x and y only) keeps the 1x3 red picture of pe/bars; with w, h, rect or rect32 it is a filled
+-- rectangle (width 1 and height 3 where one is absent). rect is RGB565 as in a background layer (the engine converts that for a
+-- layer, here it is done the same way); rect32 is 24 bit RGB (the upper byte is dropped, as in background.lua) and wins when both
+-- are written; red (0xF800) when neither. The parser leaves a tag out of the table when the file does not write it.
+-- [BELUM PASTI] a rectangle wider than 1 facing left covers the mirrored pixels; respond or bleed_hp of 0 mean "not written"; the
+-- parser has no rect32 for bpoint yet (bpoint_tags in object_data.cpp), it is read when it appears.
+local function blood_colour(point)
+    local color
+    if type(point.rect32) == "number" then
+        color = point.rect32 % 16777216
+    else
+        local value = (type(point.rect) == "number" and point.rect or 0xF800) % 65536
+        local red, green, blue = math.floor(value / 2048) % 32, math.floor(value / 32) % 64, value % 32
+        color = (((red * 0x200 + green) * 0x80 + blue) * 8 + 0x070707) % 16777216
+    end
+    return math.floor(color / 65536), math.floor(color / 256) % 256, color % 256
+end
+local function blood_hp(entry, point)
+    local percent = point.respond
+    if type(percent) ~= "number" or percent <= 0 then
+        local data = entry.record.data
+        local stats = type(data) == "table" and data.stats or nil
+        percent = type(stats) == "table" and stats.bleed_hp or nil
+    end
+    if type(percent) == "number" and percent > 0 then return math.floor(entry.max_hp * percent / 100) end
+    return math.floor(entry.max_hp / 3)
+end
+draw_blood = function(context, entry, frame, camera, shake)
+    local right = entry.facing == constants.facings.right
+    for _, point in ipairs(frame.bpoints or {frame.bpoint}) do
+        if point.x > 0 and entry.hp < blood_hp(entry, point) then
+            local offset = right and point.x - frame.center_x or frame.center_x - point.x
+            local y = point.y - frame.center_y + entry.z + entry.y
+            local custom = point.w or point.h or point.rect or point.rect32
+            if custom then
+                local width = type(point.w) == "number" and point.w > 0 and point.w or 1
+                local height = type(point.h) == "number" and point.h > 0 and point.h or 3
+                local x = offset + entry.draw_offset + entry.x - camera + shake - (right and 0 or width - 1)
+                local red, green, blue = blood_colour(point)
+                context.fill(x, y, width, height, red, green, blue)
+            else
+                context.sprite("pe/bars", {0, 20, 1, 3}, offset + entry.draw_offset + entry.x - camera + shake, y, false)
+            end
+        end
+    end
+end
+
 local function draw_item(context, stage, view, entry, bounds, lighting)
     local frame = entry.record.frame(entry.frame)
     local blink = math.abs(entry.blink)
@@ -499,8 +550,10 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         else x = frame.center_x + entry.draw_offset + entry.x - camera + shake - source[3] end
         if on_screen then
             -- Order markers stay on the screen: the classic one, or the whole window in the widescreen layout.
-            if bounds then x = math.max(bounds.left, math.min(x, bounds.right - (constants.screen.width - 0x2ca)))
-            else x = math.max(0, math.min(x, 0x2ca)) end
+            -- The width of the message box: the mode's etc_width (state.bg_area.etc_width, AI 5), 80 without it.
+            local etc_width = type(view.etc_width) == "number" and view.etc_width > 0 and math.floor(view.etc_width) or 80
+            if bounds then x = math.max(bounds.left, math.min(x, bounds.right - etc_width))
+            else x = math.max(0, math.min(x, constants.screen.width - etc_width)) end
         end
         -- A sprite far outside the picture (an opoint with y 20000 sends an object far below the screen) is skipped, not
         -- handed to the host: Darkfiren allows such positions, the draw commands only hold +-8192.
@@ -525,11 +578,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
             end
         end
     end
-    if visible and not on_screen and entry.hp < math.floor(entry.max_hp / 3) and frame.bpoint.x > 0 then
-        local offset = entry.facing == constants.facings.right and frame.bpoint.x - frame.center_x or frame.center_x - frame.bpoint.x
-        context.sprite("pe/bars", {0, 20, 1, 3}, offset + entry.draw_offset + entry.x - camera + shake,
-            frame.bpoint.y - frame.center_y + entry.z + entry.y, false)
-    end
+    if visible and not on_screen then draw_blood(context, entry, frame, camera, shake) end
     if entry.lives > 1 then
         -- Remaining lives ("x2"; two digits at most) above the head, in the default font, unclamped.
         local text = entry.lives < 10 and ("x" .. entry.lives)
@@ -883,7 +932,7 @@ function screen.draw(state, context, window_bounds)
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
         view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage,
-            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock}
+            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock, etc_width = view.etc_width}
         -- Only matters for a stage narrower than the window.
         bounds = {left = math.max(window_bounds.left, -shift), right = math.min(window_bounds.right, stage_width - shift)}
         passable_bounds = {left = bounds.left, right = bounds.right}
