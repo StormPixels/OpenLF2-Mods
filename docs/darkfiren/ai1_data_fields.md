@@ -19,7 +19,7 @@ Sudah ada: `name, head, small, movement, weapon, sheets, strengths, frames, toke
 | Kunci baru | Isi |
 |---|---|
 | `header` | tag `<bmp_begin>` baru (lihat bawah); ada bila minimal satu tag ada |
-| `stats` | `<stats>`: bleed_hp attacking regen_hp regen_mp regen_dhp defend normal_attack1 normal_attack2 jump_attack run_attack dash_attack light_throw heavy_throw sky_light_throw run_heavy_throw weapon_drink respond recmp max_mp ohp omp reserve phase caught caughtact bound y weaponact |
+| `stats` | `<stats>`: bleed_hp attacking regen_hp regen_mp regen_dhp defend normal_attack1 normal_attack2 jump_attack run_attack dash_attack light_throw heavy_throw sky_light_throw run_heavy_throw weapon_drink respond recmp max_mp ohp omp reserve phase caught caughtact bound y weaponact; `oids` = larik de `oid:` berulang (maks 50, urutan berkas; nil bila tidak ada) |
 | `armor` | `<armor>`: type ratio decrease mp fall bdefend injury spark delay hp recover facing action (angka); sound1 sound2 (teks); `ids`, `states`, `effects` (larik dari tag berulang); `frames` (larik grup: tiap `frame: a b` jadi `{a, b}`, atau `{a}` bila satu angka) |
 | `weapon_piece` | `team` dan `[1..5] = {act, framea, dvx, dvy, dvz, oid, amount}`; nomor piece di luar 1-5 dicatat di diagnostics |
 | `sound_list` | suara senjata per background dan mode (readme `sound.txt`): `[i] = {bg, mode, weapon_hit, weapon_drop, weapon_broken}`. Satu entri per blok `bound:` ... `bound_end:` di dalam `<sound>` (maks 100). `bg` dan `mode` adalah HIMPUNAN dari tag `bg:`/`mode:` yang boleh berulang (maks 100 nilai): `entry.bg[n] == true` bila n terdaftar. Nilai mentah (mulai dari 0 atau 1 tidak ditetapkan dokumen). Entri cocok bila bg sekarang ada di `bg` DAN mode sekarang ada di `mode`; bila tidak ada yang cocok dipakai suara bawaan (`weapon.hit_sound` dkk). Bila BEBERAPA entri cocok, sumber (readme `sound.txt`) tidak menentukan prioritas; AI5 memakai entri pertama menurut urutan berkas **[BELUM PASTI]**, parser menyimpan urutan berkas apa adanya. Hanya untuk senjata t1, t2, t4, t6. Tag di luar `bound:` dicatat di diagnostics |
@@ -107,3 +107,9 @@ berubah karena token di dalam blok itu kini dibaca oleh parser blok (bukan dihit
 - Suara bawaan senjata: `record.data.weapon.hit_sound`, `.drop_sound`, `.broken_sound` (teks, nil bila tag tidak ada); salinan di `record.data.header.weapon_hit_sound` dkk. `sound_list[i]` adalah penggantinya per bg dan mode.
 
 `bpoint.rect32` (bilangan bulat mentah, warna 24 bit; tertulis di dokumen asli `exe/bpoint.txt` bersama `rect`) dibaca apa adanya, termasuk nilai negatif seperti -1. `rect` tetap mentah (RGB565); konversi warna ada di sisi pemakai.
+
+## Arti kunci `stats` (readme `dat file/stats.txt`)
+- `oid` (kunci `oids`): id objek (senjata) yang dikenai pengaturan frame serangan di blok yang sama; boleh berulang sampai 50 nilai. Tanpa `oids`, pengaturan berlaku untuk semua senjata.
+- Frame serangan senjata = nomor frame yang menggantikan frame bawaan yang tertanam: `normal_attack1` (20) dan `normal_attack2` (25), `jump_attack` (30), `run_attack` (35), `dash_attack` (40), `light_throw` (45), `sky_light_throw` (52) untuk senjata t1 dan t4; `heavy_throw` (50) dan `run_heavy_throw` (50) untuk t2; `weapon_drink` (55) untuk t6. `respond: 1` = pemegang senjata ringan boleh super punch bila lawan sedang "dance of pain".
+- `defend: X` dibagi 100 (hanya objek t0; 0 atau 100 = bawaan 1x); `recmp: X` = persen MP yang dipakai oleh tag `mp:` (jangan 0, kurang dari 0, atau 100); `ohp:`/`omp:` = pengali untuk semua opoint yang memakai `hp:`/`mp:`.
+- `caughtact` (contoh readme `caughtact: 112`) adalah nama tag di `<stats>` dan `<mode>`; nama `caught` hanya ada di DOCX.

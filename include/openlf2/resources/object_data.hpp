@@ -177,6 +177,7 @@ struct DisplayBlock {
 inline constexpr std::size_t max_display_layers = 100; // minibar, bossbar and menu_face are tighter, see the parser
 inline constexpr std::size_t max_stats_counts = 10;
 inline constexpr std::size_t max_phase_ids = 100;
+inline constexpr std::size_t max_stats_oids = 50;  // repeated `oid:` of <stats> (readme dat file/stats.txt)
 struct Display {
     std::optional<DisplayBlock> hp_bar, mp_bar, minibar, bossbar, effect, menu_face;
     std::optional<std::vector<Extras>> stats_count;

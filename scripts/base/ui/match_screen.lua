@@ -723,6 +723,100 @@ local function small_face(value)
     return own
 end
 
+-- Custom counters and effect pictures of the HUD panel of a fighter (record.display, readme/dat file/stats count.txt and
+-- effect.txt). Both are placed from the top left corner of the fighter's HUD panel. [BELUM PASTI] that anchor.
+-- stats_count (up to 10 `count`s): the number of `type` (the types below; right aligned at x, `facing: 1` left aligned),
+-- at most `max`, in the letters of `pic` 0..5 (pe/words<pic>, 0 without it); `respond: 1` only when function keys were used
+-- (cheat_lock > 0). Types 18 and 19 write "current/total" (hp, mp) and ignore max, pic and facing. Types the game has no
+-- value for yet are not drawn: 9 invincible time, 10 fall point, 11 fusion time, 12 and 13 armor, 14 defense, 15 deaths,
+-- 30 to 33 rage timers.
+-- effect (up to 100 layers): the picture (source x, y = dx, dy; w x h) while the status `type` is on: -1 none, 0..5 poison of
+-- that type, 6 poison, 7 weak, 8 manacle, 9 delay, 10 confus, 11 join, 12 mimic, 13 bound, 14 facing; 15 to 20 (rage,
+-- unlimited) are not drawn yet. `bound: 1` shortens it with the timer (`max` 999 by default) as `facing` says: 0 from
+-- the right, 1 from the left, 2 from the bottom, 3 from the top. Not done: cc, c1, c2 (animation).
+local status_names = {poison = 21, weak = 22, manacle = 23, delay = 24, confus = 25, join = 26, mimic = 27, bound = 28, facing = 29}
+local status_by_effect = {[6] = "poison", [7] = "weak", [8] = "manacle", [9] = "delay", [10] = "confus", [11] = "join", [12] = "mimic",
+    [13] = "bound", [14] = "facing"}
+local function status_timer(value, name)
+    local extra = value.fx
+    local bag = type(extra) == "table" and type(extra.status) == "table" and extra.status[name] or nil
+    if type(bag) == "table" then bag = bag.timer end
+    return type(bag) == "number" and bag > 0 and math.floor(bag) or 0
+end
+local function count_value(value, kind)
+    if kind == 1 then return value.hp elseif kind == 2 then return value.dark_hp elseif kind == 3 then return value.mp
+    elseif kind == 4 then return value.damage_dealt elseif kind == 5 then return value.hp_spent elseif kind == 6 then return value.mp_spent
+    elseif kind == 7 then return value.kills elseif kind == 8 then return value.pickings elseif kind == 16 then return value.max_hp
+    elseif kind == 17 then return constants.points.full elseif kind == 20 then return value.lives end
+    for name, number in pairs(status_names) do if number == kind then return status_timer(value, name) end end
+    return nil
+end
+local function draw_stats_count(context, state, value, column, row)
+    local counts = type(value.record.display) == "table" and value.record.display.stats_count or nil
+    if type(counts) ~= "table" then return end
+    for index = 1, math.min(#counts, 10) do
+        local count = counts[index]
+        if type(count) == "table" and type(count.x) == "number" and type(count.y) == "number" and (count.respond ~= 1 or (state.cheat_lock or 0) > 0) then
+            local text, right
+            if count.type == 18 or count.type == 19 then
+                local now, total = count.type == 18 and value.hp or value.mp, count.type == 18 and value.max_hp or constants.points.full
+                if type(now) == "number" and type(total) == "number" then text, right = math.max(0, math.floor(now)) .. "/" .. math.floor(total), true end
+            else
+                local number = count_value(value, count.type)
+                if type(number) == "number" then
+                    local top = type(count.max) == "number" and count.max >= 0 and count.max or 999
+                    text, right = tostring(math.max(0, math.min(math.floor(number), math.floor(top)))), count.facing ~= 1
+                end
+            end
+            if text then
+                local sheet = "pe/words0"
+                if count.type ~= 18 and count.type ~= 19 and type(count.pic) == "number" and count.pic >= 0 and count.pic <= 5 then
+                    sheet = "pe/words" .. math.floor(count.pic)
+                end
+                glyphs(context, sheet, text, column + count.x - (right and #text * 9 or 0), row + count.y, 9)
+            end
+        end
+    end
+end
+local function effect_on(value, kind)
+    if type(kind) ~= "number" then return 0 end
+    if kind >= 0 and kind <= 5 then
+        local extra = value.fx
+        local poison = type(extra) == "table" and type(extra.status) == "table" and extra.status.poison or nil
+        if type(poison) == "table" and poison.kind == kind and type(poison.timer) == "number" and poison.timer > 0 then return math.floor(poison.timer) end
+        return 0
+    end
+    local name = status_by_effect[kind]
+    return name and status_timer(value, name) or 0
+end
+local function draw_effects(context, value, column, row)
+    local block = type(value.record.display) == "table" and value.record.display.effect or nil
+    local layers = type(block) == "table" and block.layers or nil
+    if type(layers) ~= "table" then return end
+    for _, layer in ipairs(layers) do
+        local timer = effect_on(value, layer.type)
+        if timer > 0 and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
+            local width, height = layer.w, layer.h
+            local x, y, dx, dy = column + (layer.x or 0), row + (layer.y or 0), layer.dx or 0, layer.dy or 0
+            if layer.bound == 1 then
+                local full = type(layer.max) == "number" and layer.max > 0 and layer.max or 999
+                local share = math.min(timer, full) / full
+                local way = layer.facing or 0
+                if way == 0 or way == 1 then
+                    width = math.max(0, math.floor(layer.w * share))
+                    if way == 1 then x, dx = x + layer.w - width, dx + layer.w - width end
+                elseif way == 2 or way == 3 then
+                    height = math.max(0, math.floor(layer.h * share))
+                    if way == 3 then y, dy = y + layer.h - height, dy + layer.h - height end
+                end
+            end
+            if width > 0 and height > 0 then
+                context.sprite(layer.pic:gsub("\\", "/"):lower(), {dx, dy, width, height}, x, y, layer.transparency == 1)
+            end
+        end
+    end
+end
+
 local function draw_status(context, state, style)
     style = style or fallback_hud
     for slot = 0, (style.slots or 8) - 1 do
@@ -752,6 +846,8 @@ local function draw_status(context, state, style)
             local own_flag = type(value.record.display) == "table" and value.record.display.team_flag or nil
             local flag = type(own_flag) == "table" and type(own_flag.x) == "number" and type(own_flag.y) == "number" and own_flag or style.team_flag
             glyphs(context, label_font(value.team), string.char(254), column + flag.x, row + flag.y, 8)
+            draw_stats_count(context, state, value, column, row)
+            draw_effects(context, value, column, row)
         end
     end
 end

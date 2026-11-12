@@ -97,6 +97,12 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren: who-killed-whom display (`<bmp_begin>` of the mode file): one row per kill with the attacker, a picture by killer type, and the victim, in team letters with the character name, for `times` ticks, `loop` pixels apart.
 
+- AI 2: etc_mode 1 (pesan ETC menempel pada pemain p1..p8 yang memberi perintah) di frame_rules.lua.
+
+- (no code change) integration test for platform.land_ball with the real physics.step.
+
+- LF2 Darkfiren: the HUD panel shows a fighter's own counters (`<stats_count>`: hp, mp, kills, damage, status timers, ...) and status pictures (`<effect>`: poison, weak, manacle, delay, confus, join, mimic, bound, facing), as the data file asks.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -283,3 +289,6 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: blood (`bpoint`) shows up to five points per frame, with width, height, colour and the HP percentage; the team order message box is as wide as the mode's `etc_width`; background mode `etc_width` and `etc_mode` are read.
 - LF2 Darkfiren: weapon animations from `<stats>` of a character (normal_attack1/2, jump/run/dash_attack, light/heavy/sky_light/run_heavy_throw, weapon_drink) through `st_stats.weapon_frame`, and `<stats>` attacking/defend, ohp/omp and phase 1 (weapons stay inside the map area).
 - LF2 Darkfiren: itr `bpoint` rect32 colours are read; the background preview in the character menu uses BG_FRAME as its frame.
+- LF2 Darkfiren: `<stats>` reads the repeated tag `oid:` as a list (`record.data.stats.oids`, at most 50 values).
+- LF2 Darkfiren: background mode `etc_mode` 1 sticks the team order message to the player p1..p8 who gave the order.
+- UI: the HUD panel shows a fighter's own counters (`<stats_count>`) and status pictures (`<effect>`), as the data file asks.

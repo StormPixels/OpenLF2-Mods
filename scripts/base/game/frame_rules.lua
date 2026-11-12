@@ -127,6 +127,15 @@ end
 
 -- After each item's physics step (the item may be removed; returns false then).
 function frame_rules.after_physics(state, index, value)
+    -- bg mode `etc_mode: 1`: the ETC message (the team order marker) sticks to the player who gave the order (p1..p8): it follows that
+    -- player's x and z while it lives. [BELUM PASTI] only x and z follow; the marker keeps its own height (ground).
+    if value.etc_owner and state.bg_area and state.bg_area.etc_mode == 1 then
+        local owner = state.items[value.etc_owner]
+        if owner and owner.hp > 0 then
+            value.x, value.z = owner.x, owner.z
+            value.x_int, value.z_int = owner.x_int, owner.z_int
+        end
+    end
     -- LF2 Darkfiren's cost mode: a beaten fighter (hp 0, lying) is paid for from its team's pool and comes back while
     -- the pool lasts; once the team is out its body stays.
     if state.cost and value.record.kind == record_kinds.character and value.hp <= 0 and not value.cost_paid
@@ -269,6 +278,7 @@ function frame_rules.team_orders(state, index, value)
     marker.frame = code - constants.team_order_codes.move_to_marker
     marker.z, marker.y, marker.x = marker.z_int, marker.y_int, marker.x_int
     marker.vx, marker.vy = 0.0, 0.0
+    if index <= 7 then marker.etc_owner = index end   -- etc_mode 1: the message sticks to player p1..p8 (see after_physics)
     for other = 0, constants.item_slots - 1 do
         local member = state.items[other]
         if member and member.hp > 0 and member.record.kind == record_kinds.character and member.team == value.team then

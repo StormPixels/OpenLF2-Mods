@@ -70,6 +70,8 @@ constexpr std::array stats_tags{same("bleed_hp"), same("attacking"), same("regen
     same("run_heavy_throw"), same("weapon_drink"), same("respond"), same("recmp"), same("max_mp"), same("ohp"),
     same("omp"), same("reserve"), same("phase"), same("caught"), same("caughtact"), same("bound"), same("y"),
     same("weaponact")};
+// `oid: n` repeats in <stats> (up to 50): the ids of the weapons the weapon attack frames below apply to.
+constexpr std::array stats_repeat_tags{TagKey{"oid", "oids"}};
 constexpr std::array armor_int_tags{same("type"), same("ratio"), same("decrease"), same("mp"), same("fall"),
     same("bdefend"), same("injury"), same("spark"), same("delay"), same("hp"), same("recover"),
     same("facing"), same("action")};
@@ -493,7 +495,15 @@ private:
 
     void stats_block() {
         Extras fields;
-        block("<stats_end>", [&] { return extra_int(fields, stats_tags); });
+        block("<stats_end>", [&] {
+            return extra_int(fields, stats_tags) || extra_repeat(fields, stats_repeat_tags);
+        });
+        for (auto& item : fields) {
+            if (item.key == "oids" && item.values.size() > max_stats_oids) {
+                note("more than " + std::to_string(max_stats_oids) + " stats oids; extra ids ignored");
+                item.values.resize(max_stats_oids);
+            }
+        }
         data_.stats = std::move(fields);
     }
 
