@@ -87,4 +87,42 @@ function fx.reset(value)
     local extra = value.fx
     if extra then extra.killed_by, extra.last_killer, extra.last_killer_type, extra.combo, extra.combo_age = {}, nil, nil, 0, 0 end
 end
+-- <stats> of an object's own data file (readme "dat file/stats.txt"), read from record.data.stats. The tags below belong to combat
+-- and the opoint spawn; AI2's st_stats.lua reads regen_hp / regen_mp / recmp / caught / reserve. Every function is nil-safe:
+-- without the tag (or with 0, 100 or a negative value, "if not specified the default is used") nothing changes.
+local function stats_of(value)
+    local data = value.record and value.record.data
+    return data and data.stats
+end
+local function cdiv(a, b)
+    local q = a / b
+    return q >= 0 and math.floor(q) or math.ceil(q)
+end
+local function percent_of(stats, key)
+    local percent = stats and stats[key]
+    if percent and percent > 0 and percent ~= 100 then return percent end
+    return nil
+end
+-- attacking: percent of the ATTACKING object's injury (any object type); defend: the victim's, only for t0 objects.
+-- [BELUM PASTI]: applied to itr.injury only (not to the damage summary box, flute or breaking ice); a thrown body hits with the
+-- <stats> of the thrown object, not of the thrower; defend 0 / 100 / negative = default; order attacking -> weak -> defend.
+function fx.stat_damage(attacker, victim, damage)
+    local percent = percent_of(stats_of(attacker), "attacking")
+    if percent then damage = cdiv(damage * percent, 100) end
+    if victim.record.kind == constants.record_kinds.character then
+        local defend = percent_of(stats_of(victim), "defend")
+        if defend then
+            if fx_constants.defend_divides then damage = cdiv(damage * 100, defend) else damage = cdiv(damage * defend, 100) end
+        end
+    end
+    return damage
+end
+-- ohp / ohp: overall percent multiplier of the hp: / mp: of every opoint of the SPAWNING object's data file (only when the opoint
+-- writes hp: / mp:). [BELUM PASTI]: percent units like attacking.
+function fx.scaled_opoint(parent, key, number)
+    local percent = parent and percent_of(stats_of(parent), key)
+    if percent then return cdiv(number * percent, 100) end
+    return number
+end
+
 return fx

@@ -230,7 +230,7 @@ local function walking(match, value, heavy)
     if keys.attack and value.attack_press > 0 then
         value.dash_counter, value.wait_counter = 0, 0
         if heavy then
-            value.frame = character_frames.heavy_weapon_throw
+            value.frame = st_stats.weapon_frame(match, value, "heavy_throw", character_frames.heavy_weapon_throw)
         elseif value.weapon == none then
             if value.super_window > 0 then value.frame = character_frames.super_punch
             else
@@ -238,14 +238,19 @@ local function walking(match, value, heavy)
                 spend_mp(match, value, value.frame)
             end
         elseif value.weapon % 100 == 1 then
-            if value.weapon == constants.weapon_holder_codes.knife_or_boomerang
+            local stats = st_stats.of(value)
+            if stats and stats.respond == 1 and value.super_window > 0 then
+                value.frame = character_frames.super_punch   -- stats respond: 1: a super punch with a light weapon in hand
+            elseif value.weapon == constants.weapon_holder_codes.knife_or_boomerang
                and (keys.right or keys.left or keys.up or keys.down) then
-                value.frame = character_frames.light_weapon_throw
+                value.frame = st_stats.weapon_frame(match, value, "light_throw", character_frames.light_weapon_throw)
             else
-                value.frame = (engine.random(2) + 4) * 5
+                local pick = engine.random(2)
+                if pick == 0 then value.frame = st_stats.weapon_frame(match, value, "normal_attack1", 20)
+                else value.frame = st_stats.weapon_frame(match, value, "normal_attack2", 25) end
             end
-        elseif value.weapon == record_kinds.baseball then value.frame = character_frames.light_weapon_throw
-        elseif value.weapon == record_kinds.drink then value.frame = character_frames.drinking end
+        elseif value.weapon == record_kinds.baseball then value.frame = st_stats.weapon_frame(match, value, "light_throw", character_frames.light_weapon_throw)
+        elseif value.weapon == record_kinds.drink then value.frame = st_stats.weapon_frame(match, value, "weapon_drink", character_frames.drinking) end
     end
     if heavy then return end
     if keys.jump and value.jump_press > 0 then
@@ -288,7 +293,7 @@ local function running(match, value, heavy)
     end
     local directions = keys.left or keys.right or keys.up or keys.down
     if keys.attack and value.attack_press > 0 then
-        if heavy then value.frame = character_frames.heavy_weapon_throw
+        if heavy then value.frame = st_stats.weapon_frame(match, value, "run_heavy_throw", character_frames.heavy_weapon_throw)
         elseif value.weapon == none then
             if not match.running then value.frame = character_frames.run_attack
             elseif value.mp >= scaled_mp(match, value.record.frame(character_frames.run_attack).mp, value) then
@@ -297,9 +302,9 @@ local function running(match, value, heavy)
                 value.mp_spent = value.mp_spent + cost
                 value.frame = character_frames.run_attack
             end
-        elseif value.weapon % 100 == 1 then value.frame = directions and character_frames.light_weapon_throw or character_frames.run_weapon_attack
-        elseif value.weapon == record_kinds.baseball then value.frame = character_frames.light_weapon_throw
-        elseif value.weapon == record_kinds.drink then value.frame = directions and character_frames.light_weapon_throw or character_frames.drinking end
+        elseif value.weapon % 100 == 1 then value.frame = directions and st_stats.weapon_frame(match, value, "light_throw", character_frames.light_weapon_throw) or st_stats.weapon_frame(match, value, "run_attack", character_frames.run_weapon_attack)
+        elseif value.weapon == record_kinds.baseball then value.frame = st_stats.weapon_frame(match, value, "light_throw", character_frames.light_weapon_throw)
+        elseif value.weapon == record_kinds.drink then value.frame = directions and st_stats.weapon_frame(match, value, "light_throw", character_frames.light_weapon_throw) or st_stats.weapon_frame(match, value, "weapon_drink", character_frames.drinking) end
     end
     if heavy then return end
     if keys.defend and value.defend_press > 0 then value.frame = character_frames.rowing + 2 end
@@ -327,9 +332,9 @@ local function jumping(match, value)
     elseif value.weapon % 100 == 1 then
         value.wait_counter = 0
         local directions = keys.left or keys.right or keys.up or keys.down
-        value.frame = directions and character_frames.jump_light_weapon_throw or character_frames.jump_weapon_attack
+        value.frame = directions and st_stats.weapon_frame(match, value, "sky_light_throw", character_frames.jump_light_weapon_throw) or st_stats.weapon_frame(match, value, "jump_attack", character_frames.jump_weapon_attack)
     elseif value.weapon == record_kinds.baseball or value.weapon == record_kinds.drink then
-        value.frame = character_frames.jump_light_weapon_throw
+        value.frame = st_stats.weapon_frame(match, value, "sky_light_throw", character_frames.jump_light_weapon_throw)
     end
 end
 
@@ -394,7 +399,7 @@ local function dashing(match, value)
     end
     local directions = keys.left or keys.right or keys.up or keys.down
     if weapon % 100 == 1 or ((weapon == record_kinds.baseball or weapon == record_kinds.drink) and directions) then
-        value.frame = (weapon == record_kinds.baseball or weapon == record_kinds.drink) and character_frames.jump_light_weapon_throw or character_frames.dash_weapon_attack
+        value.frame = (weapon == record_kinds.baseball or weapon == record_kinds.drink) and st_stats.weapon_frame(match, value, "sky_light_throw", character_frames.jump_light_weapon_throw) or st_stats.weapon_frame(match, value, "dash_attack", character_frames.dash_weapon_attack)
         value.vy = value.vy - 1.0
         value.wait_counter = 0
     end

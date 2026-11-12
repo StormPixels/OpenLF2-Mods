@@ -1521,13 +1521,15 @@ local function small_background(state)
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
     local gap = popup_gap(state)
-    -- BG_FRAME is the base image of the preview; the mode's frame and the background's picture go on top of it
-    -- (Darkfiren's answer). [BELUM PASTI] the exact position and order; the resource is looked for as a file and, as
-    -- the original keeps it, in the game's resources.
+    -- BG_FRAME is the frame of the preview (Darkfiren: the base image). The mode's `pic` (MENU_CLIP2b) is drawn at the same place
+    -- and would cover it, so it is only the frame when there is no BG_FRAME. [BELUM PASTI] that `pic` is never meant to go on top
+    -- of BG_FRAME; the resource is looked for as a file and, as the original keeps it, in the game's resources (resource.dat).
+    local frame
     for _, base in ipairs({"sprite/ui/bg_frame.bmp", "pe/bg_frame"}) do
-        if grid_has(base) then image(state, base, misc.frame_x + gap, misc.frame_y) break end
+        if grid_has(base) then frame = base break end
     end
-    if grid_has(misc.frame_pic) then image(state, misc.frame_pic, misc.frame_x + gap, misc.frame_y) end
+    if not frame and grid_has(misc.frame_pic) then frame = misc.frame_pic end
+    if frame then image(state, frame, misc.frame_x + gap, misc.frame_y) end
     image(state, picture, misc.small_x + gap, misc.small_y)
 end
 

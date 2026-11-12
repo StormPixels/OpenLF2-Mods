@@ -37,7 +37,7 @@ constexpr std::array body_tags{same("zwidth"), same("respond")};
 constexpr std::array opoint_tags{same("hp"), same("mp"), same("team"), same("z"), same("dvz"), same("reserve"),
     same("effect"), same("centerx"), same("centery"), same("centerz"), same("framea"), same("attacking"),
     same("pic"), same("join"), same("join_reserve"), same("join_pic")};
-constexpr std::array bpoint_tags{same("w"), same("h"), same("rect"), same("respond")};
+constexpr std::array bpoint_tags{same("w"), same("h"), same("rect"), same("rect32"), same("respond")};
 constexpr std::array cpoint_tags{same("z"), same("faction"), same("baction"), same("uzaction"), same("dzaction"),
     same("respond"), same("drain"), same("gain"), same("recover"), same("throwz")};
 constexpr std::array cpoint_pair_tags{same("catchingact"), same("caughtact"), same("pickingact"), same("pickedact")};

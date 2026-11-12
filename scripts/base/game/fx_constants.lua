@@ -16,6 +16,7 @@ return {
     },
     ppoint_mirror_x = true,    -- [BELUM PASTI] ppoint x is mirrored when the owner faces left (docs show only a right-facing example)
     ppoint_copy_facing = true, -- [BELUM PASTI] a ppoint object takes the owner's facing every tick
+    defend_divides = true,     -- [BELUM PASTI] <stats> defend X: damage taken is divided by X / 100 ("defense 1.5x" = stronger); false = multiplied
     heal_mp_limit = 1000,      -- [BELUM PASTI] Leaf.F kind 8 caughtact: MP "can go above 500"; the real ceiling is unknown
     bounce_ticks = 120,        -- [BELUM PASTI] a marked itr-bounce victim that never lands is forgotten after this many ticks
     combo_reset_ticks = 50,    -- ticks without a new hit after which fx.combo drops to 0 (used when mode.dat has no <combo> respond)

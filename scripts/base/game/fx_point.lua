@@ -5,6 +5,7 @@
 -- Everything is nil-safe: an opoint without the new tags spawns exactly as in original LF2.
 local constants = require("base/game/constants")
 local K = constants.record_kinds
+local fx_stats = require("base/game/fx_stats")
 local fx = {}
 
 -- Holding kinds: 2 (original) = light weapon; 3 = like t2 (heavy), 5 = like t4, 6 = like t5, 7 = like t6.
@@ -23,14 +24,15 @@ function fx.extend(index, parent, value, record, point, random, state)
     local kind = point.kind
     if kind == 1 or kind == 2 then
         if point.hp and point.hp ~= 0 then
-            value.hp, value.dark_hp = point.hp, point.hp
-            if value.max_hp < point.hp then value.max_hp = point.hp end
+            local hp = fx_stats.scaled_opoint(parent, "ohp", point.hp) or point.hp -- <stats> ohp of the spawning object
+            value.hp, value.dark_hp = hp, hp
+            if value.max_hp < hp then value.max_hp = hp end
         end
         if point.team ~= nil then value.team = point.team end
     end
     if kind == 1 then
         if point.z then value.z = value.z + point.z end -- negative = up the screen, positive = down
-        if point.mp and point.mp ~= 0 then value.mp = point.mp end
+        if point.mp and point.mp ~= 0 then value.mp = fx_stats.scaled_opoint(parent, "omp", point.mp) or point.mp end -- <stats> omp
         if point.dvz then value.vz = value.vz + point.dvz end
         if point.effect and point.effect ~= 0 then value.blink = point.effect end -- invincibility time
     end

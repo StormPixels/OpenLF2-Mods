@@ -84,7 +84,7 @@ Lama: `kind x y width height`. Baru: `zwidth`, `respond`. `kind` mentah.
 
 ## Point
 - `opoint`/`opoints[i]`: lama `kind x y action dvx dvy oid facing`; baru `hp mp team z dvz reserve effect centerx centery centerz framea attacking pic join join_reserve join_pic`.
-- `bpoint`/`bpoints[i]`: `x y`; baru `w h rect respond`.
+- `bpoint`/`bpoints[i]`: `x y`; baru `w h rect rect32 respond`.
 - `cpoint`: kunci lama utuh; baru `z faction baction uzaction dzaction respond drain gain recover throwz` dan `catchingact caughtact pickingact pickedact` (larik satu atau dua angka sesuai berkas; arti kiri/kanan seperti pada itr, untuk cpoint belum ada dokumen setara). `daction` dan `throwinjury` sudah ada sebelumnya.
 - `wpoint`: tidak berubah (`cover` dan `weaponact` sudah ada).
 
@@ -105,3 +105,5 @@ berubah karena token di dalam blok itu kini dibaca oleh parser blok (bukan dihit
 - `strengths[i]`: `catching_actions` dan `caught_actions` tetap `{0, 0}` (strength list 2.0a tidak membawanya; tidak berubah). `caughtact` di strengths adalah kunci baru berisi SATU angka (`strengths[i].caughtact`). `pickingact`/`pickedact` hanya dibaca di itr, bukan di strengths.
 - Offset skin: `skins[i].offset` dipakai langsung sebagai `pic_offset` di `object_data.picture(data, frame, offset)` (menghitung `frame.picture + offset`). Dari data contoh, offset sama dengan `first_picture` sheet pertama skin itu (dennis: 210; woody: 210, 420, 630, 840). **[BELUM PASTI]** sampai diuji di game.
 - Suara bawaan senjata: `record.data.weapon.hit_sound`, `.drop_sound`, `.broken_sound` (teks, nil bila tag tidak ada); salinan di `record.data.header.weapon_hit_sound` dkk. `sound_list[i]` adalah penggantinya per bg dan mode.
+
+`bpoint.rect32` (bilangan bulat mentah, warna 24 bit; tertulis di dokumen asli `exe/bpoint.txt` bersama `rect`) dibaca apa adanya, termasuk nilai negatif seperti -1. `rect` tetap mentah (RGB565); konversi warna ada di sisi pemakai.

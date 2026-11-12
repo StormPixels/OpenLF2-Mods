@@ -14,6 +14,9 @@ local function cdiv(a, b)
     if q >= 0 then return math.floor(q) end
     return math.ceil(q)
 end
+local phase_kinds = {[constants.record_kinds.light_item] = true, [constants.record_kinds.heavy_item] = true,
+    [constants.record_kinds.baseball] = true, [constants.record_kinds.drink] = true} -- t1, t2, t4, t6
+
 local function trunc(value)
     if value >= 0 then return math.floor(value) end
     return math.ceil(value)
@@ -85,6 +88,19 @@ function weapons.carry(state)
             if value.z < near then value.z = near end
             if value.z > far then value.z = far end
             value.z_int = trunc(value.z)
+        elseif value and phase_kinds[value.record.kind] then
+            -- Darkfiren <stats> phase: 1 in a weapon's data (readme dat file/stats.txt): the weapon does not leave the map area
+            -- [t1, t2, t4, t6 only]. Area = x in [0, stage.width], z in [zboundary near, far] (the camera uses the same;
+            -- AI2 round 31). [BELUM PASTI]: speeds are not cleared at the edge.
+            local stats = value.record.data and value.record.data.stats
+            if stats and stats.phase == 1 then
+                local width = state.stage.width or constants.screen.width
+                if value.x < 0 then value.x = 0.0 end
+                if value.x > width then value.x = width + 0.0 end
+                if value.z < near then value.z = near + 0.0 end
+                if value.z > far then value.z = far + 0.0 end
+                value.x_int, value.z_int = trunc(value.x), trunc(value.z)
+            end
         end
     end
     for index = 0, constants.item_slots - 1 do

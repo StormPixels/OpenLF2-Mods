@@ -69,4 +69,24 @@ function st_stats.reserve(value)
     return nil
 end
 st_stats.points_full = points_full
+-- <stats> weapon attack frames (readme dat file/stats.txt "weapon attack settings"): normal_attack1 / normal_attack2 (default 20 / 25, t1 and t4),
+-- jump_attack (30), run_attack (35), dash_attack (40), light_throw (45), heavy_throw (50, t2), sky_light_throw (52), run_heavy_throw (50, t2),
+-- weapon_drink (55, t6): the frame a holder goes to instead of the default. `oids` (a list; AI 1 exposes the repeated `oid:` tag as stats.oids) limits
+-- the settings to those weapon ids (up to 50); without it they apply to every weapon. `match.items[value.held_item]` is the held weapon.
+-- A frame that is not in the character's data is ignored (the default stays).
+function st_stats.weapon_frame(match, value, name, default)
+    local stats = st_stats.of(value)
+    local frame = stats and stats[name]
+    if type(frame) ~= "number" or frame <= 0 or not value.record.frames[frame] then return default end
+    local oids = stats.oids
+    if type(oids) == "table" and #oids > 0 then
+        local weapon = value.held_item and value.held_item ~= 0 and match.items and match.items[value.held_item]
+        local id = weapon and weapon.record and weapon.record.id
+        local found = false
+        for _, oid in ipairs(oids) do if oid == id then found = true break end end
+        if not found then return default end
+    end
+    return frame
+end
+
 return st_stats
