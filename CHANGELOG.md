@@ -294,3 +294,4 @@ All notable changes to this project are documented in this file.
 - UI: the HUD panel shows a fighter's own counters (`<stats_count>`) and status pictures (`<effect>`), as the data file asks.
 - LF2 Darkfiren: `caughtact` is accepted next to `caught` (frame, stats, mode; frame wins), and `fx.deaths` counts deaths through `fx_stats.record_kill`.
 - UI: the HUD counters (`stats_count`) also show invincible time, fall points, fusion time, armor hp and recovery time, defense and the number of deaths.
+- LF2 Darkfiren: in a 6XXX state with too little MP while holding, the destination frame is XXX (the last three digits of the state, 6035 goes to frame 35) when that frame has no `caught`.

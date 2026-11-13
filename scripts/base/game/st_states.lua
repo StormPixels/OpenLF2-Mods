@@ -243,7 +243,19 @@ end
 -- 6XXX: a charge move. A, D, J, forward or backward held when the frame is entered keeps the fighter in the frame.
 -- Held for `wait` ticks it goes to hit_a/d/j/f/b of the held key (mp of that frame needed); released earlier it goes to
 -- `next`; every tick of holding costs the frame's mp. When a target cannot be paid for, or the mp runs out, the frame's
--- `caught` is used (or the target's own). [UNCERTAIN] The notes only call that frame "XXX".
+-- `caught` is used (or the target's own), else XXX of the state itself (6035 -> frame 35: readme "jump to XXX").
+-- The frame a 6XXX fighter goes to when it cannot pay (readme new states.txt: "jump to XXX"): the frame's `caught` (or <stats>, <mode>)
+-- when there is one, else XXX itself, the last three digits of the state (6035 -> frame 35). Nil when that frame is not in the data.
+local function short_target(match, value, frame)
+    local target = st_frame.caught_target(frame, value, match.bg_area)
+    if not target or target == 0 then
+        local xxx = (frame.state or 0) - 6000
+        target = xxx > 0 and xxx or nil
+    end
+    if target and value.record.frames[target] then return target end
+    return nil
+end
+
 function st_states.charge(match, value, st, frame, entered)
     local grace = st_constants.charge.grace_ticks
     if entered then
@@ -265,8 +277,8 @@ function st_states.charge(match, value, st, frame, entered)
         local before = value.frame
         control.enter_frame(match, value, target)
         if value.frame == before then
-            local caught = st_frame.caught_target(frame, value, match.bg_area)
-            if caught and value.record.frames[caught] then value.frame = caught end
+            local caught = short_target(match, value, frame)
+            if caught then value.frame = caught end
         end
     end
     for name in pairs(charge.held) do
@@ -284,8 +296,8 @@ function st_states.charge(match, value, st, frame, entered)
     if cost > 0 then
         if value.mp < cost then
             st.charge = nil
-            local caught = st_frame.caught_target(frame, value, match.bg_area)
-            if caught and value.record.frames[caught] then value.frame = caught end
+            local caught = short_target(match, value, frame)
+            if caught then value.frame = caught end
             return
         end
         value.mp = value.mp - cost
