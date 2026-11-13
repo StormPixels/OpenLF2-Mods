@@ -184,12 +184,12 @@ function battle.update(state, run)
         display[#display + 1] = {"text", string.format("%s %3d     %s %4d     %s %3d     %s %3d",
             i18n.tr("Man:"), men[side], i18n.tr("HP:"), health[side], i18n.tr("Reserve:"), reserves[side],
             i18n.tr("Die:"), run.deaths[side + 1]), side == 0 and 10 or 450, 110,
-            side == 0 and 0xffb294 or 0xada6ff}
+            side == 0 and 0xffb294 or 0xada6ff, side == 0 and "L" or "R"}
     end
     -- The strategy lines are outlined bitmap text in the team fonts (1 and 2), as in the original.
     local left, right = caption(run, 0), caption(run, 1)
-    display[#display + 1] = {"caption", left, 10, 133, 1}
-    display[#display + 1] = {"caption", right, 785 - #right * 8, 133, 2}
+    display[#display + 1] = {"caption", left, 10, 133, 1, "L"}
+    display[#display + 1] = {"caption", right, 785 - #right * 8, 133, 2, "R"}
     return display
 end
 return battle

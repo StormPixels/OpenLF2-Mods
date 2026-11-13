@@ -69,6 +69,11 @@ function bg_modes.area(mode)
     if etc_width and etc_width > 0 then area.etc_width = math.floor(etc_width) end
     local etc_mode = tonumber(mode.etc_mode)
     if etc_mode == 0 or etc_mode == 1 then area.etc_mode = etc_mode end
+    -- <mode> level of the caught / caughtact tag (readme state 6XXX; priority frame > <stats> > <mode>): a whole number above 0 in
+    -- area.caught. `caught` wins when both are written; without a valid one area.caught stays nil. AI2 (st_frame.caught_target) reads it.
+    local caught = tonumber(mode.caught)
+    if not (caught and caught > 0) then caught = tonumber(mode.caughtact) end
+    if caught and caught > 0 then area.caught = math.floor(caught) end
     -- Round start and control tags: whole numbers, nil when the mode has none. `dicontrol` is 0 (vanilla) or 1 (pdk).
     for _, key in ipairs({"start_frame", "reserve", "dx", "dvx", "dz", "dvz"}) do
         local number = tonumber(mode[key])

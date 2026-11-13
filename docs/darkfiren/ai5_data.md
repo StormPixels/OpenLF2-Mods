@@ -61,3 +61,9 @@ Layer `state:` (1 saat ronde mulai, 2 saat selesai): `set_phase(view, fase)`; `t
 
 ## 5. Pengujian
 `bash RESULT/tests/run.sh` dari akar repo (tes Lua `*_test.lua` dan tes C++ mandiri) dengan fixture data Darkfiren asli di `RESULT/tests/fixtures`. Tes C++ memakai g++ -std=c++23; `platform.cpp` (SDL) dan perilaku di perangkat tidak teruji di sandbox.
+
+## R20 (AI5): caught, bos untuk bossbar, jangkar tampilan stage
+- `bg_modes.area`: `area.caught` = tag <mode> `caught` atau `caughtact` (bilangan bulat > 0; `caught` menang bila keduanya ada; selain itu nil). Dibaca AI2 (`st_frame.caught_target`).
+- `stage.lua`: `run.boss_slots` (daftar indeks `state.items` bos yang hidup, urut entri) dan `run.boss_slot` (yang pertama, nil bila tidak ada). Bos = objek dari entri fase `<boss>` (kind boss) yang timnya tim musuh dan kind karakter; aturan sama dengan `run.boss_alive`, diisi ulang tiap tick dan langsung kosong begitu objek keluar dari `state.items` (tidak ada tahan setelah mati). Id 7000 (38/50/51/52) tidak menentukan bos; yang menentukan adalah entri `<boss>`. AI4 membaca dengan pengecekan nil.
+- Perintah tampilan `text` dan `sprite` dari `stage.lua` berakhir dengan jangkar opsional "L", "C" atau "R": baris tim kiri L (x 10), baris tim kanan R (x 645), panah GO R (x 660), semua judul, spanduk dan tulisan stage C (termasuk judul dengan `xpos`; **[BELUM PASTI]** perilaku asli Darkfiren di layar lebar tidak didokumentasikan, ini keputusan AI5). Perintah `fill` tidak diberi jangkar. Perintah `caption` dibuat `battle.lua`, bukan `stage.lua`.
+

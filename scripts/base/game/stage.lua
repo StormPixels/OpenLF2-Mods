@@ -81,7 +81,7 @@ local function phase_data(run, index) return stage_data(run).phases[index] or em
 function stage.create(level)
     return {id = level, phase = -1, phase_done = 0, boss_alive = 0, last_phase = 0, go = 70,
         shutter = 0, result = 0, survival = -1, survival_blink = 0, runtime = {}, marked = {},
-        next_group = false, ending = false}
+        next_group = false, ending = false, boss_slots = {}}
 end
 
 local function spawn(state, run, entry, runtime, slot)
@@ -239,6 +239,7 @@ local function start_phase(state, run)
     local phase = run.phase
     local group = cdiv(run.id, 10)
     run.phase_done, run.boss_alive, run.last_phase = 0, 0, 0
+    run.boss_slots, run.boss_slot = {}, nil
     run.survival = run.survival + 1
     if legacy_survival(group) then run.survival_blink = 1 end
     local goto_phase = phase >= 0 and phase_data(run, phase).when_clear_goto_phase or -1
@@ -345,6 +346,9 @@ function stage.update(state, run)
         start_phase(state, run)
     end
     run.phase_done, run.boss_alive = 1, 0
+    -- Slots (indices of state.items) of the live bosses, for AI4's bossbar: run.boss_slots in entry order, run.boss_slot the first (nil
+    -- with none). Refilled every tick under the same rule as boss_alive, so they are empty the tick after the boss leaves state.items.
+    run.boss_slots, run.boss_slot = {}, nil
     if run.phase >= 0 then
         local entries = phase_data(run, run.phase).entries
         local runtimes = run.runtime[run.phase] or {}
@@ -356,7 +360,11 @@ function stage.update(state, run)
                     if id >= 0 then
                         run.marked[id] = true
                         local value = state.items[id]
-                        if value and value.team == constants.teams.enemies and value.record.kind == record_kinds.character then run.boss_alive = 1 end
+                        if value and value.team == constants.teams.enemies and value.record.kind == record_kinds.character then
+                            run.boss_alive = 1
+                            run.boss_slots[#run.boss_slots + 1] = id
+                            run.boss_slot = run.boss_slots[1]
+                        end
                     end
                 end
             end
@@ -414,14 +422,14 @@ function stage.update(state, run)
         if run.go > 0 and run.go < 100 then
             if darkfiren() then
                 local data = stage_list()[run.id]
-                display[#display + 1] = {"text", stage_levels.title(data, run.id), 330, 299, data and data.boss == 1 and 0xff5050 or 0xc8c8c8}
+                display[#display + 1] = {"text", stage_levels.title(data, run.id), 330, 299, data and data.boss == 1 and 0xff5050 or 0xc8c8c8, "C"}
             elseif group < constants.stage_groups.survival then
-                display[#display + 1] = {"sprite", menu_sheet, frames[25], 265, 299}
-                display[#display + 1] = {"sprite", menu_sheet, frames[36], 490, 299}
-                display[#display + 1] = {"sprite", menu_sheet, frames[group + 27], 460, 299}
-                display[#display + 1] = {"sprite", menu_sheet, frames[run.id % 10 + 27], 520, 299}
+                display[#display + 1] = {"sprite", menu_sheet, frames[25], 265, 299, "C"}
+                display[#display + 1] = {"sprite", menu_sheet, frames[36], 490, 299, "C"}
+                display[#display + 1] = {"sprite", menu_sheet, frames[group + 27], 460, 299, "C"}
+                display[#display + 1] = {"sprite", menu_sheet, frames[run.id % 10 + 27], 520, 299, "C"}
             else
-                display[#display + 1] = {"sprite", menu_sheet2, survival_frame, 165, 299}
+                display[#display + 1] = {"sprite", menu_sheet2, survival_frame, 165, 299, "C"}
             end
             run.go = run.go - 1
         end
@@ -434,7 +442,7 @@ function stage.update(state, run)
         end
         if cmod(cdiv(run.go, 10), 2) == 1 then
             if cmod(run.go, 10) == 0 and run.go < 200 then sounds.direct(state, "ok") end
-            display[#display + 1] = {"sprite", menu_sheet, frames[24], 660, 299}
+            display[#display + 1] = {"sprite", menu_sheet, frames[24], 660, 299, "R"}
         end
         run.go = run.go - 1
         if run.go == 101 or run.go == 201 then
@@ -480,7 +488,7 @@ function stage.update(state, run)
                     music.stop()
                 end
                 if state.round_counter < 90 then
-                    display[#display + 1] = {"sprite", menu_sheet, frames[37], 215, 298}
+                    display[#display + 1] = {"sprite", menu_sheet, frames[37], 215, 298, "C"}
                 end
                 if run.result == 0 then run.result = 1; run.cleared_id = run.id end
                 run.last_phase, run.go, run.shutter = 0, 0, 0
@@ -537,21 +545,21 @@ function stage.status(state, run, display)
         local data = stage_list()[run.id]
         if data then
             display[#display + 1] = {"text", stage_levels.title(data, run.id), data.xpos or 360, 110,
-                data.boss == 1 and 0xff5050 or 0xc8c8c8}
+                data.boss == 1 and 0xff5050 or 0xc8c8c8, "C"}
         end
     elseif run.id < constants.stage_levels.survival_start then
         display[#display + 1] = {"text", string.format("%s %d-%d", i18n.tr("STAGE"), cdiv(run.id, 10) + 1, run.id % 10 + 1),
-            360, 110, 0xc8c8c8}
+            360, 110, 0xc8c8c8, "C"}
     elseif run.survival >= 0 then
         if run.survival_blink > 0 then run.survival_blink = run.survival_blink + 1 end
         if run.survival_blink > 69 then run.survival_blink = 0 end
         local color = (run.survival_blink ~= 0 and cdiv(run.survival_blink, 10) % 2 ~= 1) and 0xc85a5a or 0xc8c8c8
-        display[#display + 1] = {"text", i18n.tr("Survival Stage:") .. " " .. run.survival, 340, 110, color}
+        display[#display + 1] = {"text", i18n.tr("Survival Stage:") .. " " .. run.survival, 340, 110, color, "C"}
     end
     local left = string.format("%s %3d      %s %4d", i18n.tr("Man:"), men_a, i18n.tr("HP:"), hp_a)
     if reserve ~= 0 then left = left .. string.format("     %s %3d", i18n.tr("Reserve:"), reserve) end
-    display[#display + 1] = {"text", left, 10, 110, 0xff7878}
-    display[#display + 1] = {"text", string.format("%s %3d      %s %4d", i18n.tr("Man:"), men_b, i18n.tr("HP:"), hp_b), 645, 110, 0xff00ff}
+    display[#display + 1] = {"text", left, 10, 110, 0xff7878, "L"}
+    display[#display + 1] = {"text", string.format("%s %3d      %s %4d", i18n.tr("Man:"), men_b, i18n.tr("HP:"), hp_b), 645, 110, 0xff00ff, "R"}
 end
 
 -- The phase clock runs while the phase's enemies are on the stage. At 0 the stage is lost: the fighters stand without

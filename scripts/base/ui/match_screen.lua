@@ -29,10 +29,13 @@ local function wide_center() return math.floor(wide_gap() / 2 + 0.5) end
 -- Where a stage or battle command (game/stage.lua, game/battle.lua: written for 794 pixels) goes in a wider picture. The top rows
 -- (y < 200: the team lines at y 110 and 133) keep the left ones (x < 200) in place, move the middle ones (x < 400: the stage
 -- title) to the middle and the right ones to the right edge; the banners lower down (the stage clear and GO pictures) go to the
--- middle, except the GO arrow at the right edge (x >= 600). [BELUM PASTI] the thresholds; they read the classic coordinates.
-local function stage_dx(x, y)
+-- middle, except the GO arrow at the right edge (x >= 600). [BELUM PASTI] the thresholds; they read the classic coordinates, so
+-- they only serve a command without an anchor.
+local function stage_dx(x, y, anchor)
     local gap = wide_gap()
     if gap == 0 then return 0 end
+    -- The command's own anchor (the last element: "L", "C" or "R", from game/stage.lua and game/battle.lua) wins over the guess.
+    if anchor == "L" then return 0 elseif anchor == "C" then return wide_center() elseif anchor == "R" then return gap end
     if y < 200 then
         if x < 200 then return 0 elseif x < 400 then return wide_center() end
         return gap
@@ -216,6 +219,7 @@ function screen.snapshot(state, snapshot)
     while #events > kill_max_events or (events[1] and clock - events[1].born > kill_max_age) do table.remove(events, 1) end
     snapshot.kills, snapshot.kill_clock = events, clock
     snapshot.etc_width = type(state.bg_area) == "table" and state.bg_area.etc_width or nil
+    snapshot.boss_slot = type(state.stage_run) == "table" and state.stage_run.boss_slot or nil
     snapshot.camera, snapshot.shake = state.camera, state.shake
     snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or state.stage_clock
     snapshot.time_row = state.stage_clock and 16 or 0
@@ -668,6 +672,42 @@ end
 
 -- The radar of a HUD style (frame.dat <radar>): the base picture, a dot per object of the listed types and frame states
 -- (pictures by team or type), blinking while `fall` says the fighter is down or invincible, and the camera outline.
+-- The boss bar (<bossbar> of the boss's data file, readme/dat file/bossbar.txt; stage mode only): the layers are drawn on the
+-- screen at their x and y. The boss is `state.stage_run.boss_slot` (AI 5, nil when none; read into snapshot.boss_slot). Layers
+-- without a type are plain pictures; type 1 (hp), 2 (dhp) and 3 (mp) are bars of w pixels filled by the value over `max`
+-- (the boss's maximum hp for 1 and 2, 500 for 3 when `max` is not written), `facing: 1` empties it towards the right edge, as
+-- the minibar. Types 4 and 5, and the animation (effect, cc, c1, c2) are not drawn. In a wider picture the bar sits in the
+-- middle. [BELUM PASTI] who is shown when there are several bosses (the first), that it stays until the boss leaves the
+-- game (also at 0 HP), and `max`.
+local function draw_bossbar(context, view, current)
+    local slot = view.boss_slot
+    if current.mode ~= constants.modes.stage or type(slot) ~= "number" then return end
+    local boss
+    for _, entry in ipairs(view.items) do if entry.index == slot then boss = entry break end end
+    local display = boss and boss.record.display
+    local block = type(display) == "table" and display.bossbar or nil
+    local layers = block and block.layers
+    if type(layers) ~= "table" then return end
+    context = wide_center() ~= 0 and shifted(context, wide_center(), 0) or context
+    for _, layer in ipairs(layers) do
+        if type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
+            local width, kind = layer.w, layer.type
+            if kind == 1 or kind == 2 or kind == 3 then
+                local value = kind == 1 and boss.hp or kind == 2 and boss.dark_hp or boss.mp
+                local full = type(layer.max) == "number" and layer.max > 0 and layer.max or (kind == 3 and constants.points.full or boss.max_hp)
+                width = math.max(0, math.min(layer.w, math.floor(layer.w * (value or 0) / math.max(1, full))))
+            elseif kind ~= nil then
+                width = 0
+            end
+            if width > 0 then
+                local x, dx = layer.x or 0, layer.dx or 0
+                if layer.facing == 1 and width < layer.w then x, dx = x + layer.w - width, dx + layer.w - width end
+                context.sprite(layer.pic:gsub("\\", "/"):lower(), {dx, layer.dy or 0, width, layer.h}, x, layer.y or 0, layer.transparency == 1)
+            end
+        end
+    end
+end
+
 local function draw_radar(context, view, current, radar, center, picture_width)
     local shift = radar.centered and center or 0
     context.image(radar.pic, radar.pic_x + shift, radar.pic_y, false)
@@ -1045,7 +1085,7 @@ function screen.draw(state, context, window_bounds)
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
         view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage,
-            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock, etc_width = view.etc_width}
+            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock, etc_width = view.etc_width, boss_slot = view.boss_slot}
         -- Only matters for a stage narrower than the window.
         bounds = {left = math.max(window_bounds.left, -shift), right = math.min(window_bounds.right, stage_width - shift)}
         passable_bounds = {left = bounds.left, right = bounds.right}
@@ -1079,7 +1119,7 @@ function screen.draw(state, context, window_bounds)
     end
     context.clip()
     for _, command in ipairs(view.stage or {}) do
-        if command[1] == "sprite" then context.sprite(command[2], command[3], command[4] + stage_dx(command[4], command[5]), command[5], true)
+        if command[1] == "sprite" then context.sprite(command[2], command[3], command[4] + stage_dx(command[4], command[5], command[6]), command[5], true)
         elseif command[1] == "fill" then
             if bounds and command[2] == 0 and command[4] == constants.screen.width then
                 -- Stage shutters cover the whole window, including blocked scenery.
@@ -1091,10 +1131,10 @@ function screen.draw(state, context, window_bounds)
             else
                 context.fill(command[2], command[3], command[4], command[5], 0, 0, 0)
             end
-        elseif command[1] == "text" then font.gdi(context, command[2], command[3] + stage_dx(command[3], command[4]), command[4], command[5] and colorref(command[5]))
+        elseif command[1] == "text" then font.gdi(context, command[2], command[3] + stage_dx(command[3], command[4], command[6] or (type(command[5]) == "string" and command[5] or nil)), command[4], type(command[5]) == "number" and colorref(command[5]) or nil)
         elseif command[1] == "caption" then
             -- Outlined bitmap text in a team font (the original's four-way offset draw).
-            local caption_x = command[3] + stage_dx(command[3], command[4])
+            local caption_x = command[3] + stage_dx(command[3], command[4], command[6])
             for _, offset in ipairs({{-1, 1}, {-1, 0}, {0, 1}, {0, 0}}) do
                 glyphs(context, "pe/words" .. command[5], command[2], caption_x + offset[1], command[4] + offset[2], 8)
             end
@@ -1107,6 +1147,7 @@ function screen.draw(state, context, window_bounds)
         if style and style.radar then draw_radar(context, view, current, style.radar, wide_center(), options.wide_width(layout) or constants.screen.width) end
     end
     draw_kill_board(context, view, current)
+    draw_bossbar(context, view, current)
     if view.time_left then
         -- The time limit's clock: the time left, in the middle under the HP frames.
         local seconds = math.ceil(view.time_left / 30)

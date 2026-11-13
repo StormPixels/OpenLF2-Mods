@@ -103,6 +103,8 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren: the HUD panel shows a fighter's own counters (`<stats_count>`: hp, mp, kills, damage, status timers, ...) and status pictures (`<effect>`: poison, weak, manacle, delay, confus, join, mimic, bound, facing), as the data file asks.
 
+- LF2 Darkfiren: stage and battle display commands carry an anchor (left, centre, right) so the wide layouts place them without guessing; the stage mode shows the boss bar (`<bossbar>`) of the boss.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -295,3 +297,4 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `caughtact` is accepted next to `caught` (frame, stats, mode; frame wins), and `fx.deaths` counts deaths through `fx_stats.record_kill`.
 - UI: the HUD counters (`stats_count`) also show invincible time, fall points, fusion time, armor hp and recovery time, defense and the number of deaths.
 - LF2 Darkfiren: in a 6XXX state with too little MP while holding, the destination frame is XXX (the last three digits of the state, 6035 goes to frame 35) when that frame has no `caught`.
+- LF2 Darkfiren: stage and battle display commands carry an anchor (left, centre, right), and the stage mode draws the boss bar (`<bossbar>`) from `stage_run.boss_slot`; background mode `caught` and `caughtact` are read for the character grab frame.
