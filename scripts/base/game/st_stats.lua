@@ -18,7 +18,7 @@ end
 -- st_frame.caught_target). nil without the tag or when it is 0.
 function st_stats.caught(value)
     local stats = st_stats.of(value)
-    local frame = stats and stats.caught
+    local frame = stats and (stats.caught ~= 0 and stats.caught or stats.caughtact)   -- the readme writes the tag `caught` in its text and `caughtact` in its examples
     if frame and frame ~= 0 then return frame end
     return nil
 end

@@ -74,7 +74,7 @@ function control.enter_frame(match, value, target)
         clear_presses(value)
     else
         -- LF2 Darkfiren: a frame's `caught` is where a fighter goes when it cannot pay for the frame.
-        local caught = st_frame.caught_target(frame, value)
+        local caught = st_frame.caught_target(frame, value, match.bg_area)
         if caught and value.record.frames[caught] then
             value.frame = caught
             clear_presses(value)

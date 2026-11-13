@@ -292,3 +292,5 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `<stats>` reads the repeated tag `oid:` as a list (`record.data.stats.oids`, at most 50 values).
 - LF2 Darkfiren: background mode `etc_mode` 1 sticks the team order message to the player p1..p8 who gave the order.
 - UI: the HUD panel shows a fighter's own counters (`<stats_count>`) and status pictures (`<effect>`), as the data file asks.
+- LF2 Darkfiren: `caughtact` is accepted next to `caught` (frame, stats, mode; frame wins), and `fx.deaths` counts deaths through `fx_stats.record_kill`.
+- UI: the HUD counters (`stats_count`) also show invincible time, fall points, fusion time, armor hp and recovery time, defense and the number of deaths.

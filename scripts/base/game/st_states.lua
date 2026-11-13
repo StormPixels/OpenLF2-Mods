@@ -265,7 +265,7 @@ function st_states.charge(match, value, st, frame, entered)
         local before = value.frame
         control.enter_frame(match, value, target)
         if value.frame == before then
-            local caught = st_frame.caught_target(frame, value)
+            local caught = st_frame.caught_target(frame, value, match.bg_area)
             if caught and value.record.frames[caught] then value.frame = caught end
         end
     end
@@ -284,7 +284,7 @@ function st_states.charge(match, value, st, frame, entered)
     if cost > 0 then
         if value.mp < cost then
             st.charge = nil
-            local caught = st_frame.caught_target(frame, value)
+            local caught = st_frame.caught_target(frame, value, match.bg_area)
             if caught and value.record.frames[caught] then value.frame = caught end
             return
         end

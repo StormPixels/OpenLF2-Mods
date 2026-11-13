@@ -727,9 +727,11 @@ end
 -- effect.txt). Both are placed from the top left corner of the fighter's HUD panel. [BELUM PASTI] that anchor.
 -- stats_count (up to 10 `count`s): the number of `type` (the types below; right aligned at x, `facing: 1` left aligned),
 -- at most `max`, in the letters of `pic` 0..5 (pe/words<pic>, 0 without it); `respond: 1` only when function keys were used
--- (cheat_lock > 0). Types 18 and 19 write "current/total" (hp, mp) and ignore max, pic and facing. Types the game has no
--- value for yet are not drawn: 9 invincible time, 10 fall point, 11 fusion time, 12 and 13 armor, 14 defense, 15 deaths,
--- 30 to 33 rage timers.
+-- (cheat_lock > 0). Types 18 and 19 write "current/total" (hp, mp) and ignore max, pic and facing; type 14 ignores max and
+-- facing. Sources (AI 3): 9 `blink`, 10 `timer_b0`, 11 `merge_timer`, 12 `fx.armor.hp` (else the data's armor hp), 13
+-- `fx.armor.timer`, 14 `<stats> defend` (else `value.armor`) [BELUM PASTI which], 15 `fx.deaths` (R27 AI 3; 0 without it).
+-- Types the game has no value for are not drawn: 30 to 37 (rage, unlimited, unassigned timers) and 38 (hits made; only the
+-- running combo exists).
 -- effect (up to 100 layers): the picture (source x, y = dx, dy; w x h) while the status `type` is on: -1 none, 0..5 poison of
 -- that type, 6 poison, 7 weak, 8 manacle, 9 delay, 10 confus, 11 join, 12 mimic, 13 bound, 14 facing; 15 to 20 (rage,
 -- unlimited) are not drawn yet. `bound: 1` shortens it with the timer (`max` 999 by default) as `facing` says: 0 from
@@ -747,7 +749,20 @@ local function count_value(value, kind)
     if kind == 1 then return value.hp elseif kind == 2 then return value.dark_hp elseif kind == 3 then return value.mp
     elseif kind == 4 then return value.damage_dealt elseif kind == 5 then return value.hp_spent elseif kind == 6 then return value.mp_spent
     elseif kind == 7 then return value.kills elseif kind == 8 then return value.pickings elseif kind == 16 then return value.max_hp
-    elseif kind == 17 then return constants.points.full elseif kind == 20 then return value.lives end
+    elseif kind == 17 then return constants.points.full elseif kind == 20 then return value.lives
+    elseif kind == 9 then return value.blink            -- invincible time (the blink counter)
+    elseif kind == 10 then return value.timer_b0        -- fall points
+    elseif kind == 11 then return value.merge_timer     -- fusion time (the rest before a new fusion once apart)
+    elseif kind == 12 or kind == 13 then
+        local armor = type(value.fx) == "table" and value.fx.armor or nil
+        local data = type(value.record.data) == "table" and value.record.data.armor or nil
+        if kind == 12 then return type(armor) == "table" and armor.hp or type(data) == "table" and data.hp or 0 end
+        return type(armor) == "table" and armor.timer or 0   -- -1 (no recovery) shows as 0
+    elseif kind == 14 then
+        local stats = type(value.record.data) == "table" and value.record.data.stats or nil
+        if type(stats) == "table" and type(stats.defend) == "number" and stats.defend > 0 then return stats.defend end
+        return type(value.armor) == "number" and value.armor > 0 and value.armor or 0
+    elseif kind == 15 then return type(value.fx) == "table" and value.fx.deaths or 0 end
     for name, number in pairs(status_names) do if number == kind then return status_timer(value, name) end end
     return nil
 end
@@ -765,7 +780,9 @@ local function draw_stats_count(context, state, value, column, row)
                 local number = count_value(value, count.type)
                 if type(number) == "number" then
                     local top = type(count.max) == "number" and count.max >= 0 and count.max or 999
-                    text, right = tostring(math.max(0, math.min(math.floor(number), math.floor(top)))), count.facing ~= 1
+                    -- Type 14 (defense) ignores max and facing (readme).
+                    if count.type == 14 then top = math.huge end
+                    text, right = tostring(math.max(0, math.min(math.floor(number), top))), count.type == 14 or count.facing ~= 1
                 end
             end
             if text then

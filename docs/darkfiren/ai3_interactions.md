@@ -225,5 +225,16 @@ Kesetaraan dengan kode lama dibuktikan di `armor_real_test.lua` memakai blok `<a
 - Sumber: `docs/txt/readme/dat file/stats.txt` baris 83-84 ("Add phase:1 in weapon data only - to make the weapon not leave map area [t1,t2,t4 and t6 only]"). Parser: `record.data.stats.phase` (angka).
 - `weapons.carry` (akhir tick): senjata t1, t2, t4, t6 yang `data.stats.phase == 1` dijepit ke area: x di [0, `state.stage.width`] dan z di [`zboundary` dekat, jauh] (batas yang sama dengan kamera, jawaban AI2 putaran 31). Nilai phase lain (0, 2, nil) tidak berpengaruh; bola (t3) dan karakter tidak terpengaruh (karakter sudah dijepit z oleh `weapons.carry`). [BELUM PASTI]: kecepatan tidak dinolkan di tepi; batas x memakai 0 sampai lebar stage tanpa margin.
 
-## R26: uji terpadu `land_ball` dengan `physics.step` asli (tanpa perubahan kode)
-- BASE `base-20261112-1-160cf7b` memuat R25 AI3 utuh (semua berkas AI3 identik) dan `match.lua` memanggil `platform.land_ball(value, frame_before)` di `physics_item` sesudah `physics.step` (AI2). Tes `r26_ball_integration_test.lua` menjalankan urutan yang sama dengan `physics.lua` / `st_frame.lua` / `st_block.lua` ASLI, `platform.lua` asli, `floor.dat` frame 350 asli dan frame bola dari parser: bola ber-state 3007 yang jatuh 6 piksel per tick ke bidang y -40 berhenti tepat di bidang (y -40, kecepatan 0) di frame `hit_g` (55); `floor_y` diisi `physics.step` pada tick bola melewati bidang; `physics.step` sendiri sudah memindahkan bola ke `hit_g` (kontrol), sehingga `frame_before` memang diperlukan; bola state 3000 tidak dihentikan platform. `match.physics_item` sendiri (fungsi lokal) tidak dijalankan: tes mereplikasi tiga barisnya.
+## R27: medan runtime untuk HUD `stats_count` (permintaan AI4) dan `fx.deaths`
+Nama medan yang sudah ada atau baru di sisi AI3, untuk tipe `stats_count` (readme `dat file/stats count.txt`):
+| tipe | medan | catatan |
+|---|---|---|
+| 9 waktu kebal | `value.blink` | sudah ada (bilangan; tak nol = berkedip / kebal; AI2 dan combat mengaturnya) |
+| 10 titik jatuh | `value.timer_b0` | sudah ada: terkumpul tiap pukulan (`fall`, bawaan 20), ambang jatuh 80 (`constants.combat.knockdown_fall_points`) |
+| 11 waktu fusi | `value.merge_timer` | sudah ada (`merge.lua`): saat melebur = sisa waktu fusi (diset 4500 tick); sesudah memisah = waktu istirahat sebelum boleh melebur lagi; 0 = bebas; `value.merge_partner` = pasangan |
+| 12 HP armor | `value.fx.armor.hp` | ada setelah pukulan pertama yang membuat keadaan armor; sebelumnya `record.data.armor.hp` |
+| 13 waktu pulih armor | `value.fx.armor.timer` | -1 = tidak pulih, > 0 hitung mundur saat `value.fx.armor.broken` benar |
+| 14 pertahanan | `value.armor` (pengali armor lama, 0 = tidak ada) dan `record.data.stats.defend` (statis) | tidak ada medan runtime tunggal bernama pertahanan |
+| 15 jumlah mati | `value.fx.deaths` | BARU: `fx_stats.record_kill` menambah satu tiap kematian lewat pukulan terhitung, racun atau tangkapan (juga bila pembunuh tak dikenal); `fx_stats.reset` mengosongkan; kematian yang tidak lewat `record_kill` tidak terlihat [BELUM PASTI] |
+| 21-29 timer status | `value.fx.status[nama]` | angka (weak, manacle, delay, confus, mimic, bound, facing) atau tabel dengan `timer` (poison, join) |
+| 30-33 rage, 34-35 unlimited (efek 15-20) | tidak ada | tidak ada mekanisme di game; DOCX: pemberi efek 15-20 belum diketahui; AI3 tidak membuat medannya |

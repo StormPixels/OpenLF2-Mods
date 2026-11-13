@@ -41,10 +41,17 @@ end
 -- The frame the fighter goes to when it cannot pay for `frame` (frame.caught), or nil.
 -- The frame's own `caught` first, then the object's <stats> caught (readme: frame > <stats> > <mode>; the mode has no
 -- caught that reaches the code yet).
-function st_frame.caught_target(frame, value)
+function st_frame.caught_target(frame, value, area)
     local target = frame.caught
+    if not target or target == 0 then target = frame.caughtact end
     if target and target ~= 0 then return target end
-    if value then return st_stats.caught(value) end
+    if value then
+        target = st_stats.caught(value)
+        if target then return target end
+    end
+    -- <mode> (state.bg_area.caught or .caughtact, from AI 5's bg_modes.area; nil until it is there): the third priority.
+    target = area and (area.caught ~= 0 and area.caught or area.caughtact)
+    if target and target ~= 0 then return target end
     return nil
 end
 
@@ -54,7 +61,7 @@ function st_frame.on_enter(match, value, frame)
     local hp, chp, cmp = frame.hp, frame.chp, frame.cmp
     if not hp and not chp and not cmp then return end
     if not st_frame.affordable(value, frame) then
-        local target = st_frame.caught_target(frame, value)
+        local target = st_frame.caught_target(frame, value, match.bg_area)
         if target and value.record.frames[target] then
             value.frame = target
             value.wait_counter = 0
