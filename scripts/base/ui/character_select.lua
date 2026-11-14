@@ -527,7 +527,8 @@ local function slots_pass(state, held)
         if slot.phase == slot_phases.choosing_fighter then
             draw_fighter(state, slot, col, row, blink_color(state))
             fighter_slot(state, slot, keys, col, row)
-            if slot.phase_grid then draw_phase_grid(state, slot, col, row) end
+            -- Darkfiren places the grid from the top left corner of the fighter's portrait (the frame sits just above it).
+            if slot.phase_grid then draw_phase_grid(state, slot, col + 147, row + 94) end
         end
         if slot.phase == slot_phases.choosing_team then
             draw_fighter(state, slot, col, row, white)
