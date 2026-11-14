@@ -97,6 +97,8 @@ local function with_recording(state, options)
         options.bg_mode, options.time_limit, options.cost = nil, nil, nil
         options.no_item_drops, options.no_transform, options.respawn_shuffle, options.tu1 = nil, nil, nil, nil
     end
+    -- A replay file holds eight slots (names, frame records): a ten player match is not recorded.
+    if user_options.slot_count and user_options.slot_count(user_options.current().battlefield_layout) > 8 then return options end
     local settings = controls.current()
     if settings.record == 0 or options.bg_mode or options.time_limit or options.cost
        or options.no_item_drops or options.no_transform or options.respawn_shuffle or options.tu1 then return options end
@@ -107,6 +109,7 @@ local function with_recording(state, options)
         info = settings.info, email = settings.email}
     return options
 end
+flow.with_recording = with_recording   -- exposed for the tests
 -- The title's Replay entry: a recording the player chose arrives from the host; after
 -- data/version checks, the game starts at once.
 local function start_replay(state, block)

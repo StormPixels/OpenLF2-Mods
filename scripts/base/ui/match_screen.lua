@@ -26,6 +26,18 @@ local function wide_gap()
     return 0
 end
 local function wide_center() return math.floor(wide_gap() / 2 + 0.5) end
+-- Blinking of a layer (cc, c1, c2 as in a background layer): hidden outside c1..c2 of every cc ticks; shown always without cc.
+local function layer_shown(layer, tick)
+    local period = type(layer.cc) == "number" and math.floor(layer.cc) or 0
+    if period <= 0 then return true end
+    local phase = math.floor(tick or 0) % period
+    return phase >= (layer.c1 or 0) and phase <= (layer.c2 or 0)
+end
+-- `respond` of a layer: 0 both, 1 human only, 2 computer only (readme/dat file/menu face.txt).
+local function layer_for(layer, human)
+    if layer.respond == 1 then return human == true elseif layer.respond == 2 then return human ~= true end
+    return true
+end
 -- Where a stage or battle command (game/stage.lua, game/battle.lua: written for 794 pixels) goes in a wider picture. The top rows
 -- (y < 200: the team lines at y 110 and 133) keep the left ones (x < 200) in place, move the middle ones (x < 400: the stage
 -- title) to the middle and the right ones to the right edge; the banners lower down (the stage clear and GO pictures) go to the
@@ -268,6 +280,7 @@ function screen.snapshot(state, snapshot)
 end
 
 function screen.update(state, held, context)
+    screen.kill_toggle(state, held)
     local result = match.step(state.match, held)
     if result == "leave" then
         -- F4 in Championship or during a replay: the game state becomes 10, the title.
@@ -712,7 +725,7 @@ end
 -- screen at their x and y. The boss is `state.stage_run.boss_slot` (AI 5, nil when none; read into snapshot.boss_slot). Layers
 -- without a type are plain pictures; type 1 (hp), 2 (dhp) and 3 (mp) are bars of w pixels filled by the value over `max`
 -- (the boss's maximum hp for 1 and 2, 500 for 3 when `max` is not written), `facing: 1` empties it towards the right edge, as
--- the minibar. Types 4 and 5, and the animation (effect, cc, c1, c2) are not drawn. In a wider picture the bar sits in the
+-- the minibar. Types 4 and 5 are not drawn; cc, c1, c2 blink a layer. In a wider picture the bar sits in the
 -- middle. [BELUM PASTI] who is shown when there are several bosses (the first), that it stays until the boss leaves the
 -- game (also at 0 HP), and `max`.
 local function draw_bossbar(context, view, current)
@@ -726,7 +739,8 @@ local function draw_bossbar(context, view, current)
     if type(layers) ~= "table" then return end
     context = wide_center() ~= 0 and shifted(context, wide_center(), 0) or context
     for _, layer in ipairs(layers) do
-        if type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
+        if layer_shown(layer, view.kill_clock) and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1
+           and type(layer.h) == "number" and layer.h >= 1 then
             local width, kind = layer.w, layer.type
             if kind == 1 or kind == 2 or kind == 3 then
                 local value = kind == 1 and boss.hp or kind == 2 and boss.dark_hp or boss.mp
@@ -806,12 +820,12 @@ end
 -- (cheat_lock > 0). Types 18 and 19 write "current/total" (hp, mp) and ignore max, pic and facing; type 14 ignores max and
 -- facing. Sources (AI 3): 9 `blink`, 10 `timer_b0`, 11 `merge_timer`, 12 `fx.armor.hp` (else the data's armor hp), 13
 -- `fx.armor.timer`, 14 `<stats> defend` (else `value.armor`) [BELUM PASTI which], 15 `fx.deaths` (R27 AI 3; 0 without it).
--- Types the game has no value for are not drawn: 30 to 37 (rage, unlimited, unassigned timers) and 38 (hits made; only the
--- running combo exists).
+-- 38 `fx.hits` (hits made; 0 until the first). Types the game has no value for are not drawn: 30 to 37 (rage, unlimited,
+-- unassigned timers).
 -- effect (up to 100 layers): the picture (source x, y = dx, dy; w x h) while the status `type` is on: -1 none, 0..5 poison of
 -- that type, 6 poison, 7 weak, 8 manacle, 9 delay, 10 confus, 11 join, 12 mimic, 13 bound, 14 facing; 15 to 20 (rage,
 -- unlimited) are not drawn yet. `bound: 1` shortens it with the timer (`max` 999 by default) as `facing` says: 0 from
--- the right, 1 from the left, 2 from the bottom, 3 from the top. Not done: cc, c1, c2 (animation).
+-- the right, 1 from the left, 2 from the bottom, 3 from the top. `respond` 1 human, 2 computer only; cc, c1, c2 blink it.
 local status_names = {poison = 21, weak = 22, manacle = 23, delay = 24, confus = 25, join = 26, mimic = 27, bound = 28, facing = 29}
 local status_by_effect = {[6] = "poison", [7] = "weak", [8] = "manacle", [9] = "delay", [10] = "confus", [11] = "join", [12] = "mimic",
     [13] = "bound", [14] = "facing"}
@@ -838,7 +852,8 @@ local function count_value(value, kind)
         local stats = type(value.record.data) == "table" and value.record.data.stats or nil
         if type(stats) == "table" and type(stats.defend) == "number" and stats.defend > 0 then return stats.defend end
         return type(value.armor) == "number" and value.armor > 0 and value.armor or 0
-    elseif kind == 15 then return type(value.fx) == "table" and value.fx.deaths or 0 end
+    elseif kind == 15 then return type(value.fx) == "table" and value.fx.deaths or 0
+    elseif kind == 38 then return type(value.fx) == "table" and value.fx.hits or 0 end   -- hits made (AI 3, R29)
     for name, number in pairs(status_names) do if number == kind then return status_timer(value, name) end end
     return nil
 end
@@ -882,13 +897,14 @@ local function effect_on(value, kind)
     local name = status_by_effect[kind]
     return name and status_timer(value, name) or 0
 end
-local function draw_effects(context, value, column, row)
+local function draw_effects(context, value, column, row, tick)
     local block = type(value.record.display) == "table" and value.record.display.effect or nil
     local layers = type(block) == "table" and block.layers or nil
     if type(layers) ~= "table" then return end
     for _, layer in ipairs(layers) do
         local timer = effect_on(value, layer.type)
-        if timer > 0 and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
+        if timer > 0 and layer_for(layer, value.human) and layer_shown(layer, tick) and type(layer.pic) == "string"
+           and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
             local width, height = layer.w, layer.h
             local x, y, dx, dy = column + (layer.x or 0), row + (layer.y or 0), layer.dx or 0, layer.dy or 0
             if layer.bound == 1 then
@@ -952,7 +968,7 @@ local function draw_status(context, state, style)
             local flag = type(own_flag) == "table" and type(own_flag.x) == "number" and type(own_flag.y) == "number" and own_flag or style.team_flag
             glyphs(context, label_font(value.team), string.char(254), column + flag.x, row + flag.y, 8)
             draw_stats_count(context, state, value, column, row)
-            draw_effects(context, value, column, row)
+            draw_effects(context, value, column, row, state.elapsed)
             draw_nickname(context, value, state.items[slot] ~= nil, slot, column, row)
         end
     end
@@ -978,7 +994,12 @@ local function draw_scoreboard(context, current)
         end
     end
     local battle_run = current.battle_run
-    local height = players * 45 + (battle_run and 138 or 93)
+    -- Ten rows would pass the screen (10 * 45 + 93 = 543, with the battle lines 588): the rows then come closer, overlapping the
+    -- padding of the row pictures a little, to fit in 530. [BELUM PASTI] how much a row picture may be covered (down to 30).
+    local fixed = battle_run and 138 or 93
+    local step = 45
+    if players * 45 + fixed > 530 then step = math.max(30, math.floor((530 - fixed) / players)) end
+    local height = players * step + fixed
     local top = math.floor((530 - height) / 2)
     local row_y = top + 16
     context.image("pe/score_board1", 150, top, false)
@@ -986,7 +1007,7 @@ local function draw_scoreboard(context, current)
         local index = current.items[slot] and slot or slot + 10
         local value = current.items[index]
         if value then
-            row_y = row_y + 45
+            row_y = row_y + step
             context.image("pe/score_board2", 150, row_y, false)
             local small = small_face(value)
             if small then context.image(small:gsub("\\", "/"):lower(), 165, row_y, false) end
@@ -1011,7 +1032,7 @@ local function draw_scoreboard(context, current)
             if result then context.image(result, 571, row_y + 15, false) end
         end
     end
-    local footer = top + players * 45 + 61
+    local footer = top + players * step + 61
     if battle_run then
         context.image("pe/score_board4", 150, footer, false)
         context.image("pe/score_board3", 150, footer + 45, false)
@@ -1029,7 +1050,7 @@ local function draw_scoreboard(context, current)
         text = string.format("%02d : %02d : %02d", math.floor(seconds / 3600),
             math.floor(seconds % 3600 / 60), seconds % 3600 % 60)
     end
-    font.gdi(context, text, 580, top + players * 45 + (battle_run and 112 or 67))
+    font.gdi(context, text, 580, top + players * step + (battle_run and 112 or 67))
 end
 
 function screen.describe(state)
@@ -1074,6 +1095,34 @@ function screen.outcome(state)
     local run = state.match.stage_run
     if not run then return {} end
     return {stage_level = run.id, auto_start = run.next_group, ending = run.ending}
+end
+
+-- The check box of the kill display (`bound: 1` in its block): while the game is paused a small box at the top right corner
+-- turns the display on and off (the pause summary box of Darkfiren, whose content the readme does not give, is not made).
+-- [BELUM PASTI] the place (top right corner), the size and the text.
+local function kill_checkbox_place() return constants.screen.width + wide_gap() - 22, 6, 14 end
+function screen.kill_toggle(state, held)
+    local view = state.view
+    if not (view and view.paused and type(held) == "table" and held.click and type(held.pointer_x) == "number" and type(held.pointer_y) == "number") then return false end
+    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
+    if not settings or not settings.checkbox then return false end
+    local x, y, size = kill_checkbox_place()
+    if held.pointer_x >= x - 2 and held.pointer_x <= x + size + 2 and held.pointer_y >= y - 2 and held.pointer_y <= y + size + 2 then
+        state.kill_hidden = not state.kill_hidden
+        return true
+    end
+    return false
+end
+local function draw_kill_checkbox(context, state, view)
+    if not view.paused then return end
+    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
+    if not settings or not settings.checkbox then return end
+    local x, y, size = kill_checkbox_place()
+    context.fill(x - 1, y - 1, size + 2, size + 2, 0, 0, 0)
+    context.fill(x, y, size, size, 200, 200, 200)
+    context.fill(x + 1, y + 1, size - 2, size - 2, 40, 40, 40)
+    if not state.kill_hidden then context.fill(x + 3, y + 3, size - 6, size - 6, 255, 255, 255) end
+    font.gdi(context, i18n.tr("Kill list"), x - 62, y - 1, colorref(0xffffff))
 end
 
 function screen.draw(state, context, window_bounds)
@@ -1195,7 +1244,8 @@ function screen.draw(state, context, window_bounds)
         draw_status(context, current, style)
         if style and style.radar then draw_radar(context, view, current, style.radar, wide_center(), options.wide_width(layout) or constants.screen.width) end
     end
-    draw_kill_board(context, view, current)
+    if not state.kill_hidden then draw_kill_board(context, view, current) end
+    draw_kill_checkbox(context, state, view)
     draw_bossbar(context, view, current)
     if view.time_left then
         -- The time limit's clock: the time left, in the middle under the HP frames.

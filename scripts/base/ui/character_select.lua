@@ -27,6 +27,17 @@ local stage_levels = require("base/game/stage_levels")
 local menu_small = require("base/game/menu_small")
 local ui_modes = require("base/game/ui_modes")
 local object_data = require("base/game/object_data")
+-- A fighter's data file is read once for everything the menu takes from it (skins, <phase>, <menu_face>).
+local data_cache = {}
+local function loaded_data(path)
+    local entry = data_cache[path]
+    if entry == nil then
+        local ok, data = pcall(object_data.load, path)
+        entry = {ok, data}
+        data_cache[path] = entry
+    end
+    return entry[1], entry[2]
+end
 local layout_targets = {}
 -- The options panel as LF2 Darkfiren draws it: the <menu_small> layers of mode4.dat (game/menu_small.lua).
 local small_layers = {}
@@ -160,7 +171,9 @@ function selection.create(options)
         order = {}, cursor = 0, previous_random = false, blink = 0, display = {}, wide = wide_wanted(width, mode_text)}
     state.width = state.wide and width or nil
     -- Ten player slots only in the 10 player layout, and only when it really drew (a layout that fell back is the classic menu).
-    state.slot_count = state.wide and user_options.slot_count and user_options.slot_count(layout_name) or 8
+    -- A championship has eight entrants whatever the layout: it keeps the eight slots in the 10 player layout.
+    local championship = mode == constants.modes.championship or mode == constants.modes.team_championship
+    state.slot_count = not championship and state.wide and user_options.slot_count and user_options.slot_count(layout_name) or 8
     if mode == constants.modes.battle and state.slot_count == 10 then
         for slot = 0, 9 do slots[slot].team = math.floor(slot / 5) + 1 end   -- two sides of five
     end
@@ -215,7 +228,7 @@ local function skins_of(fighter)
     if not fighter or type(fighter.path) ~= "string" then return nil end
     local cached = skin_cache[fighter.path]
     if cached == nil then
-        local ok, data = pcall(object_data.load, fighter.path)
+        local ok, data = loaded_data(fighter.path)
         local skins = ok and type(data) == "table" and data.skins or nil
         local count = 0
         if type(skins) == "table" then for index = 1, 10 do if skins[index] then count = index end end end
@@ -265,6 +278,42 @@ end
 local function next_fighter(state, slot) slot.fighter, slot.skin = catalog.step(state.fighters, slot.fighter, 1), nil end
 local function previous_fighter(state, slot) slot.fighter, slot.skin = catalog.step(state.fighters, slot.fighter, -1), nil end
 
+-- Extra pictures over a fighter's face in the menu (<menu_face> of its data, readme/dat file/menu face.txt, up to 30 layers): each
+-- layer `pic` (source dx, dy; w x h) at (x, y) from the face picture's corner, `amount` copies `loop` pixels apart; `respond`
+-- 0 both, 1 human, 2 computer slots; `transparency` 1 keys it; cc, c1, c2 blink it (hidden outside c1..c2 of every cc ticks).
+-- `facing` is "no use" in the game's own table and is not read. [BELUM PASTI] the anchor (the face picture's corner).
+local menu_face_cache = {}
+local function menu_face_of(fighter)
+    if not fighter or type(fighter.path) ~= "string" then return nil end
+    local cached = menu_face_cache[fighter.path]
+    if cached == nil then
+        local ok, data = loaded_data(fighter.path)
+        local display = ok and type(data) == "table" and type(data.display) == "table" and data.display.menu_face or nil
+        cached = type(display) == "table" and type(display.layers) == "table" and #display.layers > 0 and display.layers or false
+        menu_face_cache[fighter.path] = cached
+    end
+    return cached or nil
+end
+local function draw_menu_face(state, slot, fighter, x0, y0)
+    local layers = menu_face_of(fighter)
+    if not layers then return end
+    local human = slot.phase < computer_phase
+    for index = 1, math.min(#layers, 30) do
+        local layer = layers[index]
+        local wanted = layer.respond == 1 and human or layer.respond == 2 and not human or (layer.respond ~= 1 and layer.respond ~= 2)
+        local period = type(layer.cc) == "number" and math.floor(layer.cc) or 0
+        local shown = period <= 0 or ((state.frames or 0) % period >= (layer.c1 or 0) and (state.frames or 0) % period <= (layer.c2 or 0))
+        if wanted and shown and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
+            local picture = layer.pic:gsub("\\", "/"):lower()
+            local copies = type(layer.amount) == "number" and layer.amount >= 1 and math.floor(layer.amount) or 1
+            local spacing = type(layer.loop) == "number" and layer.loop or layer.w
+            for copy = 0, copies - 1 do
+                sprite(state, picture, {layer.dx or 0, layer.dy or 0, layer.w, layer.h}, x0 + (layer.x or 0) + copy * spacing, y0 + (layer.y or 0), layer.transparency == 1)
+            end
+        end
+    end
+end
+
 local function draw_fighter(state, slot, col, row, color)
     local fighter = state.fighters[slot.fighter]
     -- The eye of Reset Random (LF2 Darkfiren): a fighter that came from Random stays unseen until the match.
@@ -272,6 +321,7 @@ local function draw_fighter(state, slot, col, row, color)
     local head = fighter and skin_picture(fighter, slot, "head")
     if head and not pcall(engine.read_resource, head) then head = nil end   -- a picture the game lacks keeps the fighter's own
     image(state, head or (fighter and fighter.portrait) or "pe/rface", col + 147, row + 94)
+    draw_menu_face(state, slot, fighter, col + 147, row + 94)
     slot_text(state, fighter and fighter.name or " Random", col, row, color, row + 241)
 end
 local function draw_team(state, slot, col, row, color)
@@ -347,7 +397,7 @@ local function phase_of(fighter)
     if not fighter or type(fighter.path) ~= "string" then return nil end
     local cached = phase_cache[fighter.path]
     if cached == nil then
-        local ok, data = pcall(object_data.load, fighter.path)
+        local ok, data = loaded_data(fighter.path)
         local block = ok and type(data) == "table" and data.phase or nil
         cached = type(block) == "table" and type(block.ids) == "table" and #block.ids > 0 and block or false
         phase_cache[fighter.path] = cached
@@ -1646,6 +1696,7 @@ function selection.update(state, held, context)
     state.held = held
     state.leave = false
     state.blink = (state.blink + 1) % 30
+    state.frames = (state.frames or 0) + 1
     local previous_menu = state.menu
     use_layout(state)
     fill(state, 0, 0, state.wide and (state.width or constants.screen.wide_width) or constants.screen.width, constants.screen.height, 0)

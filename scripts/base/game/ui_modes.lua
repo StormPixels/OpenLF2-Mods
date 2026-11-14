@@ -265,7 +265,7 @@ function ui_modes.kill_settings(layout)
             y = block.y or 0, x = block.x or 0, dx = block.dx or 0, dvx = block.dvx or 0, arest = block.arest == 1, vrest = block.vrest == 1,
             attacker_name = block.caughtact == 1, victim_name = block.catchingact == 1,
             attacker_back = block.pickedact == 1, victim_back = block.pickingact == 1, transparent = block.transparency == 1,
-            pics = block.pics, modes = modes, ids = ids, sound1 = block.sound1, sound2 = block.sound2}
+            pics = block.pics, modes = modes, ids = ids, sound1 = block.sound1, sound2 = block.sound2, checkbox = block.bound == 1}
     end
     kill_cache[key] = settings
     return settings or nil
