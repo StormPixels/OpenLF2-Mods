@@ -6,6 +6,7 @@
 #include "openlf2/detail/resources/scan_stream.hpp"
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <span>
 
 namespace openlf2::object_data {
@@ -82,7 +83,7 @@ constexpr std::array armor_repeat_tags{TagKey{"id", "ids"}, TagKey{"state", "sta
 constexpr std::array armor_group_tags{TagKey{"frame", "frames"}};
 constexpr std::array piece_head_tags{same("team")};
 constexpr std::array piece_tags{same("act"), same("framea"), same("dvx"), same("dvy"), same("dvz"), same("oid"),
-    same("amount")};
+    same("amount")}; // `amount` is summed per group, not kept per entry
 constexpr std::array sound_set_tags{same("bg"), same("mode")};
 constexpr std::array sound_text_tags{TagKey{"weapon_hit_sound", "weapon_hit"},
     TagKey{"weapon_drop_sound", "weapon_drop"}, TagKey{"weapon_broken_sound", "weapon_broken"}};
@@ -113,7 +114,7 @@ constexpr std::array team_flag_int_tags{TagKey{"team_flag_x", "x"}, TagKey{"team
 constexpr std::array team_flag_text_tags{TagKey{"team0_flag", "team0"}, TagKey{"team1_flag", "team1"},
     TagKey{"team2_flag", "team2"}, TagKey{"team3_flag", "team3"}, TagKey{"team4_flag", "team4"},
     TagKey{"team5_flag", "team5"}};
-constexpr std::array name_int_tags{same("respond"), same("name_x"), same("name_y"), same("x"), same("y"),
+constexpr std::array name_int_tags{same("respond"), same("team"), same("name_x"), same("name_y"), same("x"), same("y"),
     same("hexf"), same("hexb")};
 constexpr std::array name_text_tags{same("name")};
 
@@ -525,9 +526,26 @@ private:
             if (!read_int(index)) return true;
             Extras piece;
             block("piece_end:", [&] { return extra_int(piece, piece_tags); });
-            if (index < 1 || index > static_cast<std::int32_t>(result.pieces.size())) {
+            if (index < 1 || index > static_cast<std::int32_t>(result.groups.size())) {
                 note("weapon piece number outside 1-5: " + std::to_string(index));
-            } else result.pieces[static_cast<std::size_t>(index - 1)] = std::move(piece);
+                return true;
+            }
+            // `amount:` is not kept per entry: the group keeps the total.
+            std::optional<std::int32_t> amount;
+            for (auto item = piece.begin(); item != piece.end();) {
+                if (item->key == "amount") {
+                    if (!item->values.empty()) amount = item->values.front();
+                    item = piece.erase(item);
+                } else ++item;
+            }
+            auto& group = result.groups[static_cast<std::size_t>(index - 1)];
+            if (group.entries.size() >= max_piece_entries) {
+                note("more than " + std::to_string(max_piece_entries) + " entries in weapon piece group " +
+                     std::to_string(index) + "; extra entry ignored");
+            } else {
+                group.entries.push_back(std::move(piece));
+                if (amount) group.amount = group.amount.value_or(0) + *amount;
+            }
             return true;
         });
         data_.weapon_piece = std::move(result);
@@ -1190,10 +1208,23 @@ ScriptValue to_script_value(const ObjectData& data) {
     if (data.weapon_piece) {
         ScriptTable pieces;
         append_extras(pieces, data.weapon_piece->fields);
-        for (std::size_t index = 0; index < data.weapon_piece->pieces.size(); ++index) {
-            if (data.weapon_piece->pieces[index]) {
-                set_field(pieces, static_cast<std::int32_t>(index + 1), extras_table(*data.weapon_piece->pieces[index]));
+        for (std::size_t index = 0; index < data.weapon_piece->groups.size(); ++index) {
+            const auto& group = data.weapon_piece->groups[index];
+            if (group.entries.empty()) continue;
+            // The group keeps the keys of its first entry (as before) plus the summed `amount` and all `entries`.
+            ScriptTable fields;
+            append_extras(fields, group.entries.front());
+            if (group.amount) {
+                const auto total = std::clamp<std::int64_t>(*group.amount, std::numeric_limits<std::int32_t>::min(),
+                                                            std::numeric_limits<std::int32_t>::max());
+                set_field(fields, "amount", integer(static_cast<std::int32_t>(total)));
             }
+            ScriptTable entries;
+            for (std::size_t entry = 0; entry < group.entries.size(); ++entry) {
+                set_field(entries, static_cast<std::int32_t>(entry + 1), extras_table(group.entries[entry]));
+            }
+            set_field(fields, "entries", table(std::move(entries)));
+            set_field(pieces, static_cast<std::int32_t>(index + 1), table(std::move(fields)));
         }
         set_field(result, "weapon_piece", table(std::move(pieces)));
     }

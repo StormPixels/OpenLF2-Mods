@@ -875,7 +875,7 @@ local function weapon_strike(state, p, attacker, v, itr)
     -- Darkfiren <weapon_strength_list> keys: the same itr extras as an ordinary attack, plus selfinjury (damage to the
     -- holder). The extras are credited to the holder (`from_weapon`). `decrease` (damage to the weapon) is not applied:
     -- nothing in the scripts reduces a weapon's own durability.
-    for _, field in ipairs({"dvz", "drain", "gain", "spark", "recover", "dbdefend", "z", "sound", "cover", "selfinjury"}) do
+    for _, field in ipairs({"dvz", "drain", "gain", "spark", "recover", "dbdefend", "z", "sound", "cover", "selfinjury", "decrease"}) do
         hit[field] = strength[field]
     end
     if strength.caughtact then hit.caughtact = {strength.caughtact} end -- Leaf.F: the strength list carries one number (catchingact is invalid here)
@@ -1254,9 +1254,16 @@ function combat.apply(state, p)
                         -- recover 1 / 3 removes the hit lag of the object that was given it (the weapon), not only the holder's
                         if credited ~= attacker and (itr.recover == 1 or itr.recover == 3) then attacker.hit_lag = 0 end
                         if itr.selfinjury and itr.selfinjury > 0 and credited ~= attacker then
-                            local self_damage = dealt(state, itr.selfinjury)
-                            credited.hp = credited.hp - self_damage
-                            credited.hp_spent = credited.hp_spent + self_damage
+                            -- selfinjury: damage to the holder, HP only and never below 1 (readme weapon strength list)
+                            local before = credited.hp
+                            if before > 1 then
+                                credited.hp = math.max(1, before - dealt(state, itr.selfinjury))
+                                credited.hp_spent = credited.hp_spent + (before - credited.hp)
+                            end
+                        end
+                        if itr.decrease and itr.decrease > 0 and credited ~= attacker then
+                            -- decrease: damage to the (held) weapon itself; the weapon breaks when its HP (drop_counter) runs out
+                            attacker.drop_counter = attacker.drop_counter - itr.decrease
                         end
                         if not defended then fx_stats.hit(state, attacker, victim) end
                         local shown = itr

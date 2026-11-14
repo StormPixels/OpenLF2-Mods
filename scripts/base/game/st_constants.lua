@@ -70,6 +70,7 @@ local st_constants = {
     -- itr status effects (section 4) read by the control code. confus: the keys are swapped. [UNCERTAIN] The notes' eight
     -- "confuse key tables" are not in the documents (exe/pointer.txt lists only their addresses), so this map is AI 2's own.
     confus_map = {left = "right", right = "left", up = "down", down = "up"},
+    delay_factor = 0.25,   -- delay: vx, vy and vz are multiplied by this once per tick (PDK 0x413e88, read from the code)
     weak_mp_divisor = 2,   -- weak: mp recovery slows to this fraction; hp recovery stops
     facing_mp_factor = 2,  -- facing: the mp a move costs is multiplied by this
     -- hit_Fa values on attack objects that are new in Darkfiren.

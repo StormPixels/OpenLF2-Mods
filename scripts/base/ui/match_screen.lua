@@ -140,6 +140,22 @@ end
 -- [BELUM PASTI] `fx.last_killer_type` (0..6, the kind of the object that struck; nil until AI 3 sets it) picks pic_type<n>.
 local kill_tracker = {}
 local kill_max_events, kill_max_age = 12, 1200
+-- The kill display's sounds (sound1 when a team 1 member dies, sound2 when a stage enemy does; stage mode only): the path goes
+-- into the match's direct sound queue (as sounds.direct does), which sounds.flush plays in the same tick.
+local kill_sound_known = {}
+local function kill_sound(state, event)
+    if state.mode ~= constants.modes.stage then return end
+    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
+    if not settings or (settings.modes and not settings.modes[state.mode]) then return end
+    if settings.ids[event.victim_id or -1] or settings.ids[event.killer_id or -1] then return end
+    local path = event.victim_team == 1 and settings.sound1 or event.victim_team == constants.teams.enemies and settings.sound2 or nil
+    if not path then return end
+    if kill_sound_known[path] == nil then kill_sound_known[path] = pcall(engine.read_resource, path) end
+    if kill_sound_known[path] then
+        state.direct_sounds = state.direct_sounds or {}
+        state.direct_sounds[#state.direct_sounds + 1] = path
+    end
+end
 local function track_kill(tracker, state, index, value, clock)
     local fx = value.fx
     local by = type(fx) == "table" and fx.killed_by or nil
@@ -152,6 +168,7 @@ local function track_kill(tracker, state, index, value, clock)
         local kind = type(fx.last_killer_type) == "number" and fx.last_killer_type >= 0 and fx.last_killer_type <= 6 and math.floor(fx.last_killer_type) or 0
         tracker.events[#tracker.events + 1] = {born = clock, victim = index, victim_id = value.record.id, victim_team = value.team,
             killer = fx.last_killer, killer_id = killer and killer.record and killer.record.id or nil, killer_team = killer and killer.team or nil, kind = kind}
+        kill_sound(state, tracker.events[#tracker.events])
     end
     tracker.seen[index] = {record = value.record, total = total}
 end
@@ -181,6 +198,8 @@ function screen.snapshot(state, snapshot)
             local fx = value.fx
             entry.combo = type(fx) == "table" and fx.combo or 0
             entry.combo_age = type(fx) == "table" and fx.combo_age or 0
+            entry.combo_victim = type(fx) == "table" and type(fx.combo_victim) == "number" and fx.combo_victim or nil
+            entry.over_combo, entry.over_combo_age = nil, nil
             entry.lives = value.lives
             track_kill(tracker, state, index, value, clock)
             -- I10: state 20/21 hide the object. The frame tag center_z corrects the z the drawing order uses by
@@ -214,6 +233,21 @@ function screen.snapshot(state, snapshot)
             position = position - 1
         end
         order[position] = entry
+    end
+    -- Combo facing 0 (above the victim): the victim of a running combo (fx.combo_victim, AI 3; nil without it) carries its hits.
+    for index = 1, count do
+        local attacker = order[index]
+        if type(attacker.combo) == "number" and attacker.combo >= 2 and attacker.combo_victim then
+            for other = 1, count do
+                local victim = order[other]
+                if victim.index == attacker.combo_victim then
+                    if not victim.over_combo or (attacker.combo_age or 0) < victim.over_combo_age then
+                        victim.over_combo, victim.over_combo_age = attacker.combo, attacker.combo_age or 0
+                    end
+                    break
+                end
+            end
+        end
     end
     local events = tracker.events
     while #events > kill_max_events or (events[1] and clock - events[1].born > kill_max_age) do table.remove(events, 1) end
@@ -409,9 +443,11 @@ local combo_settings
 local combo_known = {}
 local function draw_combo(context, entry, frame, camera, shake)
     local settings = combo_settings
-    if not settings or settings.facing ~= 1 then return end
-    local hits = entry.combo
-    if type(hits) ~= "number" or hits < 2 or (entry.combo_age or 0) >= settings.times then return end
+    if not settings or (settings.facing ~= 1 and settings.facing ~= 0) then return end
+    -- facing 1: above the attacker (its own count); facing 0: above the victim (the count of the combo on it).
+    local hits, age = entry.combo, entry.combo_age or 0
+    if settings.facing == 0 then hits, age = entry.over_combo, entry.over_combo_age or 0 end
+    if type(hits) ~= "number" or hits < 2 or age >= settings.times then return end
     if combo_known[settings.pic] == nil then combo_known[settings.pic] = pcall(engine.read_resource, settings.pic) end
     if not combo_known[settings.pic] then return end
     local text = (settings.name:gsub("%%d", tostring(math.floor(hits))))
@@ -429,7 +465,7 @@ end
 -- (as over the head: "P1", "Com"), with the character's name after it when caughtact / catchingact are 1, in the team's font when
 -- arest / vrest are 1; pickedact / pickingact write it backwards, here: ending at x. [BELUM PASTI] all positions and anchors,
 -- the picture's vertical place (same y as the text), `respond` as the row limit, backwards = right aligned, and that the host
--- draws the PNG pictures (sprite\\kill\\*.png). Sounds (sound1, sound2) are not played.
+-- draws the PNG pictures (sprite\\kill\\*.png). The sounds are played where the kill is noticed (kill_sound).
 local fighter_names
 local function character_name(id)
     if not fighter_names then
@@ -874,6 +910,18 @@ local function draw_effects(context, value, column, row)
     end
 end
 
+-- The nickname of a fighter in its HUD panel (<name> of the data file, readme/dat file/name.txt): `respond` 2 shows it in
+-- offline and online games, 1 only online (this game has no network play: not shown), 0 or none never; at (name_x, name_y)
+-- from the panel's corner, in the team's letters when `team` is 1. The nickname is the player label of the slot ("P1", as
+-- over the head) and "Com" for a computer fighter. [BELUM PASTI] the anchor (panel corner), the font and the text (no
+-- nickname setting exists), and `team` is not in AI 1's tag list yet (read when it appears).
+local function draw_nickname(context, value, own_slot, slot, column, row)
+    local block = type(value.record.display) == "table" and value.record.display.name or nil
+    if type(block) ~= "table" or block.respond ~= 2 or type(block.name_x) ~= "number" or type(block.name_y) ~= "number" then return end
+    local text = own_slot and controls.name(slot) or "Com"
+    glyphs(context, block.team == 1 and label_font(value.team) or "pe/words0", text, column + block.name_x, row + block.name_y, 9)
+end
+
 local function draw_status(context, state, style)
     style = style or fallback_hud
     for slot = 0, (style.slots or 8) - 1 do
@@ -905,6 +953,7 @@ local function draw_status(context, state, style)
             glyphs(context, label_font(value.team), string.char(254), column + flag.x, row + flag.y, 8)
             draw_stats_count(context, state, value, column, row)
             draw_effects(context, value, column, row)
+            draw_nickname(context, value, state.items[slot] ~= nil, slot, column, row)
         end
     end
 end
@@ -939,7 +988,7 @@ local function draw_scoreboard(context, current)
         if value then
             row_y = row_y + 45
             context.image("pe/score_board2", 150, row_y, false)
-            local small = value.record.data.small
+            local small = small_face(value)
             if small then context.image(small:gsub("\\", "/"):lower(), 165, row_y, false) end
             local label = index < 10 and ("P" .. (index + 1) .. " ") or "Com"
             glyphs(context, label_font(value.team), label, 206, row_y + 15, 9)
@@ -1191,7 +1240,8 @@ function screen.draw(state, context, window_bounds)
     draw_scoreboard(wide_center() ~= 0 and shifted(context, wide_center(), 0) or context, current)
     local replaying = current.replay and not current.replay_ended
     if replaying then
-        context.sprite("pe/menu_clip4", {2, 586, 725, 12}, 0x43, 0x216, false)
+        -- The strip ends at the right edge (67 + 725 of 794): in a wider picture it moves with it. [BELUM PASTI]
+        context.sprite("pe/menu_clip4", {2, 586, 725, 12}, 0x43 + wide_gap(), 0x216, false)
         if current.replay_status then replay_lines(context, current) end
     end
     mode_line(context, current, replaying)

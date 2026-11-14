@@ -9,7 +9,7 @@
 --   weak:    hp recovery stops, mp recovery slows (regenerate in match.lua)
 --   confus:  the keys are permuted at random (PDK 0x430e9e; see remap_keys)
 --   mimic:   the victim copies the keys of the fighter that applied it (value.fx.status.mimic_by = that slot)
--- delay ("cannot move fast") is not applied yet: its exact effect is not settled. [UNCERTAIN]
+-- delay ("cannot move fast"): velocity x 0.25 per tick (see st_status.slow).
 local st_constants = require("base/game/st_constants")
 local constants = require("base/game/constants")
 local st_status = {}
@@ -30,6 +30,17 @@ local function is_fighter(value) return value.record.kind == constants.record_ki
 function st_status.no_jump(value) return is_fighter(value) and active(value, "bound") end
 function st_status.no_combos(value) return is_fighter(value) and active(value, "manacle") end
 function st_status.weak(value) return is_fighter(value) and active(value, "weak") end
+
+-- delay ("slow", readme: "cannot move quickly for some time"; PDK 0x413e88): while it lasts the velocity is multiplied by 0.25 once per tick,
+-- vx, vy and vz. It runs after the control step has set this tick's walking or running speed and before the position moves, so a
+-- walking fighter moves at a quarter of its speed and an airborne one loses its speed quickly (0.25 per tick). The timer itself is
+-- AI 3's (fx_status). [BELUM PASTI] PDK also multiplies three per-frame floats (+0x108..+0x110, probably a per-frame displacement)
+-- by the same factor: not done here, our frames have no such tag.
+function st_status.slow(value)
+    if not (is_fighter(value) and active(value, "delay")) then return end
+    local factor = st_constants.delay_factor
+    value.vx, value.vy, value.vz = value.vx * factor, value.vy * factor, (value.vz or 0.0) * factor
+end
 
 -- Multiplier of the mp a move costs.
 function st_status.mp_factor(value)

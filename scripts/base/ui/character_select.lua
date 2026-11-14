@@ -229,12 +229,28 @@ local function chosen_skin(slot)
     if slot.skin and slot.skin_for == slot.fighter then return slot.skin end
     return nil
 end
+-- The sound of changing the skin: `sound:` of the fighter's <skins> (readme/skin system.txt) when the game has that file, else
+-- the menu's "join".
+local sound_known = {}
+local function play_file(state, path)
+    if type(path) ~= "string" then return false end
+    path = path:gsub("\\", "/"):lower()
+    if path == "" then return false end
+    if sound_known[path] == nil then sound_known[path] = pcall(engine.read_resource, path) end
+    if not sound_known[path] then return false end
+    state.direct_sounds = state.direct_sounds or {}
+    state.direct_sounds[#state.direct_sounds + 1] = path
+    return true
+end
+local function skin_sound(state, info)
+    if not play_file(state, info.skins.sound) then sounds.direct(state, "join") end
+end
 local function next_skin(state, slot)
     if state.mode == constants.modes.championship or state.mode == constants.modes.team_championship then return end
     local info = skins_of(state.fighters[slot.fighter])
     if not info then return end
     slot.skin, slot.skin_for = (chosen_skin(slot) or 1) % info.count + 1, slot.fighter
-    sounds.direct(state, "join")
+    skin_sound(state, info)
 end
 local function skin_picture(fighter, slot, key)
     local index = chosen_skin(slot)
@@ -318,7 +334,91 @@ local function empty_slot(state, index, slot, keys, col, row, all_empty)
     end
 end
 
-local function fighter_slot(state, slot, keys)
+
+-- The transformation grid (<phase> of the character's data, readme/dat file/phase.txt): pressing A on a fighter that has one
+-- opens a grid of the fighters whose ids the block lists (t0 ids; those the game has and that may be picked); the arrows
+-- move, A takes the fighter and goes on as a plain confirm, J closes it. `respond` as `hidden`: 0 always, 1 to 3 once the
+-- characters are unlocked by the cheat, 4 and 10 or more never. Placed from the slot's corner: the base picture `pic` at
+-- (pic_x, pic_y), the cells (the small faces) from (start_x, start_y) every centerx and centery, `row` rows, a box w by h
+-- of colour `rect` round the one chosen (`bound` 1 blinking, 2 steady); sound1 on opening, sound2 on closing.
+-- [BELUM PASTI] the anchor, the order of the cells (row by row), `oid`, `hidden`, `caughtact`, `pickedact`, D for the skin.
+local phase_cache = {}
+local function phase_of(fighter)
+    if not fighter or type(fighter.path) ~= "string" then return nil end
+    local cached = phase_cache[fighter.path]
+    if cached == nil then
+        local ok, data = pcall(object_data.load, fighter.path)
+        local block = ok and type(data) == "table" and data.phase or nil
+        cached = type(block) == "table" and type(block.ids) == "table" and #block.ids > 0 and block or false
+        phase_cache[fighter.path] = cached
+    end
+    return cached or nil
+end
+local function open_phase_grid(state, slot)
+    local block = phase_of(state.fighters[slot.fighter])
+    if not block then return nil end
+    local respond = block.respond or 0
+    local unlocked = require("base/game/unlock").flags.characters == 1
+    if respond ~= 0 and not (unlocked and respond >= 1 and respond <= 3) then return nil end
+    local cells = {}
+    for _, id in ipairs(block.ids) do
+        for position, fighter in ipairs(state.fighters) do
+            if fighter.id == id and catalog.selectable(fighter) then cells[#cells + 1] = position break end
+        end
+    end
+    if #cells == 0 then return nil end
+    local rows = math.max(1, math.floor(block.row or 1))
+    return {block = block, cells = cells, cursor = 1, columns = math.max(1, math.ceil(#cells / rows))}
+end
+local function close_phase_grid(state, slot, take)
+    local grid = slot.phase_grid
+    slot.phase_grid = nil
+    play_file(state, grid.block.sound2)
+    if take then
+        slot.fighter, slot.skin = grid.cells[grid.cursor], nil
+        slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
+        sounds.direct(state, "join")
+    else
+        sounds.direct(state, "cancel")
+    end
+end
+local function phase_grid_slot(state, slot, keys)
+    local grid = slot.phase_grid
+    local function move(delta)
+        local target = grid.cursor + delta
+        if target >= 1 and target <= #grid.cells then grid.cursor = target end
+    end
+    if pressed(keys, "r") then if trigger(slot) then move(1) end
+    elseif pressed(keys, "l") then if trigger(slot) then move(-1) end
+    elseif pressed(keys, "u") then if trigger(slot) then move(-grid.columns) end
+    elseif pressed(keys, "d") then if trigger(slot) then move(grid.columns) end
+    elseif pressed(keys, "c") then if trigger(slot) then close_phase_grid(state, slot, true) end
+    elseif pressed(keys, "b") then if trigger(slot) then close_phase_grid(state, slot, false) end
+    else slot.latched = false end
+end
+local function draw_phase_grid(state, slot, col, row)
+    local grid = slot.phase_grid
+    local block = grid.block
+    local draw = block.transparency == 1 and keyed_image or image
+    if type(block.pic) == "string" then draw(state, (block.pic:gsub("\\", "/"):lower()), col + (block.pic_x or 0), row + (block.pic_y or 0)) end
+    for index, position in ipairs(grid.cells) do
+        local x = col + (block.start_x or 0) + ((index - 1) % grid.columns) * (block.centerx or 0)
+        local y = row + (block.start_y or 0) + math.floor((index - 1) / grid.columns) * (block.centery or 0)
+        local small = state.fighters[position].small
+        if type(small) == "string" then keyed_image(state, small, x, y) end
+        local box = block.bound
+        if index == grid.cursor and (box == 2 or (box == 1 and state.blink % 5 < 3)) then
+            local w, h = block.w or 0, block.h or 0
+            local color = block.rect or 16777215
+            local gray = math.floor((math.floor(color / 65536) % 256 + math.floor(color / 256) % 256 + color % 256) / 3)
+            fill(state, x, y, w, 1, gray); fill(state, x, y + h - 1, w, 1, gray)
+            fill(state, x, y, 1, h, gray); fill(state, x + w - 1, y, 1, h, gray)
+        end
+    end
+end
+
+local function fighter_slot(state, slot, keys, col, row)
+    if slot.phase_grid then phase_grid_slot(state, slot, keys) return end
     if pressed(keys, "r") then
         if trigger(slot) then next_fighter(state, slot) end
     elseif pressed(keys, "l") then
@@ -329,8 +429,14 @@ local function fighter_slot(state, slot, keys)
         if trigger(slot) then next_skin(state, slot) end
     elseif pressed(keys, "c") then
         if trigger(slot) then
-            slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
-            sounds.direct(state, "join")
+            local grid = open_phase_grid(state, slot)
+            if grid then
+                slot.phase_grid = grid
+                if not play_file(state, grid.block.sound1) then sounds.direct(state, "join") end
+            else
+                slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
+                sounds.direct(state, "join")
+            end
         end
     elseif pressed(keys, "b") then
         if trigger(slot) then
@@ -420,7 +526,8 @@ local function slots_pass(state, held)
         if slot.phase == slot_phases.empty and state.menu == menus.human_slots then empty_slot(state, index, slot, keys, col, row, all_empty) end
         if slot.phase == slot_phases.choosing_fighter then
             draw_fighter(state, slot, col, row, blink_color(state))
-            fighter_slot(state, slot, keys)
+            fighter_slot(state, slot, keys, col, row)
+            if slot.phase_grid then draw_phase_grid(state, slot, col, row) end
         end
         if slot.phase == slot_phases.choosing_team then
             draw_fighter(state, slot, col, row, white)

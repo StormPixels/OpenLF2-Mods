@@ -154,10 +154,16 @@ struct Movement {
     std::optional<double> rowing_height, rowing_distance;
 };
 
-// <weapon_piece>: `team` plus up to five numbered pieces.
+// <weapon_piece>: `team` plus up to five numbered groups. Every `piece: N` block with the same N adds an entry to group N
+// (up to 5 entries); the group's amount is the sum of all `amount:` tags in it (as PDK.exe does, per AI3's reading).
+inline constexpr std::size_t max_piece_entries = 5;
+struct PieceGroup {
+    std::vector<Extras> entries; // act, framea, dvx, dvy, dvz, oid
+    std::optional<std::int64_t> amount;
+};
 struct WeaponPiece {
     Extras fields;
-    std::array<std::optional<Extras>, 5> pieces;
+    std::array<PieceGroup, 5> groups;
 };
 // <pic>: `random`, `sound` and up to ten skins.
 inline constexpr std::size_t max_skins = 10;

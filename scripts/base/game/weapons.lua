@@ -2,6 +2,7 @@
 -- Copyright (c) 2026 OpenLF2 contributors
 
 local constants = require("base/game/constants")
+local fx_constants = require("base/game/fx_constants")
 local record_kinds = constants.record_kinds
 local objects = require("base/game/objects")
 local catalog = require("base/game/catalog")
@@ -292,12 +293,58 @@ local function debris_frame(id, piece, debris)
     return nil
 end
 
+-- Darkfiren <weapon_piece> (readme dat file/weapon piece.txt; the developer states it is the same code as PDK/Neora): up to five
+-- groups, each `amount` pieces of object `oid` (0 / nil = 999, broken_weapon.dat) with a random frame act .. act + framea - 1 and a
+-- random speed x in [-dvx, dvx], z in [-dvz, dvz], y in [dvy, 0]. [BELUM PASTI] (named / one place): framea 0 = only the act frame,
+-- amount is a fixed count (the docs say "can appear"), all groups are made, the integer steps of the random speeds, and `team`
+-- (1 = pieces bound to the weapon's command) is not used. Weapons without the block
+-- keep the hardcoded pieces below, exactly as before.
+local function has_pieces(groups)
+    if not groups then return false end
+    for number = 1, 5 do if groups[number] then return true end end
+    return false
+end
+
+local function scatter_pieces(state, value, groups)
+    local config = fx_constants.weapon_piece
+    for number = 1, 5 do
+        local group = groups[number]
+        if group then
+            -- PDK keeps `amount` per GROUP (the sum of its amount: tags) and up to five entries per group; every piece picks one entry
+            -- at random (the PDK reader's reading, [BELUM PASTI]). The parser may give the entries in group.entries; without it the
+            -- group itself is the only entry.
+            local entries = (group.entries and #group.entries > 0) and group.entries or {group}
+            for _ = 1, group.amount or 0 do
+                local slot = objects.free_slot(state)
+                if slot == -1 then return end
+                local entry = entries[random(#entries) + 1]
+                local oid = (entry.oid and entry.oid ~= 0) and entry.oid or object_ids.broken_weapon
+                local debris = objects.place(state, slot, oid)
+                if not debris then return end
+                debris.x_int = random(7) - 3 + value.x_int
+                debris.y_int = random(7) - 3 + value.y_int
+                debris.z_int = value.z_int
+                debris.z, debris.y, debris.x = debris.z_int, debris.y_int, debris.x_int
+                local dvx, dvy, dvz = math.abs(entry.dvx or 0), entry.dvy or 0, math.abs(entry.dvz or 0)
+                debris.vx = random(2 * dvx + 1) - dvx + 0.0
+                debris.vz = random(2 * dvz + 1) - dvz + 0.0
+                debris.vy = (dvy < 0 and -1 or 1) * random(math.abs(dvy) + 1) + 0.0
+                local frames = (entry.framea and entry.framea > 0) and entry.framea or config.default_frames
+                local frame = (entry.act or 0) + random(frames)
+                if debris.record.frames[frame] then debris.frame = frame end
+            end
+        end
+    end
+end
+
 function weapons.break_apart(state, index, value)
     if not is_weapon(value.record.kind) or value.drop_counter >= 0 then return false end
     value.drop_counter = 0
     local id = value.record.id
     sounds.item(state, value.x_int, value.record.data.weapon.broken_sound, value.record.id)
-    for piece = 0, (debris_count[id] or 0) - 1 do
+    local groups = value.record.data.weapon_piece
+    if has_pieces(groups) then scatter_pieces(state, value, groups) end
+    for piece = 0, (has_pieces(groups) and 0 or (debris_count[id] or 0)) - 1 do
         local slot = objects.free_slot(state)
         if slot == -1 then break end
         local debris = objects.place(state, slot, constants.object_ids.broken_weapon)
