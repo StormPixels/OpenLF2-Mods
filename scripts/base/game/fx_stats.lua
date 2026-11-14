@@ -5,6 +5,7 @@
 --   fx.killed_by    = {[killer slot] = how many times this object was killed by that slot}
 --   fx.last_killer  = slot that dealt the killing blow (nil when none)
 --   fx.last_killer_type = record kind (0..6) of the object that actually dealt it: 0 character, 1 light weapon, 3 ball, ... (nil when unknown)
+--   fx.combo_victim = slot (state.items index) of the last victim of the running combo; fx.hits = total counted hits made (nil until the first)
 --   fx.deaths       = deaths recorded through record_kill (counted hits, poison, grabs), also when the killer is unknown; deaths that do not
 --                     pass through record_kill (e.g. an uncounted hit) are not seen [BELUM PASTI]; nil until the first death
 --   fx.combo        = running number of hits this object (as an attacker) landed in a row, 0 when none
@@ -55,7 +56,7 @@ end
 -- A hit that landed (not defended) on an enemy character counts toward its owner's combo.
 -- Rules from <combo>: effect (who is counted), caughtact = 1 (hits dealt while catching count; `catching` is true
 -- for those), respond (see tick). A hit by a clone counts for its creator because a clone's owner is the creator.
-function fx.hit(state, attacker, victim, catching)
+function fx.hit(state, attacker, victim, catching, victim_index)
     local owner = state.items[attacker.owner]
     if not owner or owner.record.kind ~= constants.record_kinds.character then return end
     if victim.record.kind ~= constants.record_kinds.character or victim == owner then return end
@@ -66,6 +67,8 @@ function fx.hit(state, attacker, victim, catching)
     local extra = extra_of(owner)
     extra.combo = (extra.combo or 0) + 1
     extra.combo_age = 0
+    extra.combo_victim = victim_index -- slot of the last victim in state.items (nil when the caller does not know)
+    extra.hits = (extra.hits or 0) + 1 -- total counted hits made (HUD stats_count type 38)
 end
 
 -- Once per tick for each object: ages the combo and drops it after `respond` ticks (mode.dat <combo>, else
@@ -78,7 +81,7 @@ function fx.tick(value)
         local rules = combo_rules()
         local limit = rules and rules.respond or fx_constants.combo_reset_ticks
         if age > limit then
-            extra.combo, extra.combo_age = 0, 0
+            extra.combo, extra.combo_age, extra.combo_victim = 0, 0, nil
         else
             extra.combo_age = age
         end
@@ -90,7 +93,7 @@ function fx.reset(value)
     local extra = value.fx
     if extra then
         extra.killed_by, extra.last_killer, extra.last_killer_type, extra.combo, extra.combo_age = {}, nil, nil, 0, 0
-        extra.deaths = nil
+        extra.deaths, extra.combo_victim, extra.hits = nil, nil, nil
     end
 end
 -- <stats> of an object's own data file (readme "dat file/stats.txt"), read from record.data.stats. The tags below belong to combat

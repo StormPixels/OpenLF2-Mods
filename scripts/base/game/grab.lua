@@ -180,7 +180,7 @@ function grab.place_victims(state)
                         target.hp_spent = target.hp_spent + damage
                         if owner then owner.damage_dealt = owner.damage_dealt + damage end
                         battle.count_damage(state, target, damage)
-                        fx_stats.hit(state, holder, target, true)
+                        fx_stats.hit(state, holder, target, true, holder.catching)
                         fx_point.cpoint_hit(holder, target, hit)
                     else
                         target.hp = target.hp + hit.injury

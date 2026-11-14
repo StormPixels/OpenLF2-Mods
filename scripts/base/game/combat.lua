@@ -1265,7 +1265,7 @@ function combat.apply(state, p)
                             -- decrease: damage to the (held) weapon itself; the weapon breaks when its HP (drop_counter) runs out
                             attacker.drop_counter = attacker.drop_counter - itr.decrease
                         end
-                        if not defended then fx_stats.hit(state, attacker, victim) end
+                        if not defended then fx_stats.hit(state, attacker, victim, nil, v) end
                         local shown = itr
                         if rule and rule.absorb and rule.def.spark ~= nil then shown = copy_itr(itr) shown.spark = rule.def.spark end
                         if shown.spark ~= -1 then record_spark(state, p, v, attacker, victim, shown, spark_kind) end
