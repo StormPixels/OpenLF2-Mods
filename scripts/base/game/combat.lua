@@ -65,6 +65,7 @@ local fx_itr = require("base/game/fx_itr")
 local fx_body = require("base/game/fx_body")
 local fx_status = require("base/game/fx_status")
 local fx_stats = require("base/game/fx_stats")
+local stage_damage = require("base/game/stage_damage") -- HOOK(AI5): stage damage modifier (dmg.dat)
 local armor = require("base/game/armor")
 local fx_constants = require("base/game/fx_constants")
 local timestop = require("base/game/timestop")
@@ -122,7 +123,11 @@ end
 -- LF2 Darkfiren background modes (game/bg_modes.lua): `hurtable` friendly fire / no damage, `gain_mp_a/v`.
 -- With no damage the summary box still counts the damage a hit would have done.
 -- <stats> attacking / defend (fx_stats.stat_damage); tolerant of a stubbed fx_stats
-local function stat_scaled(attacker, victim, damage) return fx_stats.stat_damage(attacker, victim, damage) or damage end
+-- HOOK(AI5): the stage's dmg.dat modifier applies to the damage after the <stats> scaling (stage_damage.apply; nil rules = unchanged)
+local function stat_scaled(state, attacker, victim, damage)
+    local scaled = fx_stats.stat_damage(attacker, victim, damage) or damage
+    return stage_damage.apply(state, attacker, victim, scaled) or scaled
+end
 
 local function dealt(state, damage)
     if bg_modes.no_damage(state.bg_mode) then return 0 end
@@ -546,7 +551,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
     if complex and (complex.chance == 0 or engine.random(100) < complex.chance) then
         if complex.take_team then victim.team = attacker.team end
         if complex.damage then
-            local applied = dealt(state, stat_scaled(attacker, victim, itr.injury))
+            local applied = dealt(state, stat_scaled(state, attacker, victim, itr.injury))
             victim.hp = victim.hp - applied
             victim.dark_hp = victim.dark_hp + cdiv(applied, -damage_dark_hp_divisor)
             victim.hp_spent = victim.hp_spent + applied
@@ -558,7 +563,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
         return "skip"
     end
     if victim_kind ~= record_kinds.drink then
-        local damage = armor.scaled_damage(rule, fx_status.weak_damage(attacker, stat_scaled(attacker, victim, itr.injury)))
+        local damage = armor.scaled_damage(rule, fx_status.weak_damage(attacker, stat_scaled(state, attacker, victim, itr.injury)))
         if victim.armor > 0 then damage = cdiv(damage * 100, victim.armor) end
         local counted = victim_kind == record_kinds.character and victim.follow == -1
         local applied = dealt(state, damage)
@@ -765,7 +770,7 @@ local function defended_hit(state, p, attacker, victim, itr, rule)
     else
         sounds.effect(state, victim.x_int, 1, victim.record.id)
     end
-    local base = stat_scaled(attacker, victim, itr.injury)
+    local base = stat_scaled(state, attacker, victim, itr.injury)
     if victim.armor > 0 then base = cdiv(base * 100, victim.armor) end
     local damage = armor.absorbed_damage(rule, base) or cdiv(base, 10)
     local applied = dealt(state, damage)
@@ -1046,7 +1051,7 @@ end
 -- Itr kind 16 (freezing whirlwind): armor-scaled damage, frozen frame 200, vrest, drops a
 -- heavy item.
 local function freeze_hit(state, p, v, attacker, victim, itr)
-    local damage = stat_scaled(attacker, victim, itr.injury)
+    local damage = stat_scaled(state, attacker, victim, itr.injury)
     if victim.armor > 0 then damage = cdiv(damage * 100, victim.armor) end
     local owner = state.items[attacker.owner]
     local applied = dealt(state, damage)

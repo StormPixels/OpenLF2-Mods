@@ -2,8 +2,8 @@
 -- Copyright (c) 2026 OpenLF2 contributors
 
 -- Parsed data of LF2 Darkfiren's kind.dat (ball transformation), fusion.dat (type 0 fusion) and the stage damage
--- modifier file (`<stage_dmg_dec>` blocks, data\stage\dmg.dat). Only the data is provided here; applying it in
--- a fight belongs to the combat and state modules. Kept compatible with Lua 5.1/LuaJIT.
+-- modifier file (`<stage_dmg_dec>` blocks, data\stage\dmg.dat). Only the data is provided here; applying it is
+-- stage_damage.lua (rules kept in state.stage_damage_rules by stage.lua, one hook in combat.lua). Kept compatible with Lua 5.1/LuaJIT.
 local sd_text = require("base/game/sd_text")
 local sd_global = {}
 
@@ -75,8 +75,8 @@ function sd_global.parse_fusions(text)
 end
 
 -- `<stage_dmg_dec>` blocks (up to 50): `decrease:` the damage percentage (negative is not allowed, so it is
--- clamped to 0), `team:` (1..5 in the readme; the shipped file uses 6), `bound:` 0/1 (1: friendly fire follows the
--- decrease), and `type:` / `id:` lists (up to 100 each). Result: {{decrease = 50, team = 1, bound = 1,
+-- clamped to 0), `team:` (1..5 in the readme; the shipped file uses 6), `bound:` 0/1 (the readme says 1: friendly fire follows the
+-- decrease; the exe code as read does the opposite, see stage_damage.lua), and `type:` / `id:` lists (up to 100 each). Result: {{decrease = 50, team = 1, bound = 1,
 -- types = {[0] = true, [3] = true}, ids = {}}, ...}.
 function sd_global.parse_damage_rules(text)
     local rules = {}

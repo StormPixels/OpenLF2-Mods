@@ -69,6 +69,7 @@ struct Stage {
     std::int32_t mode = 0;           // background mode
     std::int32_t respond = 0;        // 1-3: area beyond the bound blacked out
     std::int32_t hex = -1;           // colour of the name
+    std::string file;                // `file:` (header of the stage): the damage-modifier file, `data\stage\dmg.dat`; empty when absent
     std::optional<std::int32_t> max_clones; // `max:` -1 removes the clones when passing on, N caps them (default 2)
 };
 

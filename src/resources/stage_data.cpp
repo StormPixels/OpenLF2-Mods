@@ -82,6 +82,12 @@ private:
                 else if (word_ == "respond:") read_int(stage.respond);
                 else if (word_ == "hex:") read_int(stage.hex);
                 else if (word_ == "max:") { std::int32_t cap = 0; read_int(cap); stage.max_clones = cap; }
+                else if (word_ == "file:") {
+                    // The modifier file of the stage (LF2 Darkfiren, `<stage_dmg_dec>` blocks): one path word.
+                    next_in("<stage>");
+                    if (plain_word(word_)) stage.file = word_;
+                    else note("`file:` expects a path; value left unchanged");
+                }
             }
             if (word_ == "id:") {
                 std::int32_t id = current_;
@@ -327,6 +333,7 @@ ScriptValue to_script_value(const StageList& list) {
                                  {"facing", integer(list.stages[id]->facing)}, {"mode", integer(list.stages[id]->mode)},
                                  {"respond", integer(list.stages[id]->respond)}, {"hex", integer(list.stages[id]->hex)}};
         if (list.stages[id]->max_clones) set_field(stage_fields, "max", integer(*list.stages[id]->max_clones));
+        if (!list.stages[id]->file.empty()) set_field(stage_fields, "file", ScriptValue{list.stages[id]->file});
         set_field(stages, static_cast<std::int32_t>(id), ScriptValue{std::move(stage_fields)});
     }
     ScriptTable diagnostics;

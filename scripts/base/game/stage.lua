@@ -10,6 +10,7 @@ local sounds = require("base/game/sounds")
 local speed = require("base/game/speed")
 local music = require("base/game/music")
 local stage_levels = require("base/game/stage_levels")
+local sd_global = require("base/game/sd_global")
 local stage = {}
 
 local function cdiv(a, b)
@@ -349,6 +350,13 @@ function stage.update(state, run)
     -- Slots (indices of state.items) of the live bosses, for AI4's bossbar: run.boss_slots in entry order, run.boss_slot the first (nil
     -- with none). Refilled every tick under the same rule as boss_alive, so they are empty the tick after the boss leaves state.items.
     run.boss_slots, run.boss_slot = {}, nil
+    -- Stage damage modifier (LF2 Darkfiren, `file:` in the stage header = data\stage\dmg.dat): its rules are kept in
+    -- state.stage_damage_rules for stage_damage.apply (the hook in combat.lua). Loaded once per run; data that is not attached yet is retried.
+    if not run.damage_rules and data.file and data.file ~= "" then
+        local rules = sd_global.damage_rules(data.file)
+        if #rules > 0 then run.damage_rules = rules end
+    end
+    state.stage_damage_rules = run.damage_rules
     if run.phase >= 0 then
         local entries = phase_data(run, run.phase).entries
         local runtimes = run.runtime[run.phase] or {}

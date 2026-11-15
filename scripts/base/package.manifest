@@ -45,6 +45,7 @@ module=game/unlock|game/unlock.lua
 module=game/merge|game/merge.lua
 module=game/options|game/options.lua
 module=game/stage|game/stage.lua
+module=game/stage_damage|game/stage_damage.lua
 module=game/battle|game/battle.lua
 module=ui/battle_setup|ui/battle_setup.lua
 module=ui/championship|ui/championship.lua
