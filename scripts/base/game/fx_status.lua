@@ -13,7 +13,10 @@ local fx = {}
 
 -- UNCERTAIN (docs/darkfiren/ai3_interactions.md): the notes' examples contradict their own
 -- explanation (section 20.2). Decisions, all easy to change here:
-fx.poison_interval = 60  -- frames between poison ticks ("50 HP per 2 seconds" at 30 frames a second)
+fx.poison_interval = 32  -- PDK.exe (AI 2's PDK reader, [KODE] 0x40deac-0x40debb): while the victim's HP > 0 the timer drops by 1 per tick; when the NEW value is
+-- still positive and (value & 0x1f) == 0 a poison tick happens. So the phase follows the timer value (the first tick comes after ((T - 1) mod 32) + 1 frames,
+-- later ones every 32; floor((T - 1) / 32) ticks in all; T = 300 gives 9), and a new hit simply overwrites the timer. [DUGAAN] the PDK upkeep runs at the start
+-- of the next tick, ours at the end of the hit's tick (reset_lists): the HP drop shows in the next tick's snapshot either way.
 fx.timed = {"manacle", "delay", "confus", "weak", "join", "mimic", "bound", "facing"}
 local only_characters = {weak = true, join = true, mimic = true}
 
@@ -59,7 +62,7 @@ function fx.apply(attacker, victim, itr, defended, random)
     if itr.poison and itr.poison ~= 0 then
         local poison = fx.parse_poison(itr.poison)
         if poison.duration > 0 and rolled(poison.chance, random) then
-            bag(victim).poison = {kind = poison.kind, timer = poison.duration, amount = poison.amount, next = fx.poison_interval,
+            bag(victim).poison = {kind = poison.kind, timer = poison.duration, amount = poison.amount,
                 by = attacker.owner}
         end
     end
@@ -116,10 +119,9 @@ function fx.update(state, slots)
             local poison = status.poison
             if poison then
                 poison.timer = poison.timer - 1
-                poison.next = poison.next - 1
-                if poison.next <= 0 then
-                    poison.next = fx.poison_interval
-                    local damage = poison_damage(value, poison)
+                if poison.timer > 0 and poison.timer % fx.poison_interval == 0 then
+                    -- PDK stops the poison damage once the victim is dead (HP <= 0); the timers keep counting down (statuses are not cleared on a new life).
+                    local damage = value.hp > 0 and poison_damage(value, poison) or 0
                     if damage > 0 then
                         local before = value.hp
                         value.hp = value.hp - damage

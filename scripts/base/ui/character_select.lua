@@ -462,8 +462,9 @@ local function open_phase_grid(state, slot)
         cells, locked = reordered, reordered_locked
     end
     if #cells == 0 then return nil end
-    local rows = math.max(1, math.floor(block.row or 1))
-    return {block = block, cells = cells, locked = locked, cursor = 1, columns = math.max(1, math.ceil(#cells / rows)),
+    -- `row` is the number of cells in a row: louis.dat has `row: 2` with two 40 x 45 cells side by side (centerx 45) in frame2.bmp
+    -- (96 x 54); frame4.bmp (148 x 54) fits three, frame.bmp (198 x 54) four, frame3.bmp (96 x 105) two rows of two.
+    return {block = block, cells = cells, locked = locked, cursor = 1, columns = math.max(1, math.floor(block.row or 1)),
         skin = chosen_skin(slot)}
 end
 local function confirm_after_phase(state, slot)
@@ -1758,15 +1759,12 @@ local function small_background(state)
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
     local gap = popup_gap(state)
-    -- BG_FRAME is the frame of the preview (Darkfiren: the base image). The mode's `pic` (MENU_CLIP2b) is drawn at the same place
-    -- and would cover it, so it is only the frame when there is no BG_FRAME. [BELUM PASTI] that `pic` is never meant to go on top
-    -- of BG_FRAME; the resource is looked for as a file and, as the original keeps it, in the game's resources (resource.dat).
-    local frame
+    -- BG_FRAME (260 x 144 in the game) is the frame of the preview and the background's picture (BG_RANDOM: 246 x 127) sits 7 pixels in.
+    -- The mode's `pic` (MENU_CLIP2b, 704 x 353) is a sheet of menu pictures, not a frame: it is not drawn here. The resource is
+    -- looked for as a file and, as the original keeps it, in the game's resources (resource.dat).
     for _, base in ipairs({"sprite/ui/bg_frame.bmp", "pe/bg_frame"}) do
-        if grid_has(base) then frame = base break end
+        if grid_has(base) then image(state, base, misc.frame_x + gap, misc.frame_y) break end
     end
-    if not frame and grid_has(misc.frame_pic) then frame = misc.frame_pic end
-    if frame then image(state, frame, misc.frame_x + gap, misc.frame_y) end
     image(state, picture, misc.small_x + gap, misc.small_y)
 end
 

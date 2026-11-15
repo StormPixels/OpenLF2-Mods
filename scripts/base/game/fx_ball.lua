@@ -3,7 +3,7 @@
 
 -- LF2 Darkfiren state 3007 (readme frame/new states.txt, "NEW state 3007"): an energy ball (record kind 3) with its own HP.
 -- Works only with kind 3. The HP comes from the opoint `hp:` tag (fx_point.lua; 500 when absent) and the ball takes damage from
--- itr hits; below zero it goes to the frame named by hit_d. Two frame tags work with this state:
+-- itr hits; at zero or below it goes to the frame named by hit_d. Two frame tags work with this state:
 --   attacking: 1 = destroyed directly on hitting kind 0 and kind 2, 2 = only kind 0, 3 = only kind 2
 --   cover:     1 = a defending kind 0 forces the ball to its destroyed frame, 2 = a defending kind 0 rebounds it like state 3000
 -- Everything is nil-safe: a ball without state 3007 is never touched. Guesses are named in fx_constants.hp_ball [BELUM PASTI].
@@ -32,7 +32,7 @@ fx_ball.in_state = in_state
 -- After an itr hit took its damage: the ball is destroyed when its HP fell below the limit.
 function fx_ball.struck(ball)
     if not in_state(ball) then return false end
-    if ball.hp < fx_constants.hp_ball.destroy_below then destroy(ball) return true end
+    if ball.hp <= fx_constants.hp_ball.destroy_at_or_below then destroy(ball) return true end
     return false
 end
 

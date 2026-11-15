@@ -43,6 +43,11 @@ end
 -- title) to the middle and the right ones to the right edge; the banners lower down (the stage clear and GO pictures) go to the
 -- middle, except the GO arrow at the right edge (x >= 600). [BELUM PASTI] the thresholds; they read the classic coordinates, so
 -- they only serve a command without an anchor.
+-- PAUSE.bmp and DEMO.bmp are 84 x 23: the game puts them at x 360 (the middle would be 355); in a wider picture they are put in its middle.
+local function centered_x()
+    if wide_gap() == 0 then return 0x168 end
+    return math.floor((constants.screen.width + wide_gap() - 84) / 2)
+end
 local function stage_dx(x, y, anchor)
     local gap = wide_gap()
     if gap == 0 then return 0 end
@@ -857,8 +862,7 @@ local function count_value(value, kind)
     for name, number in pairs(status_names) do if number == kind then return status_timer(value, name) end end
     return nil
 end
-local function draw_stats_count(context, state, value, column, row)
-    local counts = type(value.record.display) == "table" and value.record.display.stats_count or nil
+local function draw_stats_count(context, state, value, column, row, counts)
     if type(counts) ~= "table" then return end
     for index = 1, math.min(#counts, 10) do
         local count = counts[index]
@@ -881,7 +885,9 @@ local function draw_stats_count(context, state, value, column, row)
                 if count.type ~= 18 and count.type ~= 19 and type(count.pic) == "number" and count.pic >= 0 and count.pic <= 5 then
                     sheet = "pe/words" .. math.floor(count.pic)
                 end
-                glyphs(context, sheet, text, column + count.x - (right and #text * 9 or 0), row + count.y, 9)
+                -- `loop` is the distance between two letters (8 or 9; ignored by the types 14, 18 and 19, which use 9).
+                local advance = count.type ~= 14 and count.type ~= 18 and count.type ~= 19 and type(count.loop) == "number" and count.loop >= 1 and count.loop or 9
+                glyphs(context, sheet, text, column + count.x - (right and #text * advance or 0), row + count.y, advance)
             end
         end
     end
@@ -897,9 +903,7 @@ local function effect_on(value, kind)
     local name = status_by_effect[kind]
     return name and status_timer(value, name) or 0
 end
-local function draw_effects(context, value, column, row, tick)
-    local block = type(value.record.display) == "table" and value.record.display.effect or nil
-    local layers = type(block) == "table" and block.layers or nil
+local function draw_effects(context, value, column, row, tick, layers)
     if type(layers) ~= "table" then return end
     for _, layer in ipairs(layers) do
         local timer = effect_on(value, layer.type)
@@ -931,8 +935,7 @@ end
 -- from the panel's corner, in the team's letters when `team` is 1. The nickname is the player label of the slot ("P1", as
 -- over the head) and "Com" for a computer fighter. [BELUM PASTI] the anchor (panel corner), the font and the text (no
 -- nickname setting exists), and `team` is not in AI 1's tag list yet (read when it appears).
-local function draw_nickname(context, value, own_slot, slot, column, row)
-    local block = type(value.record.display) == "table" and value.record.display.name or nil
+local function draw_nickname(context, value, own_slot, slot, column, row, block)
     if type(block) ~= "table" or block.respond ~= 2 or type(block.name_x) ~= "number" or type(block.name_y) ~= "number" then return end
     local text = own_slot and controls.name(slot) or "Com"
     glyphs(context, block.team == 1 and label_font(value.team) or "pe/words0", text, column + block.name_x, row + block.name_y, 9)
@@ -967,9 +970,11 @@ local function draw_status(context, state, style)
             local own_flag = type(value.record.display) == "table" and value.record.display.team_flag or nil
             local flag = type(own_flag) == "table" and type(own_flag.x) == "number" and type(own_flag.y) == "number" and own_flag or style.team_flag
             glyphs(context, label_font(value.team), string.char(254), column + flag.x, row + flag.y, 8)
-            draw_stats_count(context, state, value, column, row)
-            draw_effects(context, value, column, row, state.elapsed)
-            draw_nickname(context, value, state.items[slot] ~= nil, slot, column, row)
+            -- A character's own blocks replace the style's (the HUD style file: ui_hud.parse).
+            local own = type(value.record.display) == "table" and value.record.display or {}
+            draw_stats_count(context, state, value, column, row, own.stats_count or style.stats_count)
+            draw_effects(context, value, column, row, state.elapsed, own.effect and own.effect.layers or style.effect)
+            draw_nickname(context, value, state.items[slot] ~= nil, slot, column, row, own.name or style.name)
         end
     end
 end
@@ -995,13 +1000,16 @@ local function draw_scoreboard(context, current, summary)
         end
     end
     local battle_run = current.battle_run
-    -- Ten rows would pass the screen (10 * 45 + 93 = 543, with the battle lines 588): the rows then come closer, overlapping the
-    -- padding of the row pictures a little, to fit in 530. [BELUM PASTI] how much a row picture may be covered (down to 30).
+    -- The pictures are 61 (head) + 45 (row) * players + 32 (foot) high, 138 for the battle lines (80 + 45). Ten rows pass the 530 the
+    -- table is centred in (543, with the battle lines 588): it then takes the whole 550 of the canvas (543 fits, top 3) and, if it
+    -- still does not (battle: 588), the rows come closer to 41 (down to 30), overlapping the row pictures a little. [BELUM PASTI]
     local fixed = battle_run and 138 or 93
+    local available = 530
+    if players * 45 + fixed > available then available = constants.screen.height end
     local step = 45
-    if players * 45 + fixed > 530 then step = math.max(30, math.floor((530 - fixed) / players)) end
+    if players * 45 + fixed > available then step = math.max(30, math.floor((available - fixed) / players)) end
     local height = players * step + fixed
-    local top = math.floor((530 - height) / 2)
+    local top = math.floor((available - height) / 2)
     local row_y = top + 16
     context.image("pe/score_board1", 150, top, false)
     for slot = 0, slot_total - 1 do
@@ -1277,7 +1285,7 @@ function screen.draw(state, context, window_bounds)
         local summary = summary_possible(view, current) and not state.summary_hidden
         if summary then draw_scoreboard(wide_center() ~= 0 and shifted(context, wide_center(), 0) or context, current, true) end
         -- With the summary box up the pause picture goes to the top so that it does not cover the table.
-        context.image("pe/pause", 360 + wide_center(), summary and 6 or 288, true)
+        context.image("pe/pause", centered_x(), summary and 6 or 288, true)
         return
     end
     -- After the end loop: the demo's exit hint and DEMO picture, or the function-key line (GDI
@@ -1285,7 +1293,7 @@ function screen.draw(state, context, window_bounds)
     if current.random_game then
         font.gdi(context, i18n.tr("Press F4 or 'Attack' to exit"), 0x262 + wide_gap(), 0x6e, 0x7d7d7d)
         font.gdi(context, "http://www.LittleFighter.com", 5, 0x6e, 0xc8c8c8)
-        context.image("pe/demo", 0x168 + wide_center(), 0x120, true)
+        context.image("pe/demo", centered_x(), 0x120, true)
     elseif current.cheat_lock == 1 then
         local counts = current.function_counts
         local text = i18n.tr("Function Keys Used:    F6: %d time(s)    F7: %d time(s)    F8: %d time(s)    F9: %d time(s)",

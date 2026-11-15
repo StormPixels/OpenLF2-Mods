@@ -311,3 +311,7 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `fx.combo_victim` (slot of the last victim of the running combo) and `fx.hits` (total counted hits) for the HUD (combo `facing: 0` above the victim, `stats_count` type 38).
 - UI: `menu_face` (up to 30 layers with `cc/c1/c2` colour animations) is drawn on the character screen, the 10 player layout has its own score board, demo, replay and championship pages, and the kill board can be switched on or off in the pause menu.
 - AI 2: koreksi stats senjata: pengaturan serangan dibaca dari <stats> senjata yang dipegang (bukan pemegang); weaponact di <stats> pemegang memakai tag kombinasi dari frame senjata (R34).
+- AI 1: `respond:` yang berulang pada layer display (minibar dan lainnya) tidak lagi kehilangan nilai pertama; `layer.responds` memuat semua nilai, `layer.respond` tetap nilai terakhir (R10).
+- AI 2: control.chord_available(value, chord, match) menghitung weaponact (tag kombinasi dari frame senjata) bila diberi match (R35).
+- AI 3: poison: satu tick damage bila timer korban turun ke kelipatan 32 (T=300: tick di frame 12, 44, ...); korban mati tidak kena damage poison. Bola 3007 dihancurkan bila HP <= 0; amount pada weapon_piece = maksimum (R31-R33).
+- UI: pratinjau latar memakai BG_FRAME saja; grid `<phase>`: `row` = sel per baris; papan skor memakai kanvas 550 bila perlu; PAUSE dan DEMO di tengah pada layout lebar; blok `stats_count`, `effect` dan `name` dari berkas gaya HUD dibaca (AI 4 R24).

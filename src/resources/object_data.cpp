@@ -338,6 +338,21 @@ private:
         return true;
     }
     bool bar_field(Extras& target, std::string_view section) {
+        // `respond:` may repeat on one layer (readme minibar.txt writes `respond: 1   respond: 5`): `respond` keeps the last
+        // value as before and `responds` lists every value in file order.
+        if (tag_name(false) == "respond") {
+            std::int32_t value = 0;
+            if (!read_int(value)) return true;
+            put(target, "respond", ExtraItem::Kind::integer, {value});
+            for (auto& item : target) {
+                if (item.key == "responds" && item.kind == ExtraItem::Kind::list) {
+                    item.values.push_back(value);
+                    return true;
+                }
+            }
+            target.push_back(ExtraItem{"responds", ExtraItem::Kind::list, {value}, {}, {}});
+            return true;
+        }
         return extra_int(target, bar_int_tags) || extra_text(target, bar_text_tags, section) ||
                extra_repeat(target, bar_repeat_tags);
     }

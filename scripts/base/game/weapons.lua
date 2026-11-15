@@ -296,8 +296,8 @@ end
 -- Darkfiren <weapon_piece> (readme dat file/weapon piece.txt; the developer states it is the same code as PDK/Neora): up to five
 -- groups, each `amount` pieces of object `oid` (0 / nil = 999, broken_weapon.dat) with a random frame act .. act + framea - 1 and a
 -- random speed x in [-dvx, dvx], z in [-dvz, dvz], y in [dvy, 0]. [BELUM PASTI] (named / one place): framea 0 = only the act frame,
--- amount is a fixed count (the docs say "can appear"; the developer wrote "maximum 18"), all groups are made and the integer steps
--- of the random speeds. `team: 1` keeps the pieces in the weapon's team and owner (the developer's answer). Weapons without the block
+-- amount is a MAXIMUM (the developer: "maximum 18 piece will be created"; user decision 2026-11-15): up to `amount` pieces are made per group,
+-- fewer only when the object slots run out (no random reduction: no source for one). All groups are made and the integer steps of the random speeds. `team: 1` keeps the pieces in the weapon's team and owner (the developer's answer). Weapons without the block
 -- keep the hardcoded pieces below, exactly as before.
 local function has_pieces(groups)
     if not groups then return false end

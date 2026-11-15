@@ -21,7 +21,7 @@ return {
         default_frames = 1, -- [BELUM PASTI] framea 0 (the developer's example) = only the act frame (it loops through `next` anyway; the PDK reader's reading)
     },
     hp_ball = {         -- state 3007 (new states.txt): an energy ball with its own HP from the opoint `hp:` tag (default 500)
-        destroy_below = 0,  -- [BELUM PASTI] the text says "on reaching below 0" goes to the hit_d frame (the hit_a drain in animation.lua uses <= 0)
+        destroy_at_or_below = 0, -- user decision 2026-11-15: a ball whose HP reaches 0 or less is destroyed (hit_d); HP exactly 0 is no longer alive
         fallback_frame = 20, -- [BELUM PASTI] frame used when the 3007 frame has no hit_d: the usual ball "hit" frame
     },
     heal_mp_limit = 1000,      -- [BELUM PASTI] Leaf.F kind 8 caughtact: MP "can go above 500"; the real ceiling is unknown

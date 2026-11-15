@@ -60,12 +60,44 @@ function ui_hud.parse(text)
         end
     end
     style.radar = ui_hud.parse_radar(text)
+    -- The counters, status pictures and nickname of the style (readme/dat file/stats count.txt, effect.txt, name.txt): drawn for
+    -- every fighter in its box; a character's own block of the same kind replaces them.
+    style.stats_count = ui_hud.parse_groups(text, "stats_count", "count")
+    style.effect = ui_hud.parse_groups(text, "effect", "layer")
+    local nickname = blocks.name
+    if nickname then style.name = {respond = nickname.respond, name_x = nickname.name_x, name_y = nickname.name_y, team = nickname.team} end
     local flag = blocks.team_flag
     if flag then
         if type(flag.team_flag_x) == "number" then style.team_flag.x = flag.team_flag_x end
         if type(flag.team_flag_y) == "number" then style.team_flag.y = flag.team_flag_y end
     end
     return style
+end
+
+-- The groups of a block that holds repeated sub-blocks: <stats_count> with `count: ... count_end:`, <effect> with
+-- `layer: ... layer_end`. Several `key: value` pairs may share a line (`x: 114  y: 15  type: 18  loop: 9`); numbers become
+-- numbers, `pic` a path (lower case, forward slashes). {} (nothing) when the block is missing.
+function ui_hud.parse_groups(text, tag, group)
+    local groups, inside, current = {}, false, nil
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local open = line:match("^%s*<([%w_]+)>")
+        if open == tag then inside = true
+        elseif open == tag .. "_end" then inside = false end
+        if inside and not open then
+            if line:match("^%s*" .. group .. "_end") then
+                if current then groups[#groups + 1] = current end
+                current = nil
+            elseif line:match("^%s*" .. group .. "%s*:%s*$") then
+                current = {}
+            elseif current then
+                for key, value in line:gmatch("([%w_]+)%s*:%s*(%S+)") do
+                    if key == "pic" then current.pic = path_of(value)
+                    elseif tonumber(value) then current[key] = tonumber(value) end
+                end
+            end
+        end
+    end
+    return groups
 end
 
 -- {{name =, file = "data/frame/8/default.dat", hidden =, respond =, facing =}, ...} of data/frame.dat. The keys of an

@@ -109,9 +109,15 @@ local sequences = {
 -- Defend, direction, Attack sequences (hit_Fa, hit_Ua, hit_Da), D+J likewise with Jump (hit_Fj,
 -- hit_Uj, hit_Dj), and D+J+A is hit_ja.
 local chord_hits = {da = {"Fa", "Ua", "Da"}, dj = {"Fj", "Uj", "Dj"}, daj = {"ja"}}
-function control.chord_available(value, chord)
+-- `match` is optional: with it the stats `weaponact` of a fighter holding a weapon also counts (the weapon's frame may carry the combination).
+function control.chord_available(value, chord, match)
     local fields = value and chord_hits[chord]
     if not fields then return false end
+    if match and value.weapon ~= record_kinds.heavy_item then
+        for _, field in ipairs(fields) do
+            if (field ~= "ja" or value.transform == -1) and st_stats.weaponact_hit(match, value, field) then return true end
+        end
+    end
     -- The sequence begins with Defend, which moves the fighter to the frame its hit_d names (the
     -- defend stance): walking and running frames often carry no combo fields themselves.
     local frame = value.record.frame(value.frame)

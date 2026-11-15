@@ -115,3 +115,7 @@ berubah karena token di dalam blok itu kini dibaca oleh parser blok (bukan dihit
 - `caughtact` (contoh readme `caughtact: 112`) adalah nama tag di `<stats>` dan `<mode>`; nama `caught` hanya ada di DOCX.
 
 `display.name` juga membaca `team` (angka; `team: 1` = warna huruf menurut tim, readme `name.txt`).
+
+## `respond` pada layer display (readme `effect.txt`, `menu face.txt`, `minibar.txt`)
+- Arti `respond` untuk layer `<menu_face>` dan `<effect>` (readme: fungsi sama): 0 = tampil untuk manusia dan komputer, 1 = hanya manusia, 2 = hanya komputer. Nilai lain (mis. 3 pada `cui1.dat`) tidak didokumentasikan **[BELUM PASTI]**; parser meneruskannya mentah.
+- `respond:` boleh berulang pada satu layer (contoh readme minibar: `respond: 1   respond: 5`, seperti `team:` berulang). `layer.respond` tetap berisi nilai TERAKHIR (bentuk lama), dan `layer.responds` = larik semua nilai menurut urutan berkas (ada bila tag `respond` ada). Arti nilai pada minibar tidak dijelaskan readme.
