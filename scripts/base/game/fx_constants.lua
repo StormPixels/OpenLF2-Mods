@@ -20,6 +20,10 @@ return {
     weapon_piece = {
         default_frames = 1, -- [BELUM PASTI] framea 0 (the developer's example) = only the act frame (it loops through `next` anyway; the PDK reader's reading)
     },
+    hp_ball = {         -- state 3007 (new states.txt): an energy ball with its own HP from the opoint `hp:` tag (default 500)
+        destroy_below = 0,  -- [BELUM PASTI] the text says "on reaching below 0" goes to the hit_d frame (the hit_a drain in animation.lua uses <= 0)
+        fallback_frame = 20, -- [BELUM PASTI] frame used when the 3007 frame has no hit_d: the usual ball "hit" frame
+    },
     heal_mp_limit = 1000,      -- [BELUM PASTI] Leaf.F kind 8 caughtact: MP "can go above 500"; the real ceiling is unknown
     bounce_ticks = 120,        -- [BELUM PASTI] a marked itr-bounce victim that never lands is forgotten after this many ticks
     combo_reset_ticks = 50,    -- ticks without a new hit after which fx.combo drops to 0 (used when mode.dat has no <combo> respond)

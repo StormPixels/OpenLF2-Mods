@@ -70,6 +70,7 @@ local armor = require("base/game/armor")
 local fx_constants = require("base/game/fx_constants")
 local timestop = require("base/game/timestop")
 local combat = {}
+local function fx_ball() return require("base/game/fx_ball") end -- state 3007 (required lazily: the load chain of objects.lua is already long; tests may proxy it)
 
 local function cdiv(a, b)
     local q = a / b
@@ -487,7 +488,10 @@ local function ball_struck(state, p, attacker, victim, itr)
     local source = holder or attacker
     local victim_state = victim.record.frame(victim.frame).state
     local attacker_state = attacker.record.frame(attacker.frame).state
-    if victim_state ~= state_vanishing_ball and (victim_state ~= state_flying_missile or attacker_state == state_vanishing_ball) then
+    local hp_ball = fx_ball().in_state(victim) -- state 3007: not turned like state 3006, takes its damage (already taken in plain_hit)
+    if hp_ball then fx_ball().struck(victim) end
+    if victim_state ~= state_vanishing_ball and not hp_ball
+       and (victim_state ~= state_flying_missile or attacker_state == state_vanishing_ball) then
         victim.team = source.team
         victim.owner = source.owner
         victim.hit_this_frame = true
@@ -737,6 +741,7 @@ local function plain_hit(state, p, v, attacker, victim, itr, hit_body, rule)
     if id_listed("henry_arrow", attacker.record.id, object_henry_arrow) and victim_kind == record_kinds.character then objects.remove(state, p) end
     if id_listed("john_biscuit", attacker.record.id, object_john_biscuit) and victim_kind == record_kinds.character then attacker.hp = 0 end
     if victim_kind == record_kinds.ball then ball_struck(state, p, attacker, victim, itr) end
+    if attacker.record.kind == record_kinds.ball then fx_ball().attacker_hit(attacker, victim_kind) end -- state 3007 `attacking` tag
     if (itr.effect == effects.freeze or itr.effect == effects.rebound) and victim_kind == record_kinds.character
        and victim.record.frame(victim.state_frame).state ~= state_frozen then
         victim.frame = character_frames.ice
@@ -854,6 +859,7 @@ local function defended_hit(state, p, attacker, victim, itr, rule)
         attacker.wait_counter = 0
         attacker.vx = 0.0
     end
+    if attacker.record.kind == record_kinds.ball then fx_ball().defended(attacker) end -- state 3007 `cover` tag
 end
 
 local function copy_itr(itr)

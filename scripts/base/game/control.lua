@@ -140,7 +140,7 @@ local function recognize(match, value, index)
     end
     if state == completed_sequence then
         local frame = value.record.frame(value.frame)
-        local target = frame.hits[spec[5]]
+        local target = st_stats.weaponact_hit(match, value, spec[5]) or frame.hits[spec[5]]   -- stats weaponact: the held weapon's frame may carry the combination
         if target == 0 then target = st_input.alias_target(frame, spec[5], match) end
         if index == combo_jump_attack then
             if value.record.id == constants.fighter_ids.louis and target == 300 and value.hp > 177 and unlock.flags.characters == 0 then
@@ -238,9 +238,8 @@ local function walking(match, value, heavy)
                 spend_mp(match, value, value.frame)
             end
         elseif value.weapon % 100 == 1 then
-            local stats = st_stats.of(value)
-            if stats and stats.respond == 1 and value.super_window > 0 then
-                value.frame = character_frames.super_punch   -- stats respond: 1: a super punch with a light weapon in hand
+            if st_stats.weapon_respond(match, value) and value.super_window > 0 then
+                value.frame = character_frames.super_punch   -- the weapon's stats respond: 1: a super punch with a light weapon in hand
             elseif value.weapon == constants.weapon_holder_codes.knife_or_boomerang
                and (keys.right or keys.left or keys.up or keys.down) then
                 value.frame = st_stats.weapon_frame(match, value, "light_throw", character_frames.light_weapon_throw)

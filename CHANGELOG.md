@@ -109,6 +109,9 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren: pausing shows a summary box (the score table so far) with a check box to hide it; the transformation grid (`<phase>`) now honours `oid`, `hidden`, `caughtact`, `pickedact`, `smallt` and the D key.
 
+- LF2 Darkfiren: state 3007 balls have their own HP (opoint `hp:`, default 500): hits damage them without turning them, below 0 they go to the frame's hit_d; frame tags `attacking` (1-3) and `cover` (1-2) work with this state (new module game/fx_ball.lua).
+- LF2 Darkfiren: `<weapon_piece>` `team: 1` keeps the pieces in the broken weapon's team and owner, otherwise they are independent.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 
@@ -307,3 +310,4 @@ All notable changes to this project are documented in this file.
 - UI: the `<phase>` transformation grid of the character screen is placed from the top left corner of the fighter's portrait, so its frame sits just above the portrait as in LF2 Darkfiren, not in the corner of the screen.
 - LF2 Darkfiren: `fx.combo_victim` (slot of the last victim of the running combo) and `fx.hits` (total counted hits) for the HUD (combo `facing: 0` above the victim, `stats_count` type 38).
 - UI: `menu_face` (up to 30 layers with `cc/c1/c2` colour animations) is drawn on the character screen, the 10 player layout has its own score board, demo, replay and championship pages, and the kill board can be switched on or off in the pause menu.
+- AI 2: koreksi stats senjata: pengaturan serangan dibaca dari <stats> senjata yang dipegang (bukan pemegang); weaponact di <stats> pemegang memakai tag kombinasi dari frame senjata (R34).

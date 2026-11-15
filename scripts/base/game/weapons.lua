@@ -296,8 +296,8 @@ end
 -- Darkfiren <weapon_piece> (readme dat file/weapon piece.txt; the developer states it is the same code as PDK/Neora): up to five
 -- groups, each `amount` pieces of object `oid` (0 / nil = 999, broken_weapon.dat) with a random frame act .. act + framea - 1 and a
 -- random speed x in [-dvx, dvx], z in [-dvz, dvz], y in [dvy, 0]. [BELUM PASTI] (named / one place): framea 0 = only the act frame,
--- amount is a fixed count (the docs say "can appear"), all groups are made, the integer steps of the random speeds, and `team`
--- (1 = pieces bound to the weapon's command) is not used. Weapons without the block
+-- amount is a fixed count (the docs say "can appear"; the developer wrote "maximum 18"), all groups are made and the integer steps
+-- of the random speeds. `team: 1` keeps the pieces in the weapon's team and owner (the developer's answer). Weapons without the block
 -- keep the hardcoded pieces below, exactly as before.
 local function has_pieces(groups)
     if not groups then return false end
@@ -321,6 +321,8 @@ local function scatter_pieces(state, value, groups)
                 local oid = (entry.oid and entry.oid ~= 0) and entry.oid or object_ids.broken_weapon
                 local debris = objects.place(state, slot, oid)
                 if not debris then return end
+                -- The developer (Discord): `team: 1` keeps the pieces in the owner's team, otherwise they are independent (the default).
+                if groups.team == 1 then debris.team, debris.owner = value.team, value.owner end
                 debris.x_int = random(7) - 3 + value.x_int
                 debris.y_int = random(7) - 3 + value.y_int
                 debris.z_int = value.z_int

@@ -69,24 +69,55 @@ function st_stats.reserve(value)
     return nil
 end
 st_stats.points_full = points_full
--- <stats> weapon attack frames (readme dat file/stats.txt "weapon attack settings"): normal_attack1 / normal_attack2 (default 20 / 25, t1 and t4),
--- jump_attack (30), run_attack (35), dash_attack (40), light_throw (45), heavy_throw (50, t2), sky_light_throw (52), run_heavy_throw (50, t2),
--- weapon_drink (55, t6): the frame a holder goes to instead of the default. `oids` (a list; AI 1 exposes the repeated `oid:` tag as stats.oids) limits
--- the settings to those weapon ids (up to 50); without it they apply to every weapon. `match.items[value.held_item]` is the held weapon.
--- A frame that is not in the character's data is ignored (the default stays).
+-- <stats> of the WEAPON (readme stats.txt "change weapon attack settings": "you can specify these tags in weapon data within <stats>"):
+-- normal_attack1 / normal_attack2 (default 20 / 25, t1 and t4), jump_attack (30), run_attack (35), dash_attack (40), light_throw (45),
+-- heavy_throw (50, t2), sky_light_throw (52), run_heavy_throw (50, t2), weapon_drink (55, t6): the frame (of the holder's data) a t0 object is
+-- sent to instead of the hard-coded one. `oid` (a list; stats.oids from the parser, up to 50 ids) names the objects the settings work for:
+-- without it every holder; with it a holder whose id is listed (the weapon's own id counts too, in case one .dat serves several ids).
+-- [BELUM PASTI] the readme says only "for which id number": the holder's id is the reading chosen. `respond: 1` (the same block): the holder
+-- may use the super punch while holding a light weapon when a victim is in the dance of pain.
+-- A frame that is not in the holder's data is ignored (the default stays).
+local function held_weapon(match, value)
+    local held = value.held_item
+    if not held or held == 0 or not match.items then return nil end
+    local weapon = match.items[held]
+    if not weapon or not weapon.record or not weapon.record.data then return nil end
+    return weapon.record.data.stats, weapon
+end
+local function applies(value, weapon, stats)
+    local oids = stats.oids
+    if type(oids) ~= "table" or #oids == 0 then return true end
+    local holder_id, weapon_id = value.record.id, weapon.record.id
+    for _, oid in ipairs(oids) do
+        if oid == holder_id or oid == weapon_id then return true end
+    end
+    return false
+end
 function st_stats.weapon_frame(match, value, name, default)
-    local stats = st_stats.of(value)
+    local stats, weapon = held_weapon(match, value)
     local frame = stats and stats[name]
     if type(frame) ~= "number" or frame <= 0 or not value.record.frames[frame] then return default end
-    local oids = stats.oids
-    if type(oids) == "table" and #oids > 0 then
-        local weapon = value.held_item and value.held_item ~= 0 and match.items and match.items[value.held_item]
-        local id = weapon and weapon.record and weapon.record.id
-        local found = false
-        for _, oid in ipairs(oids) do if oid == id then found = true break end end
-        if not found then return default end
-    end
+    if not applies(value, weapon, stats) then return default end
     return frame
+end
+function st_stats.weapon_respond(match, value)
+    local stats, weapon = held_weapon(match, value)
+    return stats ~= nil and stats.respond == 1 and applies(value, weapon, stats)
+end
+
+-- <stats> `weaponact: N` of the HOLDER (readme: "change weapon attack settings for combination key inputs"): whenever a key combination
+-- (hit_Fa, hit_Da, hit_ja, ...) is used it looks for frame N in the weapon being held; the combination tag found there is used instead of the
+-- character's own, and when the weapon frame has none the character's tag stays. Returns the weapon frame's target for `field`, or nil.
+function st_stats.weaponact_hit(match, value, field)
+    local stats = st_stats.of(value)
+    local act = stats and stats.weaponact
+    if type(act) ~= "number" or act <= 0 then return nil end
+    local data_stats, weapon = held_weapon(match, value)
+    if not weapon then return nil end
+    local hits = weapon.record.frame(act).hits
+    local target = hits and hits[field]
+    if target and target ~= 0 then return target end
+    return nil
 end
 
 return st_stats
