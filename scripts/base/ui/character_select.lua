@@ -387,11 +387,18 @@ end
 
 -- The transformation grid (<phase> of the character's data, readme/dat file/phase.txt): pressing A on a fighter that has one
 -- opens a grid of the fighters whose ids the block lists (t0 ids; those the game has and that may be picked); the arrows
--- move, A takes the fighter and goes on as a plain confirm, J closes it. `respond` as `hidden`: 0 always, 1 to 3 once the
--- characters are unlocked by the cheat, 4 and 10 or more never. Placed from the slot's corner: the base picture `pic` at
--- (pic_x, pic_y), the cells (the small faces) from (start_x, start_y) every centerx and centery, `row` rows, a box w by h
--- of colour `rect` round the one chosen (`bound` 1 blinking, 2 steady); sound1 on opening, sound2 on closing.
--- [BELUM PASTI] the anchor, the order of the cells (row by row), `oid`, `hidden`, `caughtact`, `pickedact`, D for the skin.
+-- move, A takes the fighter and goes on as a plain confirm, J closes it, D changes the skin. Placed from the slot's corner:
+-- the base picture `pic` at (pic_x, pic_y), the cells (small faces) from (start_x, start_y) every centerx and centery, `row`
+-- rows, a box w by h of colour `rect` round the one chosen (`bound` 1 blinking, 2 steady); sound1 on opening, sound2 on closing.
+--  respond  as `hidden` (game/unlock.allows): -1 the block is off, 0 always, 1 to 3 behind the cheat codes, 4 never, 10 to
+--           1000 the saved keys. When it does not allow: the selection goes to `oid` (random without one) and A goes on
+--           (works only when respond is not 0; an `oid` the game lacks: A goes on unchanged).
+--  hidden   1: fighters whose own `hidden` (10 to 1000) is not met are shown too, in their `hidden_small`, and cannot be taken.
+--  caughtact 1: the fighter chosen in the menu takes the first place of the grid.
+--  pickedact 1: the cells show the small picture of the skin in use (`smallt`, else `small`, of that skin); D cycles it.
+-- A cell shows the data's `smallt` (the small picture meant for this grid), else the `small` of the menu.
+-- [BELUM PASTI] the anchor, the order of the cells (row by row), what `caughtact` and `pickedact` mean exactly (the readme
+-- gives one line each), that locked cells are only shown, and the random of a missing `oid`.
 local phase_cache = {}
 local function phase_of(fighter)
     if not fighter or type(fighter.path) ~= "string" then return nil end
@@ -404,30 +411,76 @@ local function phase_of(fighter)
     end
     return cached or nil
 end
+local function phase_allows(value)
+    local unlock = require("base/game/unlock")
+    if unlock.allows then return unlock.allows(value) end
+    return value == nil or value <= 0 or (value <= 3 and unlock.flags.characters == 1)
+end
+local function header_of(fighter)
+    local ok, data = loaded_data(fighter.path)
+    return ok and type(data) == "table" and type(data.header) == "table" and data.header or {}
+end
+local function normal_path(path) return type(path) == "string" and path ~= "" and (path:gsub("\\", "/"):lower()) or nil end
 local function open_phase_grid(state, slot)
     local block = phase_of(state.fighters[slot.fighter])
     if not block then return nil end
     local respond = block.respond or 0
-    local unlocked = require("base/game/unlock").flags.characters == 1
-    if respond ~= 0 and not (unlocked and respond >= 1 and respond <= 3) then return nil end
-    local cells = {}
+    if respond == -1 then return nil end
+    if not phase_allows(respond) then
+        local target = 0
+        if type(block.oid) == "number" then
+            target = nil
+            for position, fighter in ipairs(state.fighters) do
+                if fighter.id == block.oid and catalog.selectable(fighter) then target = position break end
+            end
+        end
+        if target == nil then return nil end
+        return {redirect = target}
+    end
+    local cells, locked = {}, {}
     for _, id in ipairs(block.ids) do
         for position, fighter in ipairs(state.fighters) do
-            if fighter.id == id and catalog.selectable(fighter) then cells[#cells + 1] = position break end
+            if fighter.id == id then
+                if catalog.selectable(fighter) then
+                    local value = header_of(fighter).hidden
+                    local held = type(value) == "number" and value >= 10 and value <= 1000 and not phase_allows(value)
+                    if not held then cells[#cells + 1] = position
+                    elseif block.hidden == 1 then cells[#cells + 1] = position; locked[#cells] = true end
+                end
+                break
+            end
         end
+    end
+    if block.caughtact == 1 and slot.fighter > 0 then
+        local reordered, reordered_locked = {slot.fighter}, {}
+        for index, position in ipairs(cells) do
+            if position ~= slot.fighter then
+                reordered[#reordered + 1] = position
+                reordered_locked[#reordered] = locked[index]
+            end
+        end
+        cells, locked = reordered, reordered_locked
     end
     if #cells == 0 then return nil end
     local rows = math.max(1, math.floor(block.row or 1))
-    return {block = block, cells = cells, cursor = 1, columns = math.max(1, math.ceil(#cells / rows))}
+    return {block = block, cells = cells, locked = locked, cursor = 1, columns = math.max(1, math.ceil(#cells / rows)),
+        skin = chosen_skin(slot)}
+end
+local function confirm_after_phase(state, slot)
+    slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
+    sounds.direct(state, "join")
 end
 local function close_phase_grid(state, slot, take)
     local grid = slot.phase_grid
     slot.phase_grid = nil
     play_file(state, grid.block.sound2)
     if take then
-        slot.fighter, slot.skin = grid.cells[grid.cursor], nil
-        slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
-        sounds.direct(state, "join")
+        local position = grid.cells[grid.cursor]
+        local info = skins_of(state.fighters[position])
+        slot.fighter = position
+        slot.skin = (grid.skin and info and info.count >= grid.skin) and grid.skin or nil
+        slot.skin_for = slot.skin and position or nil
+        confirm_after_phase(state, slot)
     else
         sounds.direct(state, "cancel")
     end
@@ -442,9 +495,32 @@ local function phase_grid_slot(state, slot, keys)
     elseif pressed(keys, "l") then if trigger(slot) then move(-1) end
     elseif pressed(keys, "u") then if trigger(slot) then move(-grid.columns) end
     elseif pressed(keys, "d") then if trigger(slot) then move(grid.columns) end
-    elseif pressed(keys, "c") then if trigger(slot) then close_phase_grid(state, slot, true) end
+    elseif pressed(keys, "c") then
+        if trigger(slot) then
+            if grid.locked[grid.cursor] then sounds.direct(state, "cancel") else close_phase_grid(state, slot, true) end
+        end
     elseif pressed(keys, "b") then if trigger(slot) then close_phase_grid(state, slot, false) end
+    elseif pressed(keys, "f") then
+        if trigger(slot) and not grid.locked[grid.cursor] then
+            local info = skins_of(state.fighters[grid.cells[grid.cursor]])
+            if info and info.count > 1 then
+                grid.skin = (grid.skin or 1) % info.count + 1
+                skin_sound(state, info)
+            end
+        end
     else slot.latched = false end
+end
+local function cell_small(state, grid, position, held)
+    local fighter = state.fighters[position]
+    local header = header_of(fighter)
+    if held then return normal_path(header.hidden_small) or fighter.small end
+    if grid.block.pickedact == 1 and grid.skin then
+        local info = skins_of(fighter)
+        local entry = info and info.skins[grid.skin]
+        local picture = entry and (normal_path(entry.smallt) or normal_path(entry.small))
+        if picture then return picture end
+    end
+    return normal_path(header.smallt) or fighter.small
 end
 local function draw_phase_grid(state, slot, col, row)
     local grid = slot.phase_grid
@@ -454,7 +530,7 @@ local function draw_phase_grid(state, slot, col, row)
     for index, position in ipairs(grid.cells) do
         local x = col + (block.start_x or 0) + ((index - 1) % grid.columns) * (block.centerx or 0)
         local y = row + (block.start_y or 0) + math.floor((index - 1) / grid.columns) * (block.centery or 0)
-        local small = state.fighters[position].small
+        local small = cell_small(state, grid, position, grid.locked[index])
         if type(small) == "string" then keyed_image(state, small, x, y) end
         local box = block.bound
         if index == grid.cursor and (box == 2 or (box == 1 and state.blink % 5 < 3)) then
@@ -480,7 +556,10 @@ local function fighter_slot(state, slot, keys, col, row)
     elseif pressed(keys, "c") then
         if trigger(slot) then
             local grid = open_phase_grid(state, slot)
-            if grid then
+            if grid and grid.redirect then
+                if grid.redirect ~= slot.fighter then slot.fighter, slot.skin = grid.redirect, nil end
+                confirm_after_phase(state, slot)
+            elseif grid then
                 slot.phase_grid = grid
                 if not play_file(state, grid.block.sound1) then sounds.direct(state, "join") end
             else

@@ -105,6 +105,10 @@ All notable changes to this project are documented in this file.
 
 - LF2 Darkfiren: stage and battle display commands carry an anchor (left, centre, right) so the wide layouts place them without guessing; the stage mode shows the boss bar (`<bossbar>`) of the boss.
 
+- AI 2: bola ber-state 3007 yang berdiri di bidang platform ikut dibawa oleh frame platform (st_block); stats.oids dari parser dites dalam bentuk aslinya.
+
+- LF2 Darkfiren: pausing shows a summary box (the score table so far) with a check box to hide it; the transformation grid (`<phase>`) now honours `oid`, `hidden`, `caughtact`, `pickedact`, `smallt` and the D key.
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

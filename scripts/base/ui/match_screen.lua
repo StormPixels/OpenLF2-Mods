@@ -280,7 +280,7 @@ function screen.snapshot(state, snapshot)
 end
 
 function screen.update(state, held, context)
-    screen.kill_toggle(state, held)
+    screen.pause_toggle(state, held)
     local result = match.step(state.match, held)
     if result == "leave" then
         -- F4 in Championship or during a replay: the game state becomes 10, the title.
@@ -974,9 +974,10 @@ local function draw_status(context, state, style)
     end
 end
 
-local function draw_scoreboard(context, current)
+-- `summary` draws the same table in the middle of a round (the pause summary box): the numbers so far, no win or lose marks.
+local function draw_scoreboard(context, current, summary)
     local counter = current.round_counter
-    if counter < 101 or counter >= constants.round_counters.finished then return end
+    if not summary and (counter < 101 or counter >= constants.round_counters.finished) then return end
     -- Eight player slots, ten in the 10 player layout (items 8 and 9, or 18 and 19 for computers).
     local slot_total = options.slot_count and options.slot_count(options.current().battlefield_layout) or 8
     local players = 0
@@ -1019,7 +1020,8 @@ local function draw_scoreboard(context, current)
             font.gdi(context, tostring(value.mp_spent), 454, row_y + 15, colorref(0xaaf0f0))
             font.gdi(context, tostring(value.pickings), 527, row_y + 15, colorref(0xaaf5aa))
             local result
-            if current.mode == constants.modes.stage then
+            if summary then result = nil
+            elseif current.mode == constants.modes.stage then
                 if not players_alive then result = "pe/lose_dead"
                 else result = value.hp < 1 and "pe/win_dead" or "pe/win_alive" end
             elseif current.winner >= 0 then
@@ -1097,32 +1099,40 @@ function screen.outcome(state)
     return {stage_level = run.id, auto_start = run.next_group, ending = run.ending}
 end
 
--- The check box of the kill display (`bound: 1` in its block): while the game is paused a small box at the top right corner
--- turns the display on and off (the pause summary box of Darkfiren, whose content the readme does not give, is not made).
--- [BELUM PASTI] the place (top right corner), the size and the text.
-local function kill_checkbox_place() return constants.screen.width + wide_gap() - 22, 6, 14 end
-function screen.kill_toggle(state, held)
+-- The pause check boxes, top right (Darkfiren: "summary box is shown when the game is paused, click on the small checkbox in the top
+-- right corner"): "Summary" turns the summary box (the score table so far) on and off; "Kill list" (only with `bound: 1` in the
+-- kill display's block) the who-killed-whom display. [BELUM PASTI] the content of Darkfiren's summary box (the readme gives none: here
+-- the table of the end of a round), the places, the size and the texts.
+local function checkbox_place(which) return constants.screen.width + wide_gap() - 22, which == "summary" and 6 or 26, 14 end
+local function summary_possible(view, current) return view.paused and not current.random_game end
+function screen.pause_toggle(state, held)
     local view = state.view
     if not (view and view.paused and type(held) == "table" and held.click and type(held.pointer_x) == "number" and type(held.pointer_y) == "number") then return false end
     local settings = ui_modes.kill_settings(options.current().battlefield_layout)
-    if not settings or not settings.checkbox then return false end
-    local x, y, size = kill_checkbox_place()
-    if held.pointer_x >= x - 2 and held.pointer_x <= x + size + 2 and held.pointer_y >= y - 2 and held.pointer_y <= y + size + 2 then
-        state.kill_hidden = not state.kill_hidden
-        return true
+    for _, which in ipairs({"summary", "kill"}) do
+        if which == "summary" or (settings and settings.checkbox) then
+            local x, y, size = checkbox_place(which)
+            if held.pointer_x >= x - 2 and held.pointer_x <= x + size + 2 and held.pointer_y >= y - 2 and held.pointer_y <= y + size + 2 then
+                if which == "summary" then state.summary_hidden = not state.summary_hidden else state.kill_hidden = not state.kill_hidden end
+                return which
+            end
+        end
     end
     return false
 end
-local function draw_kill_checkbox(context, state, view)
-    if not view.paused then return end
-    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
-    if not settings or not settings.checkbox then return end
-    local x, y, size = kill_checkbox_place()
+local function draw_checkbox(context, which, on, label)
+    local x, y, size = checkbox_place(which)
     context.fill(x - 1, y - 1, size + 2, size + 2, 0, 0, 0)
     context.fill(x, y, size, size, 200, 200, 200)
     context.fill(x + 1, y + 1, size - 2, size - 2, 40, 40, 40)
-    if not state.kill_hidden then context.fill(x + 3, y + 3, size - 6, size - 6, 255, 255, 255) end
-    font.gdi(context, i18n.tr("Kill list"), x - 62, y - 1, colorref(0xffffff))
+    if on then context.fill(x + 3, y + 3, size - 6, size - 6, 255, 255, 255) end
+    font.gdi(context, i18n.tr(label), x - 62, y - 1, colorref(0xffffff))
+end
+local function draw_pause_checkboxes(context, state, view, current)
+    if not view.paused then return end
+    if summary_possible(view, current) then draw_checkbox(context, "summary", not state.summary_hidden, "Summary") end
+    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
+    if settings and settings.checkbox then draw_checkbox(context, "kill", not state.kill_hidden, "Kill list") end
 end
 
 function screen.draw(state, context, window_bounds)
@@ -1245,7 +1255,7 @@ function screen.draw(state, context, window_bounds)
         if style and style.radar then draw_radar(context, view, current, style.radar, wide_center(), options.wide_width(layout) or constants.screen.width) end
     end
     if not state.kill_hidden then draw_kill_board(context, view, current) end
-    draw_kill_checkbox(context, state, view)
+    draw_pause_checkboxes(context, state, view, current)
     draw_bossbar(context, view, current)
     if view.time_left then
         -- The time limit's clock: the time left, in the middle under the HP frames.
@@ -1264,7 +1274,10 @@ function screen.draw(state, context, window_bounds)
         end
     end
     if view.paused then
-        context.image("pe/pause", 360 + wide_center(), 288, true)
+        local summary = summary_possible(view, current) and not state.summary_hidden
+        if summary then draw_scoreboard(wide_center() ~= 0 and shifted(context, wide_center(), 0) or context, current, true) end
+        -- With the summary box up the pause picture goes to the top so that it does not cover the table.
+        context.image("pe/pause", 360 + wide_center(), summary and 6 or 288, true)
         return
     end
     -- After the end loop: the demo's exit hint and DEMO picture, or the function-key line (GDI

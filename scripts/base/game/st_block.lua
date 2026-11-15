@@ -21,6 +21,7 @@
 -- readme]. [BELUM PASTI] what runs before or after the routine in the original tick: it runs after all objects have moved
 -- (pair phase 0x419380); here it runs at the end of each item's own physics.step.
 local constants = require("base/game/constants")
+local fx_constants = require("base/game/fx_constants")
 local st_block = {}
 
 local K = constants.record_kinds
@@ -31,11 +32,12 @@ local object_types = {[K.light_item] = true, [K.heavy_item] = true, [K.baseball]
 
 local function is_block_kind(kind) local unit = kind % 10 return kind >= 30 and kind <= 89 and unit <= 5 end
 
-local function affects(itr_kind, block_item, item)
+local function affects(itr_kind, block_item, item, plane)
     local tens = (itr_kind - itr_kind % 10) / 10
     local character = item.record.kind == K.character
     if tens <= 5 then
-        if not character then return false end
+        -- PDK: kind < 60 acts on types 0 and 3; a ball (type 3) is hit by the plane (X0) but ignores X1-X5 (`plane` = the X0 lookup).
+        if not character and not (plane and item.record.kind == K.ball) then return false end
     elseif not object_types[item.record.kind] then
         return false
     end
@@ -150,7 +152,7 @@ end
 
 local function round(v) return v >= 0 and math.floor(v + 0.5) or -math.floor(-v + 0.5) end
 
--- The platform object whose plane (kind X0) `value` stands on: same x / z gate as platform.lua (left edge inclusive), the plane
+-- The platform object whose plane (kind X0) `value` stands on (a character, or a ball): same x / z gate as platform.lua (left edge inclusive), the plane
 -- being the object's y_int + the itr's dvy (rounded), read now. Returns the object and its slot, or nil.
 function st_block.owner(match, value, plane)
     if not match.items then return nil end
@@ -159,7 +161,7 @@ function st_block.owner(match, value, plane)
     local zi = value.z_int
     for i = 1, #list do
         local box = list[i]
-        if box.unit == 0 and box.object ~= value and box.object.y_int + round(box.dvy) == plane and affects(box.kind, box.object, value) then
+        if box.unit == 0 and box.object ~= value and box.object.y_int + round(box.dvy) == plane and affects(box.kind, box.object, value, true) then
             local depth = zi - box.centre
             if xi >= box.x0 and xi < box.x1 and depth >= -box.window and depth <= box.window then return box.object, box.index end
         end
@@ -173,6 +175,13 @@ end
 function st_block.carry(match, value)
     local object = value.floor_object
     if not object or value.floor_y == nil or value.y ~= value.floor_y + 0.0 or match.items[value.floor_index] ~= object then
+        value.floor_object, value.floor_index = nil, nil
+        return
+    end
+    -- A ball (type 3) is carried only while its frame is in the "stay on the platform" state 3007 (PDK reader, [KODE]); the 3000 and 3006
+    -- frames the update log mentions ("action: 1 in frame ... stays on the platform if its y is equal") need a frame `action` tag the parser
+    -- does not give yet: not done.
+    if value.record.kind == K.ball and value.record.frame(value.frame).state ~= fx_constants.platform.ball_state then
         value.floor_object, value.floor_index = nil, nil
         return
     end
