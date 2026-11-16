@@ -401,7 +401,7 @@ end
 -- order. A layer without a type is a picture (the frame), type 1 is the hp bar, 2 the dark hp, 3 the mp (a bar `max`
 -- wide in value, 500 by default); `facing: 1` fills from the right. `team:` lists and `respond` choose who and which mode
 -- it is for (team table of readme/dat file/minibar.txt: 1-4 teams, 5 stage enemies, 10-13 player independent, 20-27
--- computer independent; respond 0 versus, 1 stage). Not done: types 4 and 5 (fusion time), `effect`, `cc`/`c1`/`c2`,
+-- computer independent; respond: the modes, see minibar_for). Not done: types 4 and 5 (fusion time), `effect`, `cc`/`c1`/`c2`,
 -- `bound`/`centerx`. [BELUM PASTI] the anchor: x from the character's centre, y from the ground line (z).
 local minibar_mode = 0
 local function minibar_code(entry)
@@ -420,7 +420,13 @@ local function minibar_for(layer, code)
         for _, team in ipairs(layer.teams) do if team == code then found = true end end
         if not found then return false end
     end
-    if type(layer.respond) == "number" and layer.respond ~= minibar_mode then return false end
+    -- `respond` names the modes of the layer (0 vs, 1 stage, 2 1on1, 3 2on2, 4 battle, 5 demo: the values of constants.modes); it may be
+    -- written several times (up to 20), AI 1 hands those over as layer.responds (R10), layer.respond being the last.
+    if type(layer.responds) == "table" and #layer.responds > 0 then
+        local found = false
+        for _, mode in ipairs(layer.responds) do if mode == minibar_mode then found = true end end
+        if not found then return false end
+    elseif type(layer.respond) == "number" and layer.respond ~= minibar_mode then return false end
     return true
 end
 local function draw_minibar(context, entry, camera, shake)
@@ -1228,7 +1234,7 @@ function screen.draw(state, context, window_bounds)
     context.clip(passable_bounds and passable_bounds.left or 0, 128,
         passable_bounds and passable_bounds.right - passable_bounds.left or constants.screen.width, view_height - 128)
     local lighting = options.current()
-    minibar_mode = current.mode == constants.modes.stage and 1 or 0
+    minibar_mode = current.random_game and constants.modes.demo or current.mode
     combo_settings = ui_modes.combo_settings(options.current().battlefield_layout)
     for _, entry in ipairs(view.items) do
         draw_item(arena, current.stage, view, entry, passable_bounds, lighting)

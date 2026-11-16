@@ -248,3 +248,10 @@ Pengguna mengirim u17.zip (rilis Darkfiren update 17: exe, `pack/`, `extra/`). G
 - **Blok `<stats_count>`, `<effect>` dan `<n>`/`<name>` ada di berkas gaya HUD** (default.dat, cui1.dat, ...), bukan hanya di data karakter. `game/ui_hud.lua` kini membacanya (`style.stats_count`, `style.effect`, `style.name`; `ui_hud.parse_groups` untuk sub-blok `count:` ... `count_end:` dan `layer:` ... `layer_end`), dan `draw_status` menggambarnya untuk tiap petarung; blok milik karakter (data AI 1) menggantikan yang dari gaya. `loop` pada `stats_count` = jarak antar huruf (8 atau 9; tipe 14, 18, 19 selalu 9). Contoh asli: default.dat (hp dan mp "sekarang/total" di (114, 15) dan (114, 35)), cui1.dat (angka rata kiri jarak 8, tipe 38 di (2, 2), efek delay dan confus berkedip bergantian dengan `respond: 3` yang diperlakukan sebagai "keduanya").
 - Tes: `hud_style_blocks_test.lua`, `hud_style_draw_test.lua` (memakai berkas gaya asli), `phase_grid_test.lua`, `bg_frame_test.lua`, `result22_match_test.lua`, `wide_match_test.lua` diperbarui.
 
+
+## 24. Putaran 25: respond pada minibar (readme/dat file/minibar.txt)
+
+- Tabel respond minibar: 0 vs, 1 stage, 2 1on1 (championship), 3 2on2 (team championship), 4 battle, 5 demo, yaitu nilai `constants.modes`; sebelumnya hanya dua nilai (stage = 1, selain itu 0). `minibar_mode` kini `current.mode`, atau demo (5) bila `current.random_game`.
+- `respond:` boleh ditulis berulang (sampai 20, seperti `team:`): AI 1 (R10) memberi `layer.responds` (larik menurut urutan berkas; `layer.respond` tetap nilai terakhir); lapisan tampil bila mode sekarang ada di salah satunya. Tanpa `responds` berlaku `respond` tunggal seperti dulu. [BELUM PASTI] arti nilai `respond` ganda (dianggap salah satu); data contoh tidak punya layer dengan respond ganda.
+- `respond: 3` pada layer `<effect>` (cui1.dat) tidak terdokumentasi (jawaban AI 1): tetap dianggap "keduanya".
+- Tes: `minibar_test.lua` (diperluas).

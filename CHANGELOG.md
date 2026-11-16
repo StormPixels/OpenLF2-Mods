@@ -315,3 +315,4 @@ All notable changes to this project are documented in this file.
 - AI 2: control.chord_available(value, chord, match) menghitung weaponact (tag kombinasi dari frame senjata) bila diberi match (R35).
 - AI 3: poison: satu tick damage bila timer korban turun ke kelipatan 32 (T=300: tick di frame 12, 44, ...); korban mati tidak kena damage poison. Bola 3007 dihancurkan bila HP <= 0; amount pada weapon_piece = maksimum (R31-R33).
 - UI: pratinjau latar memakai BG_FRAME saja; grid `<phase>`: `row` = sel per baris; papan skor memakai kanvas 550 bila perlu; PAUSE dan DEMO di tengah pada layout lebar; blok `stats_count`, `effect` dan `name` dari berkas gaya HUD dibaca (AI 4 R24).
+- UI: `respond` pada layer minibar memakai tabel penuh (0 vs, 1 stage, 2 1on1, 3 2on2, 4 battle, 5 demo) dan boleh ditulis berulang (AI 4 R25).
