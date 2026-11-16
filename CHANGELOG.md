@@ -112,6 +112,9 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: state 3007 balls have their own HP (opoint `hp:`, default 500): hits damage them without turning them, below 0 they go to the frame's hit_d; frame tags `attacking` (1-3) and `cover` (1-2) work with this state (new module game/fx_ball.lua).
 - LF2 Darkfiren: `<weapon_piece>` `team: 1` keeps the pieces in the broken weapon's team and owner, otherwise they are independent.
 
+### Fixed
+- 8P widescreen (`wide 1018`, `mode2.dat`): the background list in the character menu is a strip of three pictures in one row (`<grid_bg>` with `centerx` above 0, panel `BOX_STAGE` at (1, 140)); it was drawn as a vertical list that ran out of the panel. Left/right (and up/down) move along it, a tap chooses a picture. The vertical list of `mode4.dat` is unchanged (bug001)
+
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)
 

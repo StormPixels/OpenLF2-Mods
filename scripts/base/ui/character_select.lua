@@ -938,9 +938,11 @@ end
 -- picture every 135 pixels from (220, 15) with its name 250 to the right, four to a page. A tap on a picture chooses
 -- that background; the keys move a cursor (up, down), choose (attack) or leave (jump). It replaces the cycling of the
 -- Background row in the wide menu; Stage mode still cycles its stage there.
+-- The 8P widescreen (mode2.dat) gives <grid_bg> as a strip instead: `centerx` above 0 lays the pictures in one row (three to a
+-- page, the panel 790 x 185 like the stage list's), `centery` then being 0; step_x stays 0 for the vertical list above.
 local grid_bg = {panel_x = 180, panel_y = 3, panel_w = 500, panel_h = 542, x = 220, y = 15, w = 212, h = 109,
-    step = 135, rows = 4, name_x = 250, name_y = 40, panel_pic = "sprite/ui/grid/box_bg.bmp",
-    random_pic = "sprite/ui/grid/bg_grid_random.bmp"}
+    step = 135, step_x = 0, rows = 4, columns = 3, strip_w = 790, strip_h = 185, name_x = 250, name_y = 40,
+    panel_pic = "sprite/ui/grid/box_bg.bmp", random_pic = "sprite/ui/grid/bg_grid_random.bmp"}
 layout_targets.grid_bg = grid_bg
 local grid_available = {}
 local function grid_has(path)
@@ -963,6 +965,7 @@ local function grid_cells(state)
     return cells
 end
 local function grid_follow(grid)
+    if grid_bg.step_x >= 1 then return end   -- the strip takes its page from the cursor
     if grid.cursor - 1 < grid.top then grid.top = grid.cursor - 1
     elseif grid.cursor - 1 >= grid.top + grid_bg.rows then grid.top = grid.cursor - grid_bg.rows end
 end
@@ -1078,7 +1081,71 @@ local function grid_choose(state, row)
         if #modes > 1 then open_mode_grid(state, row, modes) end
     end
 end
+-- The background list as a strip (grid_bg.step_x above 0, the 8P widescreen): one row of three pictures, the page following
+-- the cursor; left and right (also up and down) move, attack chooses, jump leaves, a tap chooses a picture or, outside the
+-- panel, closes the list.
+local function grid_strip_popup(state, previous_menu)
+    local grid, held = state.grid, state.held
+    local columns = grid_bg.columns
+    local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
+    local first = math.floor((grid.cursor - 1) / columns) * columns
+    if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
+        local px, py = held.pointer_x - (state.dx or 0), held.pointer_y
+        for column = 0, columns - 1 do
+            local row = grid.cells[first + column + 1]
+            local x = grid_bg.x + column * grid_bg.step_x
+            if row and inside(px, py, x, grid_bg.y, grid_bg.w, grid_bg.name_y + 16) then
+                grid_choose(state, row)
+                return
+            end
+        end
+        if not inside(px, py, grid_bg.panel_x, grid_bg.panel_y, grid_bg.strip_w, grid_bg.strip_h) then
+            state.grid = nil
+            return
+        end
+    end
+    local keys = {}
+    local accept = previous_menu == menus.options
+    for index = 0, (state.slot_count or 8) - 1 do
+        local slot = state.slots[index]
+        if slot.ready then
+            local keys_held = state.held[index] or ""
+            local key
+            for _, candidate in ipairs({"l", "r", "u", "d", "c", "b"}) do
+                if pressed(keys_held, candidate) then key = candidate; break end
+            end
+            if key then keys[key] = trigger(slot, accept) or keys[key]
+            else slot.latched = false end
+        end
+    end
+    if keys.l or keys.u then grid.cursor = math.max(1, grid.cursor - 1) end
+    if keys.r or keys.d then grid.cursor = math.min(#grid.cells, grid.cursor + 1) end
+    first = math.floor((grid.cursor - 1) / columns) * columns
+    if keys.b then state.grid = nil; return end
+    if keys.c then grid_choose(state, grid.cells[grid.cursor]); return end
+    image(state, grid_bg.panel_pic, grid_bg.panel_x, grid_bg.panel_y)
+    local chosen = state.options.random_background and constants.background_rows.random or state.options.background
+    for column = 0, columns - 1 do
+        local position = first + column + 1
+        local row = grid.cells[position]
+        if row then
+            local x, y = grid_bg.x + column * grid_bg.step_x, grid_bg.y
+            local picture = grid_picture(state, row)
+            if grid_has(picture) then image(state, picture, x, y) end
+            local gray = row == chosen and 255 or (position == grid.cursor and 140 or nil)
+            if gray then
+                fill(state, x - 2, y - 2, grid_bg.w + 4, 2, gray)
+                fill(state, x - 2, y + grid_bg.h, grid_bg.w + 4, 2, gray)
+                fill(state, x - 2, y - 2, 2, grid_bg.h + 4, gray)
+                fill(state, x + grid_bg.w, y - 2, 2, grid_bg.h + 4, gray)
+            end
+            text(state, background_name(state, row), x + grid_bg.name_x, y + grid_bg.name_y, white)
+        end
+    end
+end
+
 local function grid_popup(state, previous_menu)
+    if grid_bg.step_x >= 1 then return grid_strip_popup(state, previous_menu) end
     local grid, held = state.grid, state.held
     local last_top = math.max(0, #grid.cells - grid_bg.rows)
     local scrollable = #grid.cells > grid_bg.rows
