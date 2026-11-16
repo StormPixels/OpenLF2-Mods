@@ -114,6 +114,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - 8P widescreen (`wide 1018`, `mode2.dat`): the background list in the character menu is a strip of three pictures in one row (`<grid_bg>` with `centerx` above 0, panel `BOX_STAGE` at (1, 140)); it was drawn as a vertical list that ran out of the panel. Left/right (and up/down) move along it, a tap chooses a picture. The vertical list of `mode4.dat` is unchanged (bug001)
+- Wide character menu: the roster no longer prints every fighter's name under its face; only the owner label (P1, COM) under a face a slot has chosen is drawn, as in LF2 Darkfiren (bug003)
 
 ### Changed
 - The background layer limit is 1000 as in LF2 Darkfiren (was 30; Forbidden Tower has 37 layers and failed to load)

@@ -1803,8 +1803,6 @@ local function roster_pass(state, held)
             fill(state, x + roster.width, y - 1, 1, roster.height + 2, owner.gray)
             text(state, owner.label, x + (owner.computer and roster.com_x or roster.human_x),
                 y + (owner.computer and roster.com_y or roster.human_y), owner.color)
-        else
-            text(state, fighter and fighter.name or "Random", x, y + roster.human_y, option_blue)
         end
     end
 end
