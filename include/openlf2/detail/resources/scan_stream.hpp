@@ -66,16 +66,19 @@ public:
             if (cursor != position_) unsupported("sign without digits");
             return Scan::mismatch;
         }
+        // Angka di luar 32-bit dijenuhkan (seperti strtol di LF2 asli), bukan error.
+        constexpr std::int64_t cap = std::int64_t{std::numeric_limits<std::int32_t>::max()} + 1;
         std::int64_t value = 0;
         while (cursor < text_.size() && is_digit(text_[cursor])) {
-            value = value * 10 + (text_[cursor++] - '0');
-            if (value > std::int64_t{std::numeric_limits<std::int32_t>::max()} + 1) {
-                unsupported("integer outside 32-bit range");
-            }
+            if (value < cap) value = value * 10 + (text_[cursor] - '0');
+            ++cursor;
         }
         if (negative) value = -value;
         if (value > std::numeric_limits<std::int32_t>::max()) {
-            unsupported("integer outside 32-bit range");
+            value = std::numeric_limits<std::int32_t>::max();
+        }
+        if (value < std::numeric_limits<std::int32_t>::min()) {
+            value = std::numeric_limits<std::int32_t>::min();
         }
         finish(cursor);
         target = static_cast<std::int32_t>(value);
