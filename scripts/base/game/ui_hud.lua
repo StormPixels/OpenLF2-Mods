@@ -79,7 +79,9 @@ end
 -- numbers, `pic` a path (lower case, forward slashes). {} (nothing) when the block is missing.
 function ui_hud.parse_groups(text, tag, group)
     local groups, inside, current = {}, false, nil
-    for line in (text or ""):gmatch("[^\r\n]+") do
+    for raw in (text or ""):gmatch("[^\r\n]+") do
+        -- A `#` starts a comment (`count:        #hp` in cui3.dat: the header with a comment must still open a group).
+        local line = raw:gsub("#.*$", "")
         local open = line:match("^%s*<([%w_]+)>")
         if open == tag then inside = true
         elseif open == tag .. "_end" then inside = false end

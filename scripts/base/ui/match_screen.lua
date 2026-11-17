@@ -460,7 +460,8 @@ local function draw_minibar(context, entry, camera, shake)
 end
 
 -- The combo display (<combo> of the mode file, readme/mode dat.txt): "N_hit" (`name`, %d = the hits) written with the
--- picture as a 16 x 16 grid of blocks w x h by character code, above the attacker, for `times` ticks after the last hit.
+-- picture as a 16 x 16 grid of blocks by character code, above the attacker, for `times` ticks after the last hit. A block is
+-- w x h with a 1 pixel line (green in combo_hits.bmp) at its right and bottom edge, so the grid runs every w + 1 by h + 1.
 -- [BELUM PASTI] from two hits on, the anchor (centred over the head, `offset_y` upwards, `offset_x` to the right) and
 -- `facing: 0` (above the victim; not drawn).
 local combo_settings
@@ -479,7 +480,7 @@ local function draw_combo(context, entry, frame, camera, shake)
     local y = entry.z - frame.center_y + entry.y - settings.offset_y
     for position = 1, #text do
         local code = text:byte(position)
-        context.sprite(settings.pic, {(code % 16) * settings.w, math.floor(code / 16) * settings.h, settings.w, settings.h},
+        context.sprite(settings.pic, {(code % 16) * (settings.w + 1), math.floor(code / 16) * (settings.h + 1), settings.w, settings.h},
             x + (position - 1) * settings.w, y, true)
     end
 end
@@ -826,7 +827,8 @@ end
 
 -- Custom counters and effect pictures of the HUD panel of a fighter (record.display, readme/dat file/stats count.txt and
 -- effect.txt). Both are placed from the top left corner of the fighter's HUD panel. [BELUM PASTI] that anchor.
--- stats_count (up to 10 `count`s): the number of `type` (the types below; right aligned at x, `facing: 1` left aligned),
+-- stats_count (up to 10 `count`s): the number of `type` (the types below; it starts at x and runs to the right; `facing: 1` ends at x and runs to the left, as the
+-- frame pictures of cui1 to cui3 and Wcuiv1 lay their number boxes out; the readme says it the other way round),
 -- at most `max`, in the letters of `pic` 0..5 (pe/words<pic>, 0 without it); `respond: 1` only when function keys were used
 -- (cheat_lock > 0). Types 18 and 19 write "current/total" (hp, mp) and ignore max, pic and facing; type 14 ignores max and
 -- facing. Sources (AI 3): 9 `blink`, 10 `timer_b0`, 11 `merge_timer`, 12 `fx.armor.hp` (else the data's armor hp), 13
@@ -883,7 +885,7 @@ local function draw_stats_count(context, state, value, column, row, counts)
                     local top = type(count.max) == "number" and count.max >= 0 and count.max or 999
                     -- Type 14 (defense) ignores max and facing (readme).
                     if count.type == 14 then top = math.huge end
-                    text, right = tostring(math.max(0, math.min(math.floor(number), top))), count.type == 14 or count.facing ~= 1
+                    text, right = tostring(math.max(0, math.min(math.floor(number), top))), count.type == 14 or count.facing == 1
                 end
             end
             if text then
