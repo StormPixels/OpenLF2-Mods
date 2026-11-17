@@ -633,11 +633,11 @@ private:
                 }
                 SpriteSheet sheet;
                 sheet.declared_range = token_.substr(4);
-                sheet.path = read_word(section, 40);
+                sheet.path = read_word(section, 300);
                 data_.sheets.push_back(std::move(sheet));
-            } else if (token_ == "head:") data_.head = read_word(section, 40);
-            else if (token_ == "small:") data_.small = read_word(section, 36);
-            else if (token_ == "name:") data_.name = read_word(section, 60);
+            } else if (token_ == "head:") data_.head = read_word(section, 300);
+            else if (token_ == "small:") data_.small = read_word(section, 300);
+            else if (token_ == "name:") data_.name = read_word(section, 300);
             else if (token_ == "walking_frame_rate") read_int(movement.walking_frame_rate);
             else if (token_ == "walking_speed") read_real(movement.walking_speed);
             else if (token_ == "walking_speedz") read_real(movement.walking_speedz);
@@ -721,7 +721,7 @@ private:
                         throw ParseFailure{ErrorCode::unsupported,
                                            "weapon strength name slot overlaps sprite paths"};
                     }
-                    data_.strengths[static_cast<std::size_t>(name_slot)].name = read_word(section, 30);
+                    data_.strengths[static_cast<std::size_t>(name_slot)].name = read_word(section, 300);
                     data_.strengths[static_cast<std::size_t>(entry)].referenced = true;
                 }
             } else {
@@ -850,7 +850,7 @@ private:
         }
         auto& frame = data_.frames[static_cast<std::size_t>(index)];
         if (frame.defined) note("frame " + std::to_string(index) + " redefined; earlier fields kept");
-        frame.name = read_word(section, 20);
+        frame.name = read_word(section, 300);
         frame.defined = true;
         frame.interactions.clear();
         frame.bodies.clear();
