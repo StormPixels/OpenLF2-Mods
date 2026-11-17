@@ -113,7 +113,8 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `<weapon_piece>` `team: 1` keeps the pieces in the broken weapon's team and owner, otherwise they are independent.
 
 ### Fixed
-- HUD counter type 38 (hits) is the running combo, the number of the `N_hit` display, and goes back to 0 when that display ends (the combo resets); it showed the total of hits made (bug005)
+- Kill display (who killed whom): the picture is centred between the end of the attacker's name and the start of the victim's name (it sat at `dx` and covered the attacker's name); at `dx` when the picture's width cannot be read (bug006)
+- HUD counter type 38 (hits) is the running combo, the number of the `N_hit` display, and disappears with that display (nothing is drawn); it showed the total of hits made (bug005)
 - LF2 Darkfiren HUD styles: the counters that were missing (cui3, Wcuiv1: a comment after `count:`) are shown, and `facing` of a counter ends the number at x (the number boxes of the frame pictures), so the numbers no longer cover the labels (AI4 R26)
 - 8P widescreen (`wide 1018`, `mode2.dat`): the background list in the character menu is a strip of three pictures in one row (`<grid_bg>` with `centerx` above 0, panel `BOX_STAGE` at (1, 140)); it was drawn as a vertical list that ran out of the panel. Left/right (and up/down) move along it, a tap chooses a picture. The vertical list of `mode4.dat` is unchanged (bug001)
 - Wide character menu: the roster no longer prints every fighter's name under its face; only the owner label (P1, COM) under a face a slot has chosen is drawn, as in LF2 Darkfiren (bug003)

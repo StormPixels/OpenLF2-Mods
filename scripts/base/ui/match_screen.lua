@@ -505,6 +505,25 @@ local function character_name(id)
     return fighter_names[id]
 end
 local kill_pic_known = {}
+-- The width of a PNG (bytes 17 to 20, big endian) or BMP (bytes 19 to 22, little endian) picture from its file; nil when unknown.
+local kill_pic_width = {}
+local function picture_width(pic)
+    if kill_pic_width[pic] == nil then
+        local width = false
+        local ok, data = pcall(engine.read_resource, pic)
+        if ok and type(data) == "string" then
+            if #data >= 24 and data:sub(2, 4) == "PNG" then
+                local a, b, c, d = data:byte(17, 20)
+                width = ((a * 256 + b) * 256 + c) * 256 + d
+            elseif #data >= 22 and data:sub(1, 2) == "BM" then
+                local a, b, c, d = data:byte(19, 22)
+                width = ((d * 256 + c) * 256 + b) * 256 + a
+            end
+        end
+        kill_pic_width[pic] = (width and width >= 1 and width < 4096) and width or false
+    end
+    return kill_pic_width[pic] or nil
+end
 local function kill_text(index, id, with_name)
     local label = index < constants.player_slots and controls.name(index) or "Com"
     local name = with_name and id and character_name(id) or nil
@@ -525,14 +544,20 @@ local function draw_kill_board(context, view, current)
     for row, event in ipairs(visible) do
         local y = settings.y + (row - 1) * settings.loop
         local pic = settings.pics[event.kind] or settings.pics[0]
-        if pic then
-            if kill_pic_known[pic] == nil then kill_pic_known[pic] = pcall(engine.read_resource, pic) end
-            if kill_pic_known[pic] then context.image(pic, settings.dx, y, settings.transparent) end
-        end
         local attacker = kill_text(event.killer, event.killer_id, settings.attacker_name)
         local victim = kill_text(event.victim, event.victim_id, settings.victim_name)
         local attacker_x = settings.attacker_back and settings.x - #attacker * 9 or settings.x
         local victim_x = settings.victim_back and settings.dvx - #victim * 9 or settings.dvx
+        if pic then
+            if kill_pic_known[pic] == nil then kill_pic_known[pic] = pcall(engine.read_resource, pic) end
+            if kill_pic_known[pic] then
+                -- Centred between the end of the attacker's name and the start of the victim's name (it covered the attacker's
+                -- name at `dx`); at `dx` as the file says when the picture's width cannot be read.
+                local width = picture_width(pic)
+                local at = width and math.floor((attacker_x + #attacker * 9 + victim_x - width) / 2) or settings.dx
+                context.image(pic, at, y, settings.transparent)
+            end
+        end
         glyphs(context, settings.arest and event.killer_team and label_font(event.killer_team) or "pe/words0", attacker, attacker_x, y, 9)
         glyphs(context, settings.vrest and event.victim_team and label_font(event.victim_team) or "pe/words0", victim, victim_x, y, 9)
     end
@@ -867,12 +892,12 @@ local function count_value(value, kind)
         return type(value.armor) == "number" and value.armor > 0 and value.armor or 0
     elseif kind == 15 then return type(value.fx) == "table" and value.fx.deaths or 0
     elseif kind == 38 then
-        -- The running combo, the number of the "N_hit" display: it goes with that display, so it is back to 0 once the display
-        -- ends (the combo resets), and below 2 hits there is none (as for the display). Not the total of hits made (fx.hits).
+        -- The running combo, the number of the "N_hit" display: shown with that display and gone when it ends (the combo
+        -- resets); nothing below 2 hits (as for the display). Not the total of hits made (fx.hits).
         local fx = type(value.fx) == "table" and value.fx or nil
         local hits, age = fx and fx.combo, fx and fx.combo_age or 0
-        if type(hits) ~= "number" or hits < 2 then return 0 end
-        if combo_settings and type(combo_settings.times) == "number" and age >= combo_settings.times then return 0 end
+        if type(hits) ~= "number" or hits < 2 then return nil end
+        if combo_settings and type(combo_settings.times) == "number" and age >= combo_settings.times then return nil end
         return hits
     end
     for name, number in pairs(status_names) do if number == kind then return status_timer(value, name) end end
