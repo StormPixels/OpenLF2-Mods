@@ -866,7 +866,15 @@ local function count_value(value, kind)
         if type(stats) == "table" and type(stats.defend) == "number" and stats.defend > 0 then return stats.defend end
         return type(value.armor) == "number" and value.armor > 0 and value.armor or 0
     elseif kind == 15 then return type(value.fx) == "table" and value.fx.deaths or 0
-    elseif kind == 38 then return type(value.fx) == "table" and value.fx.hits or 0 end   -- hits made (AI 3, R29)
+    elseif kind == 38 then
+        -- The running combo, the number of the "N_hit" display: it goes with that display, so it is back to 0 once the display
+        -- ends (the combo resets), and below 2 hits there is none (as for the display). Not the total of hits made (fx.hits).
+        local fx = type(value.fx) == "table" and value.fx or nil
+        local hits, age = fx and fx.combo, fx and fx.combo_age or 0
+        if type(hits) ~= "number" or hits < 2 then return 0 end
+        if combo_settings and type(combo_settings.times) == "number" and age >= combo_settings.times then return 0 end
+        return hits
+    end
     for name, number in pairs(status_names) do if number == kind then return status_timer(value, name) end end
     return nil
 end
