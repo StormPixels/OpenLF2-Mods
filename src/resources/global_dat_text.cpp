@@ -103,8 +103,7 @@ FrameSteps frame_steps_from_system_dat(std::string_view text) {
     return steps;
 }
 
-std::string saves_path_from_system_dat(std::string_view text) {
-    const std::string fallback = "data/saves.txt";
+std::string file_path_from_system_dat(std::string_view text, std::string_view tag, const std::string& fallback, bool require_txt) {
     std::size_t position = 0;
     while (position <= text.size()) {
         auto end = text.find('\n', position);
@@ -113,8 +112,8 @@ std::string saves_path_from_system_dat(std::string_view text) {
         position = end + 1;
         while (!line.empty() && (line.front() == ' ' || line.front() == '\t')) line.remove_prefix(1);
         if (!line.empty() && line.front() == '<') break;
-        if (!line.starts_with("file")) continue;
-        auto rest = line.substr(4);
+        if (!line.starts_with(tag)) continue;
+        auto rest = line.substr(tag.size());
         while (!rest.empty() && (rest.front() == ' ' || rest.front() == '\t')) rest.remove_prefix(1);
         if (rest.empty() || rest.front() != ':') continue;
         rest.remove_prefix(1);
@@ -126,9 +125,28 @@ std::string saves_path_from_system_dat(std::string_view text) {
         value.erase(0, start);
         auto normalized = virtual_path(value);
         if (!normalized) return fallback;
-        if (!normalized->starts_with("data/") || !normalized->ends_with(".txt") || normalized->size() <= 9) return fallback;
+        if (!normalized->starts_with("data/") || normalized->size() <= 5) return fallback;
+        if (require_txt && (!normalized->ends_with(".txt") || normalized->size() <= 9)) return fallback;
         return *normalized;
     }
     return fallback;
+}
+
+std::string saves_path_from_system_dat(std::string_view text) {
+    return file_path_from_system_dat(text, "file", "data/saves.txt", true);
+}
+
+std::string data_path_from_system_dat(std::string_view text) {
+    return file_path_from_system_dat(text, "data", "data/data.txt", false);
+}
+
+std::string control_path_from_system_dat(std::string_view text) {
+    return file_path_from_system_dat(text, "control", "data/control.txt", false);
+}
+
+std::string system_file_alias(std::string_view normalized, std::string_view data_path, std::string_view control_path) {
+    if (normalized == "data/data.txt" && !data_path.empty()) return std::string(data_path);
+    if (normalized == "data/control.txt" && !control_path.empty()) return std::string(control_path);
+    return std::string(normalized);
 }
 }

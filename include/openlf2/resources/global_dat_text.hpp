@@ -36,6 +36,16 @@ std::optional<std::string> window_title_from_system_dat(std::string_view text);
 // normalized virtual path. Only a path under data/ that ends in .txt is accepted; anything else is the default.
 std::string saves_path_from_system_dat(std::string_view text);
 
+// LF2 Darkfiren: the game's data.txt and control.txt may be renamed or moved with system.dat `data:` and `control:` (readme "system dat":
+// "these hardcoded paths can be changed", defaults data\data.txt and data\control.txt). Normalized virtual paths, any file under data/;
+// a missing tag, a path outside data/ or one in a later block gives the default.
+std::string data_path_from_system_dat(std::string_view text);
+std::string control_path_from_system_dat(std::string_view text);
+
+// The path a script's read of `normalized` really takes: "data/data.txt" and "data/control.txt" are replaced by the system.dat paths
+// (empty path = no replacement), everything else stays as it is. Scripts keep asking for the default names.
+std::string system_file_alias(std::string_view normalized, std::string_view data_path, std::string_view control_path);
+
 struct FrameSteps {
     std::uint32_t normal = 33;
     std::uint32_t fast = 3;

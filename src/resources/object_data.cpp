@@ -62,6 +62,10 @@ constexpr std::array header_int_tags{same("heavy_walking_frame_rate"), same("hea
 constexpr std::array header_text_tags{same("shadow_pic"), same("frame"), same("bars"), same("smallb"),
     same("smallc"), same("smalld"), same("smallp"), same("smallt"), same("hidden_head"), same("hidden_small"),
     same("sound1"), same("sound2")};
+// The notes close each of these lists with `<name>_end:`. The count already says how many values to read, so the closing tag
+// is only skipped, without a diagnostic.
+constexpr std::array header_list_end_tags{same("walking_frame_end"), same("running_frame_end"),
+    same("heavy_walking_frame_end"), same("heavy_running_frame_end")};
 constexpr std::array header_list_tags{same("walking_frame"), same("running_frame"),
     same("heavy_walking_frame"), same("heavy_running_frame")};
 
@@ -474,7 +478,8 @@ private:
     };
 
     void finish_sheet() {
-        auto& sheet = data_.sheets.back();
+        auto& sheet = data_.sheets[open_sheet_];
+        sheet_open_ = false;
         // Bounds keep cell arithmetic within 32 bits; they exceed every original sheet.
         const auto require = [&](const std::optional<std::int32_t>& value, std::string_view key) {
             if (!value || *value < 1 || *value > 8192) {
@@ -491,16 +496,17 @@ private:
             throw ParseFailure{ErrorCode::unsupported,
                                "sprite sheet " + sheet.path + " exceeds 500 cells"};
         }
+        // A sheet may replace one of an earlier header (see header()), so every start is worked out again.
         std::int32_t first = 0;
-        for (std::size_t index = 0; index + 1 < data_.sheets.size(); ++index) {
-            first += data_.sheets[index].columns * data_.sheets[index].rows;
+        for (auto& each : data_.sheets) {
+            each.first_picture = first;
+            first += each.columns * each.rows;
         }
-        sheet.first_picture = first;
         pending_ = {};
     }
 
     void sheet_field(std::optional<std::int32_t> PendingSheet::*field) {
-        if (data_.sheets.empty()) {
+        if (!sheet_open_) {
             note("`" + token_ + "` before the first sprite sheet is ignored");
             std::optional<std::int32_t> ignored;
             read_int(ignored);
@@ -620,21 +626,27 @@ private:
     void header() {
         constexpr std::string_view section = "<bmp_begin>";
         auto& movement = data_.movement;
+        // A file may hold more than one header (two characters pasted together, as naruto_cloneY.dat does). Like the
+        // original, whose sheet counter starts again at each header, a later header's Nth `file` replaces the Nth sheet.
+        std::size_t position = 0;
         for (;;) {
             next_token(section);
             if (token_ == "<bmp_end>") {
-                if (!data_.sheets.empty()) finish_sheet();
+                if (sheet_open_) finish_sheet();
                 return;
             }
             if (token_.starts_with("file")) {
-                if (!data_.sheets.empty()) finish_sheet();
-                if (data_.sheets.size() == max_sheets) {
+                if (sheet_open_) finish_sheet();
+                if (position == max_sheets) {
                     throw ParseFailure{ErrorCode::unsupported, "more than ten sprite sheets"};
                 }
                 SpriteSheet sheet;
                 sheet.declared_range = token_.substr(4);
                 sheet.path = read_word(section, 300);
-                data_.sheets.push_back(std::move(sheet));
+                if (position < data_.sheets.size()) data_.sheets[position] = std::move(sheet);
+                else data_.sheets.push_back(std::move(sheet));
+                open_sheet_ = position++;
+                sheet_open_ = true;
             } else if (token_ == "head:") data_.head = read_word(section, 300);
             else if (token_ == "small:") data_.small = read_word(section, 300);
             else if (token_ == "name:") data_.name = read_word(section, 300);
@@ -679,7 +691,8 @@ private:
             }
             else if (extra_int(data_.header, header_int_tags, true) ||
                      extra_text(data_.header, header_text_tags, section) ||
-                     extra_list(data_.header, header_list_tags)) {
+                     extra_list(data_.header, header_list_tags) ||
+                     find_tag(header_list_end_tags, tag_name(true)) != nullptr) {
             } else note("ignored header token `" + token_ + "`");
         }
     }
@@ -952,6 +965,8 @@ private:
     ObjectData data_;
     std::string token_;
     PendingSheet pending_;
+    std::size_t open_sheet_ = 0;  // the sheet `file` last started, while its w:/h:/row:/col: are being read
+    bool sheet_open_ = false;
 };
 
 ScriptValue integer(std::int32_t value) { return ScriptValue{value}; }

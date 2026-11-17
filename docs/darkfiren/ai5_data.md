@@ -74,3 +74,20 @@ Layer `state:` (1 saat ronde mulai, 2 saat selesai): `set_phase(view, fase)`; `t
 - Hook tunggal: `combat.lua` `stat_scaled(state, attacker, victim, damage)` (HOOK(AI5)).
 - **[BELUM PASTI] `bound`:** readme bilang 1 = friendly fire ikut decrease; kode exe (dibaca dari assembly) melakukan sebaliknya: `bound: 1` membiarkan friendly fire (korban satu tim dengan penyerang) pada damage penuh, bound lain menerapkannya. Kode mengikuti exe.
 - **[BELUM PASTI]** hanya jalur damage yang lewat `stat_scaled` (pukulan biasa, tangkisan, pembekuan); lemparan/tangkap, damage api dan jatuh tidak diperiksa. Penyerang berupa senjata: timnya mengikuti `item.team` mesin kita.
+
+## R22 (AI5): tag stage dan system.dat yang kini mengikuti berkas
+- `hex:` (header stage): warna nama stage (angka 0..0xffffff); `<boss>` (merah) tetap menang; tanpa `hex` abu-abu seperti sebelumnya. **[BELUM PASTI]** readme menyebut warna asli biru ("change the blue colour to red"), kita tetap abu-abu 0xc8c8c8.
+- `type: 1` (header stage): fitur survival (nama berkedip, petarung yang kalah kembali di fase berikutnya) untuk data Darkfiren, mis. Survival_Stage; tanpa data Darkfiren tetap grup survival asli.
+- `ptype: 1`: stage terakhir boleh selesai begitu musuhnya habis tanpa berjalan ke tepi; `next: 1`: hanya petarung manusia yang ditunggu di tepi (petarung komputer tidak). Keduanya di transisi akhir stage (`stage.update`, langkah "final"). **[BELUM PASTI]** apakah `ptype` juga mengubah perpindahan antar fase (di sini hanya transisi akhir).
+- `max:` (header stage): jumlah pengikut (klon) per pemilik yang dibawa ke stage berikutnya, -1 tidak ada, tanpa tag 2 (aturan lama). Dipakai dari stage yang ditinggalkan. **[BELUM PASTI]** apakah tag di stage yang ditinggalkan atau yang dimasuki.
+- `respond: 1..3`: `state.stage_blackout` (0..3) tiap tick; AI4 menggambar area di luar batas yang digelapkan (1), garis hitam (2) atau digelapkan dengan animasi buka-tutup (3). Hanya angkanya yang dibawa.
+- `stage_levels.background_mode(data, id)`: `mode:` stage (0 bila tidak ada, nil tanpa level); pemakainya `match.lua` (AI2) bila mau mengikuti mode latar stage.
+- `system_data.menu_back(n)` (n 1 atau 2): blok `<menu_back_N>` system.dat = {type, color, bound, layers = {{pic, transparency, respond}}} (maks 100 gambar); type 0 warna saja, 1 satu gambar acak, 2 semua gambar (animasi), 3 animasi acak memakai bound. Pemakainya latar menu utama (`title.lua`, AI4); sekarang gambar menu masih tertanam.
+- Belum dikerjakan: `facing: 1` (stage berjalan dari kanan ke kiri; posisi dan arah disesuaikan otomatis, terlalu besar tanpa pengujian di game).
+
+## R23 (AI5): jalur `data:`, `control:` (system.dat) diikuti
+- Readme `system dat.txt`: jalur data.txt, control.txt dan temporary.txt "can be changed" lewat `data:`, `control:`, `temp:` (bawaan `data\data.txt`, `data\control.txt`, `data\temporary.txt`).
+- Dikerjakan di lapisan C++ milik AI5 sehingga `catalog.lua` (AI1) dan `controls.lua` (AI4) tidak perlu diubah: skrip tetap meminta `data/data.txt` dan `data/control.txt`, dan `GameResources::read` (`application.cpp`) mengganti jalurnya dengan jalur system.dat (`system_file_alias`); berkas yang diganti nama dibaca dulu, bila tidak ada tetap dicoba nama bawaan. Pemeriksaan awal folder game (`installer.cpp`, `identify_folder`) memakai `data:` juga, sebelumnya game gagal mulai bila `data/data.txt` tidak ada.
+- Pembantu (`global_dat_text`): `data_path_from_system_dat`, `control_path_from_system_dat` (berkas apa saja di bawah data/; tag di blok setelahnya tidak dihitung; di luar data/ atau mengandung `..` = bawaan).
+- `temp:`: tidak ada pemakai `temporary.txt` di OpenLF2, jadi tidak ada yang perlu diikuti.
+- **[BELUM PASTI]** `temporary.txt` pada Darkfiren asli (fungsinya tidak dijelaskan readme selain "dapat dimatikan dengan menghapus tag").

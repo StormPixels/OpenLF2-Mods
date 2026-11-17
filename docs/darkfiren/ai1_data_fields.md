@@ -46,7 +46,7 @@ Kunci lama utuh. Baru: `dvz drain gain spark recover dbdefend z sound cover caug
 ## `header` (tag `<bmp_begin>`; `name: v` dan `name v` sama-sama diterima)
 Angka: `heavy_walking_frame_rate heavy_running_frame_rate hidden random kind ratio use_ai drop bound shadow shadowsize effect start_frame cost respond pic frame_0mp small_x small_y property`.
 Teks: `shadow_pic frame bars smallb smallc smalld smallp smallt hidden_head hidden_small sound1 sound2`.
-Larik (`tag: N v1..vN`, N 0-100): `walking_frame running_frame heavy_walking_frame heavy_running_frame`.
+Larik (`tag: N v1..vN`, N 0-100): `walking_frame running_frame heavy_walking_frame heavy_running_frame`. Dokumen menutup tiap daftar dengan `<nama>_end:` (mis. `walking_frame_end:`); penutup itu dilewati tanpa diagnostik karena jumlah nilai sudah diketahui dari N. Catatan: game (bukan pembaca) saat ini belum memakai daftar ini; jalan dan lari memakai nomor frame tetap 5, 9, 12, 16.
 Juga disalin ke sini: `weapon_hp weapon_drop_hurt weapon_hit_sound weapon_drop_sound weapon_broken_sound` (nilainya tetap ada di `weapon` seperti dulu).
 
 ## Frame

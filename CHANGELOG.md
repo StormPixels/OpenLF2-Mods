@@ -113,6 +113,15 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `<weapon_piece>` `team: 1` keeps the pieces in the broken weapon's team and owner, otherwise they are independent.
 
 ### Fixed
+- LF2 Darkfiren: combat, opoint spawning and drinking read more system.dat lists instead of fixed ids: `<freeze_column>`, `<criminal_free>`, `<weapon_flute_sky>`, `<weapon_ww_sky>`, `<z_states>`, `<z_oid>`, `<z_movement>`, `<hp_refill>`, `<mp_refill>`; empty or missing lists keep the original LF2 ids (AI3 R34)
+- LF2 Darkfiren stages: `hex:` colours the stage name, `type: 1` survival, `ptype`/`next` at the end of a stage, `max:` followers per owner, `respond:` blackout, `mode:` of a stage's background, and `<menu_back_N>` for the main menu background are read from the data (AI5 R22)
+- LF2 Darkfiren `system.dat`: the `data:` and `control:` tags (names of data.txt and control.txt under `data/`) are followed by the game and by the game-folder check, which no longer refuses a folder whose data.txt was only renamed (AI5 R23)
+- Object data: the closing tags of the header frame lists (`walking_frame_end:` and the others) are skipped without a diagnostic (AI1 R11)
+- Object data with more than one `<bmp_begin>` header (two characters pasted together, e.g. `naruto_cloneY.dat` and `naruto_cloneO.dat`) is accepted instead of failing with `sprite sheet ... needs w:` and closing the game: the sheet position starts again at each header, so a later header's Nth `file` replaces the Nth sheet (bug008)
+- Bitmaps with OS/2 core, V4/V5 and the related 52/56-byte headers (BI_BITFIELDS with the standard BGRA masks, planes 0) are rewritten to a plain one-plane header and load (applied by the owner)
+- Object data: the paths and names of `file`/`head`/`small`/`name` and weapon strength and frame names may be up to 300 characters (the limits were 40, 36, 60, 30 and 20) (applied by the owner)
+- Script frames: a drawing command (sprite, icon, fill, text) with a field out of range is dropped instead of ending the whole frame; the error text names the value and its range (applied by the owner)
+- Integers outside 32 bits in data files saturate (as strtol in LF2) instead of being an error (applied by the owner)
 - Kill display (who killed whom): the picture is centred between the end of the attacker's name and the start of the victim's name (it sat at `dx` and covered the attacker's name); at `dx` when the picture's width cannot be read (bug006)
 - HUD counter type 38 (hits) is the running combo, the number of the `N_hit` display, and disappears with that display (nothing is drawn); it showed the total of hits made (bug005)
 - LF2 Darkfiren HUD styles: the counters that were missing (cui3, Wcuiv1: a comment after `count:`) are shown, and `facing` of a counter ends the number at x (the number boxes of the frame pictures), so the numbers no longer cover the labels (AI4 R26)

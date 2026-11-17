@@ -2,6 +2,8 @@
 // Copyright (c) 2026 OpenLF2 contributors
 
 #include "openlf2/resources/installer.hpp"
+#include "openlf2/resources/data_file.hpp"
+#include "openlf2/resources/global_dat_text.hpp"
 #include "openlf2/core/binary.hpp"
 #include "openlf2/core/files.hpp"
 #include "openlf2/ports/digest.hpp"
@@ -298,7 +300,14 @@ Result<void> identify_folder(const ResourceSource& source) {
     } else {
         std::fprintf(stderr, "[folder] no lf2.exe; bitmaps come from resource.dat and lf2_exe/\n");
     }
-    if (auto data = source.read("data/data.txt"); !data) return std::unexpected(data.error());
+    // data.txt may be renamed by system.dat `data:` (LF2 Darkfiren); the default name still counts.
+    std::string data_path = "data/data.txt";
+    if (const auto system_dat = read_data_text(source, "data/system.dat", 1024 * 1024)) {
+        data_path = data_path_from_system_dat(std::string_view(reinterpret_cast<const char*>(system_dat->data()), system_dat->size()));
+    }
+    auto data = source.read(data_path);
+    if (!data && data_path != "data/data.txt") data = source.read("data/data.txt");
+    if (!data) return std::unexpected(data.error());
     return {};
 }
 

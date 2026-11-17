@@ -32,7 +32,39 @@ function system_data.parse(text)
             end
         end
     end
+    result.menu_back = {}
+    for _, block in ipairs(scan.blocks) do
+        local index = tonumber(block.name:match("^menu_back_(%d+)$") or "")
+        if index then result.menu_back[index] = system_data.parse_menu_back(block) end
+    end
     return result
+end
+
+-- A `<menu_back_N>` block (the main menu's background pictures): `type:` 0 a colour only, 1 one random picture, 2 every picture (with
+-- animations), 3 random animations using `bound:`; `rect32:` the colour number; one `layer:` line per picture (`pic:`, `transparency:`,
+-- `respond:`), up to 100 (readme "system dat.txt"). {type, color, bound, layers = {{pic, transparency, respond}}}.
+function system_data.parse_menu_back(block)
+    local back = {type = 0, layers = {}}
+    local layer
+    local function number(text) return tonumber(tostring(text):match("^%s*(%-?%d+)")) end
+    for _, line in ipairs(block.lines) do
+        for _, pair in ipairs(sd_text.pairs_of_line(line)) do
+            local key, value = pair[1], pair[2]
+            if key == "type" then back.type = number(value) or 0
+            elseif key == "rect32" then back.color = number(value)
+            elseif key == "bound" then back.bound = number(value)
+            elseif key == "layer" then layer = nil
+            elseif key == "pic" then
+                if #back.layers < max_entries then
+                    layer = {pic = (value:gsub("%s+layer_end%s*$", "")), transparency = 0, respond = 0}
+                    back.layers[#back.layers + 1] = layer
+                else layer = nil end
+            elseif layer and key == "transparency" then layer.transparency = number(value) or 0
+            elseif layer and key == "respond" then layer.respond = number(value) or 0
+            end
+        end
+    end
+    return back
 end
 
 -- Replaces the data (tests, hosts that already hold the text). nil forgets it so the next read loads again.
@@ -57,6 +89,9 @@ function system_data.number(key, default)
     if value == nil then return default end
     return value
 end
+
+-- The `<menu_back_N>` block of system.dat (N 1 or 2) or nil when the file has none.
+function system_data.menu_back(index) return data().menu_back and data().menu_back[index] or nil end
 
 -- A text tag such as `menu_bgm1: bgm\main.wma`; `default` when absent.
 function system_data.string(key, default)

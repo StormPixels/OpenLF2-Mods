@@ -262,3 +262,20 @@ Sumber: jawaban pengembang Darkfiren di Discord (kanal #darkfiren-exe-dll, 2026-
 ## R31-R32: poison mengikuti timer (kelipatan 32)
 - R31: `fx_status.poison_interval` 60 -> 32. R32: fase ikut nilai timer korban (aturan PDK di atas; jawaban pembaca PDK atas pertanyaan putaran 27), bukan 32 frame sesudah kena. Contoh T=289: tick di frame 1; T=320: tick pertama di frame 32; T=32: tidak ada tick. [DUGAAN] pengurangan pertama PDK terjadi di awal tick berikutnya, milik kita di akhir tick pukulan (efek di snapshot sama). [DUGAAN] isi 0x41b210 = pengurangan HP sebesar zz. Korban yang HP-nya sudah <= 0 tidak kena damage poison lagi.
 - Timer weak / manacle / delay / confus / poison: PDK mengurangi 1 per tick hanya selama HP > 0. TIDAK diikuti: status tidak pernah dibersihkan di kode kita (tidak ada clear / reset), sehingga timer yang membeku pada korban mati akan terbawa ke hidup berikutnya. Timer tetap berjalan seperti sebelumnya; hanya damage poison yang berhenti pada korban mati. [BELUM PASTI] bila ada contoh perilaku PDK pada karakter mati yang dihidupkan lagi.
+
+## R34: daftar `system.dat` yang sekarang dibaca (sebelumnya id tertanam di kode)
+Sumber: readme Darkfiren `system dat.txt`; `system.dat` asli update 17 diuji dengan parser game (isinya persis sama dengan nilai lama di kode). Daftar kosong atau tidak ada = id / state asli LF2 (hasil data lama tidak berubah).
+| Tag | Arti | Berkas | Nilai bawaan |
+|---|---|---|---|
+| `<freeze_column>` | id yang bisa dipukul timnya sendiri dari sisi berlawanan (hanya t3) | `combat.lua` | 212 |
+| `<criminal_free>` | id (selain petarung) yang bisa membebaskan tahanan di mode stage | `combat.lua` | 201, 202 |
+| `<weapon_flute_sky>` | id t1 / t4 / t6 yang TIDAK terangkat itr kind 10 | `combat.lua` (fungsi `whirl`) | 201, 202 |
+| `<weapon_ww_sky>` | id t1 / t4 / t6 yang TIDAK tertarik itr kind 15 | `combat.lua` | 201, 202 |
+| `<z_states>` | state objek hasil opoint yang bergerak di sumbu z | `objects.lua` (`spawn_from_frame`) | 3000, 1002, 3006 |
+| `<z_oid>` | id objek opoint yang TIDAK bergerak di sumbu z | `objects.lua` | 223, 224 |
+| `<z_movement>` | id objek opoint dengan seperempat kecepatan z | `objects.lua` | 211 |
+| `<hp_refill>` | id minuman yang menyembuhkan seperti susu | `weapons.lua` (`drink`) | 122 |
+| `<mp_refill>` | id minuman yang mengisi MP seperti bir | `weapons.lua` (`drink`) | 123 |
+- Pemetaan `weapon_flute_sky` = itr kind 10 dan `weapon_ww_sky` = itr kind 15 mengikuti bunyi readme ("tidak terpengaruh itk15") dan jenis cabang kodenya; [BELUM PASTI] bila readme berbeda dari yang kubaca.
+- Masih tertanam, tanpa tag di readme: daftar bola yang bisa dipecahkan, id benda tahanan (`record_ids.criminal`), nomor frame bola dan senjata (10, 20, 30, 115, 116), dan id susu / bir pada awal HP minuman, frame jatuh dan pecahan senjata (`weapons.lua`: HP awal susu, daftar frame, `drop` dan `piece`): hanya cabang minum yang mengikuti `<hp_refill>` / `<mp_refill>`.
+- Bukan wilayah AI3 (tag ada di `system.dat`, tidak dibaca di Lua yang kuperiksa): `<weapon_throw>`, `<weapon_run>`, `<id_locked>`, `<stage_com>`, `<id_no_blink>`.

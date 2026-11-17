@@ -20,6 +20,14 @@ function stage_levels.background_row(data, id, legacy_row)
     return bg >= 0 and bg or 0
 end
 
+-- Background mode a stage plays with: its `mode:` (the first, 0, when absent); nil without levels (the menu's choice stays).
+function stage_levels.background_mode(data, id)
+    if not stage_levels.active(data) then return nil end
+    local stage = data.stages[id]
+    local mode = stage and stage.mode or 0
+    return mode >= 0 and mode or 0
+end
+
 local function background_of(data, id)
     return stage_levels.background_row(data, id, 0)
 end

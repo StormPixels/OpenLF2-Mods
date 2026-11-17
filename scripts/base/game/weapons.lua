@@ -40,11 +40,21 @@ local function drop_empty(holder, value)
     value.drop_counter = 0
 end
 
--- While the holder drinks (state 17): milk (122) gives hp/dark hp and mp, beer (123) mp.
+-- R34: system.dat <hp_refill> (ids that heal like milk) and <mp_refill> (ids that refill mp like beer), readme "system dat.txt".
+-- An empty or missing list keeps the original ids (milk 122, beer 123). `require` is lazy and tolerant of a proxied module in tests.
+local function refill_listed(listname, id, original)
+    local data = require("base/game/system_data")
+    local read = data and data.ids
+    local list = read and read(listname)
+    if type(list) == "table" and next(list) ~= nil then return list[id] == true end
+    return id == original
+end
+
+-- While the holder drinks (state 17): an hp_refill id (milk 122) gives hp/dark hp and mp, an mp_refill id (beer 123) mp.
 -- Returns true when the drink ran out and was dropped.
 local function drink(value, holder)
     local id = value.record.id
-    if id == constants.item_ids.milk and value.hp > 0 then
+    if refill_listed("hp_refill", id, constants.item_ids.milk) and value.hp > 0 then
         value.hp = value.hp - constants.milk.hp_consumption
         if value.hp % constants.milk.hp_interval == 0 then
             holder.dark_hp = holder.dark_hp + constants.milk.dark_hp_gain
@@ -61,7 +71,7 @@ local function drink(value, holder)
             return true
         end
     end
-    if id == constants.item_ids.beer and value.hp > 0 then
+    if refill_listed("mp_refill", id, constants.item_ids.beer) and value.hp > 0 then
         value.hp = value.hp - constants.beer.hp_consumption
         holder.mp = holder.mp + constants.beer.mp_gain
         if constants.points.full < holder.mp then holder.mp = constants.points.full end

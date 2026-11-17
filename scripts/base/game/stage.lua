@@ -64,7 +64,21 @@ local function darkfiren()
     stage_list()
     return stage_levels.active(whole)
 end
-local function legacy_survival(group) return group == constants.stage_groups.survival and not darkfiren() end
+-- Survival features (the name blinks, a beaten fighter returns with the next phase): the original's survival group, and with
+-- Darkfiren data a stage that writes `type: 1` (stage mode.txt).
+local function survival_features(run, group)
+    if darkfiren() then
+        local header = stage_list()[run.id]
+        return header ~= nil and header.type == 1
+    end
+    return group == constants.stage_groups.survival
+end
+-- Colour of the stage name: <boss> red wins over `hex:` (a colour number, 0..0xffffff), else the grey of the original.
+local function name_color(header)
+    if header and header.boss == 1 then return 0xff5050 end
+    if header and header.hex and header.hex >= 0 and header.hex <= 0xffffff then return header.hex end
+    return 0xc8c8c8
+end
 -- The data the menus need: levels and stages of data/stage.dat.
 function stage.data()
     stage_list()
@@ -191,6 +205,9 @@ end
 stage.spawn_entry = spawn -- exported for the tests
 
 local function next_stage(state, run)
+    -- `max:` of the stage being left: how many followers (clones) an owner keeps into the next stage; -1 none, absent 2.
+    local left = stage_list()[run.id]
+    local clone_cap = left and left.max or 2
     run.id = (run.plan and run.plan.action == "stage") and run.plan.id or run.id + 1
     run.plan = nil
     run.go, run.result, run.last_phase, run.phase, run.survival = 70, 0, 0, -1, -1
@@ -223,7 +240,7 @@ local function next_stage(state, run)
             if value.record.kind > record_kinds.character and value.weapon >= 0 then
                 objects.remove(state, index)
             elseif value.follow >= 0 and value.follow < 20 then
-                if (counts[value.follow] or 0) < 2 then counts[value.follow] = (counts[value.follow] or 0) + 1
+                if clone_cap >= 0 and (counts[value.follow] or 0) < clone_cap then counts[value.follow] = (counts[value.follow] or 0) + 1
                 else objects.remove(state, index) end
             end
         end
@@ -242,7 +259,7 @@ local function start_phase(state, run)
     run.phase_done, run.boss_alive, run.last_phase = 0, 0, 0
     run.boss_slots, run.boss_slot = {}, nil
     run.survival = run.survival + 1
-    if legacy_survival(group) then run.survival_blink = 1 end
+    if survival_features(run, group) then run.survival_blink = 1 end
     local goto_phase = phase >= 0 and phase_data(run, phase).when_clear_goto_phase or -1
     if phase < 0 or goto_phase == -1 then run.phase = phase + 1 else run.phase = goto_phase end
     local data = phase_data(run, run.phase)
@@ -251,7 +268,7 @@ local function start_phase(state, run)
     if data.music ~= "" then music.play(data.music) end
     state.camera_limit = data.bound - constants.screen.width
     state.stage_bound = data.bound
-    if legacy_survival(group) then
+    if survival_features(run, group) then
         for index = 0, constants.first_spawned_slot - 1 do
             local value = state.items[index]
             if value and value.hp <= 0 then
@@ -357,6 +374,9 @@ function stage.update(state, run)
         if #rules > 0 then run.damage_rules = rules end
     end
     state.stage_damage_rules = run.damage_rules
+    -- `respond: 1..3` of the stage header: the area beyond the bound is blacked out (1), marked by a black line (2) or blacked out with
+    -- an open and close animation (3); 0 none. Only the number is carried here, AI4's match screen draws it.
+    state.stage_blackout = data.respond or 0
     if run.phase >= 0 then
         local entries = phase_data(run, run.phase).entries
         local runtimes = run.runtime[run.phase] or {}
@@ -430,7 +450,7 @@ function stage.update(state, run)
         if run.go > 0 and run.go < 100 then
             if darkfiren() then
                 local data = stage_list()[run.id]
-                display[#display + 1] = {"text", stage_levels.title(data, run.id), 330, 299, data and data.boss == 1 and 0xff5050 or 0xc8c8c8, "C"}
+                display[#display + 1] = {"text", stage_levels.title(data, run.id), 330, 299, name_color(data), "C"}
             elseif group < constants.stage_groups.survival then
                 display[#display + 1] = {"sprite", menu_sheet, frames[25], 265, 299, "C"}
                 display[#display + 1] = {"sprite", menu_sheet, frames[36], 490, 299, "C"}
@@ -477,10 +497,16 @@ function stage.update(state, run)
             end
             if continues then
                 local bound = phase_data(run, run.phase).bound
+                -- `ptype: 1`: the stage goes on once its enemies are gone, nobody has to walk to the edge; `next: 1`: only the human
+                -- fighters have to be there, the computer fighters are not waited for (stage mode.txt).
+                local header = stage_list()[run.id]
+                local free_walk = header ~= nil and header.ptype == 1
+                local humans_only = header ~= nil and header.next == 1
                 local all_done = true
                 for index = 0, constants.first_spawned_slot - 1 do
                     local value = state.items[index]
-                    if value and value.record.kind == record_kinds.character and value.hp > 0 and value.x_int < bound then all_done = false end
+                    if value and value.record.kind == record_kinds.character and value.hp > 0 and value.x_int < bound
+                       and not free_walk and not (humans_only and value.human == false) then all_done = false end
                 end
                 if all_done then
                     run.shutter = 1
@@ -553,7 +579,7 @@ function stage.status(state, run, display)
         local data = stage_list()[run.id]
         if data then
             display[#display + 1] = {"text", stage_levels.title(data, run.id), data.xpos or 360, 110,
-                data.boss == 1 and 0xff5050 or 0xc8c8c8, "C"}
+                name_color(data), "C"}
         end
     elseif run.id < constants.stage_levels.survival_start then
         display[#display + 1] = {"text", string.format("%s %d-%d", i18n.tr("STAGE"), cdiv(run.id, 10) + 1, run.id % 10 + 1),

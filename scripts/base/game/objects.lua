@@ -24,6 +24,15 @@ local object_bat_chase = constants.object_ids.bat_chase
 local object_broken_weapon = constants.object_ids.broken_weapon
 local object_firen_flame = constants.object_ids.firen_flame
 local object_firzen_ball = constants.object_ids.firzen_ball
+-- A system.dat list, or nil when it is empty or missing (then the caller keeps the original LF2 values). `require` is lazy and tolerant of a
+-- proxied module in tests, like the other late requires of this file.
+local function system_list(kind, listname)
+    local data = require("base/game/system_data")
+    local read = data and data[kind]
+    local list = read and read(listname)
+    if type(list) == "table" and next(list) ~= nil then return list end
+    return nil
+end
 local object_firzen_chase_fire = constants.object_ids.firzen_chase_fire
 local object_freeze_column = constants.object_ids.freeze_column
 local object_jan_ally_chase = constants.object_ids.jan_ally_chase
@@ -180,15 +189,24 @@ local function spawn_point(state, index, parent, frame, point)
         value.vy = point.dvy
         value.vz = 0.0
         local spawned_state = record.frame(value.frame).state
-        if (spawned_state == state_flying_ball
-            or spawned_state == state_thrown_item or spawned_state == state_flying_missile)
-           and record.id ~= object_firzen_ball and record.id ~= object_bat_ball then
+        -- R34: system.dat lists (readme "system dat.txt"); an empty or missing list keeps the original LF2 rule.
+        -- <z_states>: states whose spawned objects move on the z axis (default 3000, 1002, 3006); <z_oid>: ids that do NOT (default 223, 224);
+        -- <z_movement>: ids with a quarter of the z speed (default 211).
+        local z_states, z_oid, z_slow = system_list("states", "z_states"), system_list("ids", "z_oid"), system_list("ids", "z_movement")
+        local moves_z
+        if z_states then moves_z = z_states[spawned_state] == true
+        else moves_z = spawned_state == state_flying_ball or spawned_state == state_thrown_item or spawned_state == state_flying_missile end
+        local no_z
+        if z_oid then no_z = z_oid[record.id] == true else no_z = record.id == object_firzen_ball or record.id == object_bat_ball end
+        if moves_z and not no_z then
             if not parent.keys.up then
                 if parent.keys.down then value.vz = 2.5 end
             elseif not parent.keys.down then
                 value.vz = -2.5
             end
-            if record.id == object_firen_flame then value.vz = value.vz * 0.25 end
+            local slow
+            if z_slow then slow = z_slow[record.id] == true else slow = record.id == object_firen_flame end
+            if slow then value.vz = value.vz * 0.25 end
         end
         if record.kind == record_kinds.character then
             value.follow = parent.follow > -1 and parent.follow or index

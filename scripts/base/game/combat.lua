@@ -40,12 +40,20 @@ local object_henry_arrow_two = constants.object_ids.henry_arrow_two
 local object_john_biscuit = constants.object_ids.john_biscuit
 local system_data = require("base/game/system_data")
 -- system.dat <henry_arrow> / <john_biscuit> (AI 5): an empty list keeps the original LF2 id.
-local function id_listed(listname, id, original)
+local function id_listed(listname, id, original, original2)
     local list = system_data.ids(listname)
     if list and next(list) ~= nil then return list[id] == true end
-    return id == original
+    return id == original or (original2 ~= nil and id == original2)
 end
 local object_rudolf_weapon = constants.object_ids.rudolf_weapon
+-- R34: more system.dat id lists (readme "system dat.txt"); an empty or missing list keeps the original LF2 ids.
+-- <freeze_column>: ids that can be hit from opposite sides (t3 only; default 212).
+local function freeze_column_listed(id) return id_listed("freeze_column", id, object_freeze_column) end
+-- <criminal_free>: ids besides fighters that can free the criminal (default 201 and 202).
+local function criminal_free_listed(id) return id_listed("criminal_free", id, object_henry_arrow, object_rudolf_weapon) end
+-- <weapon_flute_sky> (itr kind 10) and <weapon_ww_sky> (itr kind 15): t1, t4 and t6 ids that are NOT lifted or pulled (default 201 and 202).
+local function flute_sky_listed(id) return id_listed("weapon_flute_sky", id, object_henry_arrow, object_rudolf_weapon) end
+local function ww_sky_listed(id) return id_listed("weapon_ww_sky", id, object_henry_arrow, object_rudolf_weapon) end
 local team_independent = constants.teams.independent
 local weapon_none = constants.weapon_holder_codes.none
 local character_frames = constants.character_frames
@@ -181,8 +189,8 @@ local function eligible(state, a_entry, b_entry, itr, force_friendly)
         or attack_kind == attack_kinds.whirlwind or attack_kind == attack_kinds.conditional_whirlwind
         or attack_kind == attack_kinds.pulling_whirlwind or attack_kind == attack_kinds.freezing_whirlwind
     if team_rule and not friendly_fire and defender_state ~= state_frozen and defender_state ~= constants.frame_states.caught
-       and (defender.record.id ~= object_freeze_column
-            or (attacker.record.id == object_freeze_column and (defender.frame % 10 ~= 5 or attacker.frame % 10 ~= 0)))
+       and (not freeze_column_listed(defender.record.id)
+            or (freeze_column_listed(attacker.record.id) and (defender.frame % 10 ~= 5 or attacker.frame % 10 ~= 0)))
        and attacker.team == defender.team and attacker.team ~= team_independent
        and attack_kind ~= attack_kinds.heal
        and (a_entry.frame.state ~= state_burning or itr.effect == effects.burn_state_guard or itr.effect == effects.burn_push)
@@ -195,8 +203,8 @@ local function eligible(state, a_entry, b_entry, itr, force_friendly)
         local holder = objects.lookup(state, attacker.holder)
         local team = holder and holder.team or team_independent
         if team == defender.team and team ~= team_independent and defender_state ~= state_frozen and not is_weapon(defender_kind) then
-            if defender.record.id ~= object_freeze_column then return false end
-            if attacker.record.id == object_freeze_column and (defender.frame % 10 ~= 5 or attacker.frame % 10 ~= 0) then
+            if not freeze_column_listed(defender.record.id) then return false end
+            if freeze_column_listed(attacker.record.id) and (defender.frame % 10 ~= 5 or attacker.frame % 10 ~= 0) then
                 return false
             end
         end
@@ -230,7 +238,7 @@ local function record_targets(state, a_entry, b_entry)
                     -- Only the criminal's own bodies (1xxx) are protected; Darkfiren bdy 1xxx / 2xxx / 1xxyyyzzzw work on every object.
                     if state.mode == constants.modes.stage and body.kind >= body_kind_frame_base and defender.record.id == constants.record_ids.criminal then
                         local record = attacker.record
-                        local protected = (record.kind == record_kinds.character or record.id == object_henry_arrow or record.id == object_rudolf_weapon)
+                        local protected = (record.kind == record_kinds.character or criminal_free_listed(record.id))
                             and attacker.team ~= constants.teams.enemies
                         if attacker.weapon < 0 then
                             local owner = state.items[attacker.holder]
@@ -1011,7 +1019,7 @@ local function whirl(state, p, attacker, victim)
         victim.frame = 182
         lift(victim, 3.0)
     elseif (kind == record_kinds.light_item or kind == record_kinds.baseball
-            or kind == record_kinds.drink) and victim.record.id ~= object_henry_arrow and victim.record.id ~= object_rudolf_weapon then
+            or kind == record_kinds.drink) and not flute_sky_listed(victim.record.id) then
         if victim.record.frame(victim.frame).state ~= constants.frame_states.airborne_item then victim.frame = item_frame_in_the_sky end
         victim.impulse_x = victim.vx / 1.07
         victim.vx = victim.impulse_x
@@ -1215,7 +1223,7 @@ function combat.apply(state, p)
                     if itr.kind == attack_kinds.freezing_whirlwind then freeze_hit(state, p, v, attacker, victim, itr) end
                     if itr.kind == attack_kinds.pulling_whirlwind then pull(attacker, victim, 3.0) end
                 elseif is_weapon(victim.record.kind) and victim.record.kind ~= record_kinds.heavy_item
-                       and victim.record.id ~= object_henry_arrow and victim.record.id ~= object_rudolf_weapon then
+                       and not ww_sky_listed(victim.record.id) then
                     if victim.record.frame(victim.frame).state ~= constants.frame_states.airborne_item then victim.frame = item_frame_in_the_sky end
                     pull(attacker, victim, 3.0)
                 elseif victim.record.kind == record_kinds.heavy_item then

@@ -535,8 +535,10 @@ Result<Configuration> configuration(std::span<const std::string> arguments,
 }
 class GameResources final : public ResourceSource {
 public:
-    GameResources(const ResourceSource& archive, Bytes executable, std::span<const PackageAsset> assets, std::string saves_path)
-        : archive_(archive), executable_(std::move(executable)), saves_path_(std::move(saves_path)) {
+    GameResources(const ResourceSource& archive, Bytes executable, std::span<const PackageAsset> assets, std::string saves_path,
+                  std::string data_path, std::string control_path)
+        : archive_(archive), executable_(std::move(executable)), saves_path_(std::move(saves_path)),
+          data_path_(std::move(data_path)), control_path_(std::move(control_path)) {
         for (const auto& asset : assets) assets_.emplace(asset.resource, asset);
         names_ = load_resource_names(archive_);
     }
@@ -551,6 +553,11 @@ public:
     Result<Bytes> read(std::string_view path) const override {
         auto normalized = virtual_path(path);
         if (!normalized) return std::unexpected(normalized.error());
+        // LF2 Darkfiren: system.dat `data:` / `control:` rename data.txt and control.txt; the scripts keep asking for the default
+        // names. The renamed file first, the default name when it is missing.
+        if (const auto alias = system_file_alias(*normalized, data_path_, control_path_); alias != *normalized) {
+            if (auto renamed = archive_.read(alias)) return renamed;
+        }
         if (const auto found = assets_.find(*normalized); found != assets_.end()) {
             auto file = package_file(found->second.root, found->second.file);
             if (!file) return std::unexpected(file.error());
@@ -615,6 +622,8 @@ private:
     const ResourceSource& archive_;
     Bytes executable_;
     std::string saves_path_;  // the only game file scripts may write (LF2 Darkfiren: the unlocked keys)
+    std::string data_path_;     // system.dat `data:` (default data/data.txt)
+    std::string control_path_;  // system.dat `control:` (default data/control.txt)
     ResourceNames names_;
     std::map<std::string, PackageAsset, std::less<>> assets_;
 };
@@ -1023,7 +1032,9 @@ Result<void> run(const Configuration& config) {
         system_dat_text.assign(system_dat->begin(), system_dat->end());
     }
     const auto& resources = game_data.attach(std::make_unique<GameResources>(*archive, std::move(executable), scripts->assets,
-                                                                              saves_path_from_system_dat(system_dat_text)));
+                                                                              saves_path_from_system_dat(system_dat_text),
+                                                                              data_path_from_system_dat(system_dat_text),
+                                                                              control_path_from_system_dat(system_dat_text)));
     // LF2 Darkfiren: the window takes the title of system.dat's `name:` (the game keeps "OpenLF2" without one).
     if (platform) {
         if (const auto title = window_title_from_system_dat(system_dat_text)) platform->set_window_title(*title);
