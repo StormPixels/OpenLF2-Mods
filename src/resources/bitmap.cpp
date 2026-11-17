@@ -4,6 +4,7 @@
 #include "openlf2/resources/bitmap.hpp"
 #include "openlf2/core/binary.hpp"
 #include <optional>
+#include <string>
 
 namespace openlf2::bitmap {
 namespace {
@@ -115,7 +116,74 @@ Bytes expand_rle4(const BinaryView& stream, std::size_t stream_size, std::size_t
     }
 }
 
+void append_u16(Bytes& output, std::uint16_t value) {
+    output.push_back(static_cast<char>(value & 255));
+    output.push_back(static_cast<char>((value >> 8) & 255));
+}
+
+struct Normalized {
+    Bytes dib;
+    std::size_t pixel_offset;
+};
+
+// Rewrites headers other than a plain one-plane BITMAPINFOHEADER (OS/2 core, V4/V5 and the
+// related 52/56-byte headers, BI_BITFIELDS with the standard BGRA masks, planes = 0) into one.
+// Returns nothing when the DIB already is in that form.
+std::optional<Normalized> normalize_header(std::span<const char> dib, std::optional<std::size_t> pixel_offset) {
+    const BinaryView header(dib);
+    const auto size = header.u32(0);
+    const bool core = size == 12;
+    const bool extended = size == 52 || size == 56 || size == 108 || size == 124;
+    const bool plain = size == header_size;
+    if (!core && !extended && !plain) throw FormatError("unsupported bitmap header size " + std::to_string(size));
+    if (plain && header.u16(12) == 1 && header.u32(16) != 3) return std::nullopt;
+
+    const auto planes = core ? header.u16(8) : header.u16(12);
+    if (planes > 1) throw FormatError("only BITMAPINFOHEADER bitmaps with one plane are supported");
+    const auto bits = core ? header.u16(10) : header.u16(14);
+    auto compression = core ? std::uint32_t{0} : header.u32(16);
+    std::size_t source_palette = size;
+    if (compression == 3) {  // BI_BITFIELDS: only the ordinary 32-bit BGRA layout maps to plain pixels
+        if (bits != 32 || header.u32(40) != 0x00ff0000U || header.u32(44) != 0x0000ff00U ||
+            header.u32(48) != 0x000000ffU) {
+            throw FormatError("unsupported bitmap channel masks");
+        }
+        compression = uncompressed;
+        if (plain) source_palette += 12;
+    }
+    const std::size_t entry = core ? 3 : 4;
+    const auto declared = core ? 0U : header.u32(32);
+    const auto colors = declared != 0 ? declared : (bits <= 8 ? (1U << bits) : 0U);
+    if (colors > 256) throw FormatError("oversized bitmap palette");
+    const auto source_pixels = pixel_offset.value_or(source_palette + std::size_t{colors} * entry);
+    if (source_pixels < source_palette + std::size_t{colors} * entry || source_pixels > dib.size()) {
+        throw FormatError("bitmap pixels overlap header");
+    }
+    const auto palette = header.slice(source_palette, std::size_t{colors} * entry);
+
+    Bytes rebuilt;
+    append_u32(rebuilt, static_cast<std::uint32_t>(header_size));
+    append_u32(rebuilt, core ? header.u16(4) : header.u32(4));
+    append_u32(rebuilt, core ? header.u16(6) : header.u32(8));
+    append_u16(rebuilt, 1);
+    append_u16(rebuilt, static_cast<std::uint16_t>(bits));
+    append_u32(rebuilt, compression);
+    append_u32(rebuilt, 0);
+    append_u32(rebuilt, 0);
+    append_u32(rebuilt, 0);
+    append_u32(rebuilt, colors);
+    append_u32(rebuilt, 0);
+    for (std::size_t index = 0; index < colors; ++index) {
+        for (std::size_t channel = 0; channel < 3; ++channel) rebuilt.push_back(palette[index * entry + channel]);
+        rebuilt.push_back('\0');
+    }
+    const auto pixel_start = rebuilt.size();
+    rebuilt.insert(rebuilt.end(), dib.begin() + static_cast<std::ptrdiff_t>(source_pixels), dib.end());
+    return Normalized{std::move(rebuilt), pixel_start};
+}
+
 Bytes convert(std::span<const char> dib, std::optional<std::size_t> pixel_offset) {
+    if (auto fixed = normalize_header(dib, pixel_offset)) return convert(fixed->dib, fixed->pixel_offset);
     const BinaryView header(dib);
     if (header.u32(0) != header_size || header.u16(12) != 1) {
         throw FormatError("only BITMAPINFOHEADER bitmaps with one plane are supported");
