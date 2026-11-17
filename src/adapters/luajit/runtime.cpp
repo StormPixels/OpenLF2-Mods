@@ -203,10 +203,24 @@ public:
         const bool numeric = lua_type(state_, -1) == LUA_TNUMBER;
         const double value = numeric ? lua_tonumber(state_, -1) : 0;
         lua_pop(state_, 1);
-        if (!numeric || !std::isfinite(value) || value < low || value > high
-            || (integral && value != std::floor(value))) throw std::runtime_error("invalid numeric frame field");
-        return value;
+        const auto invalid = [&](double fallback) {
+            if (!tolerant_) {
+                throw std::runtime_error("invalid numeric frame field (value " + std::to_string(value) + ", allowed "
+                                         + std::to_string(low) + ".." + std::to_string(high) + ")");
+            }
+            bad_ = true;
+            return fallback;
+        };
+        if (!numeric || !std::isfinite(value)) return invalid(low);
+        const double whole = integral && tolerant_ ? std::floor(value) : value;  // fractional positions round down
+        if (whole < low || whole > high) return invalid(std::clamp(whole, low, high));
+        if (integral && whole != std::floor(whole)) return invalid(std::floor(whole));
+        return whole;
     }
+    // Drawing commands whose fields are out of range are dropped instead of ending the whole frame.
+    void tolerate() { tolerant_ = true; bad_ = false; }
+    bool finish_tolerant() { tolerant_ = false; return std::exchange(bad_, false); }
+    bool bad() const { return bad_; }
     int integer(int low = -8192, int high = 8192) { return static_cast<int>(number(low, high)); }
     bool flag() {
         take();
@@ -247,6 +261,8 @@ private:
     lua_State* state_;
     int table_, count_, next_ = 1;
     std::size_t text_bytes_ = 0;
+    bool tolerant_ = false;
+    bool bad_ = false;
 };
 Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
     try {
@@ -273,12 +289,13 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
             case FrameOpcode::sprite:
             case FrameOpcode::world_sprite: {
                 SpriteCommand sprite{};
+                reader.tolerate();
                 sprite.resource = reader.resource(); sprite.source = reader.rectangle();
                 sprite.x = reader.integer(); sprite.y = reader.integer();
                 sprite.color_key = reader.flag(); sprite.mirrored = reader.flag(); sprite.flipped = reader.flag();
                 sprite.tint = reader.integer(0, 0xffffff);
                 sprite.scale_x = static_cast<float>(reader.number(0, 32, false));
-                if (sprite.scale_x <= 0) throw std::runtime_error("invalid sprite scale");
+                if (!reader.bad() && sprite.scale_x <= 0) throw std::runtime_error("invalid sprite scale");
                 sprite.translate_x = reader.integer(); sprite.overlay = overlay; sprite.clip = clip;
                 if (opcode == FrameOpcode::world_sprite) {
                     SpriteLighting lighting;
@@ -290,25 +307,30 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
                     lighting.shadow_opacity = static_cast<float>(reader.number(0, 1, false));
                     sprite.lighting = lighting;
                 }
+                if (reader.finish_tolerant()) break;
                 frame.commands.emplace_back(std::move(sprite));
                 break;
             }
             case FrameOpcode::icon: {
                 // A whole image stretched to a size, with an alpha and a tint (the on-screen controls).
                 SpriteCommand icon{};
+                reader.tolerate();
                 icon.resource = reader.resource();
                 icon.x = reader.integer(); icon.y = reader.integer();
                 icon.dest_width = reader.integer(1, 4096); icon.dest_height = reader.integer(1, 4096);
                 icon.alpha = reader.integer(0, 255); icon.tint = reader.integer(0, 0xffffff);
                 icon.color_key = false; icon.overlay = overlay; icon.clip = clip;
+                if (reader.finish_tolerant()) break;
                 frame.commands.emplace_back(std::move(icon));
                 break;
             }
             case FrameOpcode::fill: {
                 FillCommand fill{};
+                reader.tolerate();
                 fill.area = reader.rectangle(); fill.red = reader.integer(0, 255); fill.green = reader.integer(0, 255);
                 fill.blue = reader.integer(0, 255); fill.alpha = reader.integer(0, 255);
-                fill.overlay = overlay; fill.clip = clip; frame.commands.emplace_back(fill);
+                fill.overlay = overlay; fill.clip = clip;
+                if (!reader.finish_tolerant()) frame.commands.emplace_back(fill);
                 break;
             }
             case FrameOpcode::overlay: overlay = reader.flag(); break;
@@ -355,6 +377,7 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
             case FrameOpcode::fullscreen: set_flag(frame.fullscreen); break;
             case FrameOpcode::text: {
                 TextCommand text{};
+                reader.tolerate();
                 text.text = std::string(reader.text());
                 text.x = reader.integer(); text.y = reader.integer();
                 text.align = static_cast<TextAlign>(reader.integer(0, 2));
@@ -363,6 +386,7 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
                 if (const int outline = reader.integer(-1, 0xffffff); outline >= 0) text.outline = outline;
                 if (const int background = reader.integer(-1, 0xffffff); background >= 0) text.background = background;
                 text.antialias = reader.flag(); text.overlay = overlay; text.clip = clip;
+                if (reader.finish_tolerant()) break;
                 frame.commands.emplace_back(std::move(text));
                 break;
             }
