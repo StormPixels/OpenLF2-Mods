@@ -113,6 +113,8 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `<weapon_piece>` `team: 1` keeps the pieces in the broken weapon's team and owner, otherwise they are independent.
 
 ### Fixed
+- Character menu: `width:` and `height:` in a layout's `<mode_information>` of mode.dat (1 to 8192) give the picture size of its menu (a block with a `width:` and no `respond:` answers to that width); the status line sits at the picture's bottom edge (applied by the owner)
+- Title screen: the background is stretched into the bars a window of another shape leaves at its sides, so it reaches the window's edges (applied by the owner)
 - Character menu of the wide layouts: `face_x` and `face_y` of `<menu_control>` place the first slot's face (the others follow by the slot spacing); the defaults give the same place as before (AI4 R27)
 - LF2 Darkfiren: combat, opoint spawning and drinking read more system.dat lists instead of fixed ids: `<freeze_column>`, `<criminal_free>`, `<weapon_flute_sky>`, `<weapon_ww_sky>`, `<z_states>`, `<z_oid>`, `<z_movement>`, `<hp_refill>`, `<mp_refill>`; empty or missing lists keep the original LF2 ids (AI3 R34)
 - LF2 Darkfiren stages: `hex:` colours the stage name, `type: 1` survival, `ptype`/`next` at the end of a stage, `max:` followers per owner, `respond:` blackout, `mode:` of a stage's background, and `<menu_back_N>` for the main menu background are read from the data (AI5 R22)

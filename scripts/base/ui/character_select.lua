@@ -51,7 +51,10 @@ local time_list, time_type = {}, 1
 -- LF2 Darkfiren <cost> of mode4.dat: the pools the options menu offers and the prices (cost mode).
 local cost_settings = {kind = 100, pools = {}, groups = {}}
 local per_row, shift, step_x, step_y = 4, 0, 153, 212
-local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212}
+-- Where a slot's face picture goes from the slot's corner: 147 and 94 in the classic menu; in the wide menu face_x and face_y of <menu_control>
+-- (the place of the face of the first slot on the screen, so face_x - start_x + 40 from the corner as the corner is start_x - 40 from the classic one).
+local face_dx, face_dy = 147, 94
+local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212, face_x = 117, face_y = 94}
 layout_targets.menu = menu
 local function origin(slot)
     return (slot % per_row) * step_x + shift, math.floor(slot / per_row) * step_y
@@ -72,8 +75,10 @@ local function wide_wanted(width, mode_text)
     return wide_known[menu.pic]
 end
 local function use_layout(state)
-    if state.wide then per_row, shift, step_x, step_y = menu.row, menu.x - 40, menu.step_x, menu.step_y
-    else per_row, shift, step_x, step_y = 4, 0, 153, 212 end
+    if state.wide then
+        per_row, shift, step_x, step_y = menu.row, menu.x - 40, menu.step_x, menu.step_y
+        face_dx, face_dy = menu.face_x - menu.x + 40, menu.face_y
+    else per_row, shift, step_x, step_y, face_dx, face_dy = 4, 0, 153, 212, 147, 94 end
 end
 local function pressed(keys, key) return keys:find(key, 1, true) ~= nil end
 -- What the wide menu adds to the classic 794 wide pictures: popup_gap is the extra width (for things at the right edge) and
@@ -328,8 +333,8 @@ local function draw_fighter(state, slot, col, row, color)
     if state.options and state.options.hide_random and slot.was_random then fighter = nil end
     local head = fighter and skin_picture(fighter, slot, "head")
     if head and not pcall(engine.read_resource, head) then head = nil end   -- a picture the game lacks keeps the fighter's own
-    image(state, head or (fighter and fighter.portrait) or "pe/rface", col + 147, row + 94)
-    draw_menu_face(state, slot, fighter, col + 147, row + 94)
+    image(state, head or (fighter and fighter.portrait) or "pe/rface", col + face_dx, row + face_dy)
+    draw_menu_face(state, slot, fighter, col + face_dx, row + face_dy)
     slot_text(state, fighter and fighter.name or " Random", col, row, color, row + 241)
 end
 local function draw_team(state, slot, col, row, color)
@@ -373,9 +378,9 @@ end
 
 local function empty_slot(state, index, slot, keys, col, row, all_empty)
     if state.countdown == idle_countdown then
-        image(state, state.blink % 5 < 3 and "pe/cma" or "pe/cma2", col + 147, row + 94)
+        image(state, state.blink % 5 < 3 and "pe/cma" or "pe/cma2", col + face_dx, row + face_dy)
     elseif state.countdown >= 0 then
-        image(state, "pe/cm" .. (math.floor(state.countdown / 30) + 1), col + 147, row + 94)
+        image(state, "pe/cm" .. (math.floor(state.countdown / 30) + 1), col + face_dx, row + face_dy)
     end
     if pressed(keys, "c") then
         if trigger(slot, state.last_menu == menus.human_slots) then
@@ -666,7 +671,7 @@ local function slots_pass(state, held)
             draw_fighter(state, slot, col, row, blink_color(state))
             fighter_slot(state, slot, keys, col, row)
             -- Darkfiren places the grid from the top left corner of the fighter's portrait (the frame sits just above it).
-            if slot.phase_grid then draw_phase_grid(state, slot, col + 147, row + 94) end
+            if slot.phase_grid then draw_phase_grid(state, slot, col + face_dx, row + face_dy) end
         end
         if slot.phase == slot_phases.choosing_team then
             draw_fighter(state, slot, col, row, white)
