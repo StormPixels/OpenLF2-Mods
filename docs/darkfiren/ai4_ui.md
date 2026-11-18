@@ -264,3 +264,8 @@ Pengguna mengirim lima tangkapan layar HUD di ponsel (Crazy_Ui1, 2, 3, Widescree
 - Tes memakai berkas gaya asli cui1, cui2, cui3, Wcuiv1, default: `hud_style_blocks_test.lua`, `hud_style_draw_test.lua`, `display_hud_test.lua`.
 - Catatan (belum diubah): kotak centang jeda "Summary" dan "Kill list" menimpa panel HUD kolom paling kanan pada gaya yang membentang sampai tepi kanan (Wcuiv1, Widescreen Radar); hanya terlihat saat jeda.
 
+
+## 26. Putaran 27: `face_x` dan `face_y` di `<menu_control>`
+
+Posisi gambar wajah tiap slot di layar pilih karakter layout lebar sebelumnya tetap (slot + 147, + 94); `face_x` dan `face_y` di berkas mode tidak dibaca. Sekarang `menu_control: face_x, face_y` = tempat wajah slot pertama di layar (mode4.dat: 117, 94; mode2.dat: 147, 94); slot berikutnya bergeser sebesar `centerx`/`centery`/`row`. Hitungan: dari sudut slot, `face_x - start_x + 40` dan `face_y` (sudut slot = `start_x - 40`). Menu classic tidak membaca berkas mode (tetap 147, 94). Wajah dipakai juga oleh `menu_face`, hitung mundur dan grid transformasi (semuanya dari pojok kiri atas wajah). Tes: `tests/face_position_test.lua` (membaca nilai, `start_x` tidak menggeser wajah, nilai bukan angka, ganti layout dalam satu modul).
+Tag lain di `<menu_control>` yang BELUM dibaca (tetap di tempat bawaan dalam kode): `name_x/y`, `fighter_x/y`, `team_x/y`, `cost_x/y`, `team_cmb_x/y`, `team1_cmb` sampai `team5_cmb`, `hidden`, `transform`, `respond`, `bound`, `mode`.
