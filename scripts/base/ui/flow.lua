@@ -308,6 +308,8 @@ function flow.draw(state, context)
     context.fullscreen(shown_options.fullscreen)
     if state.active == "match" and wider_layout(shown_options.battlefield_layout) then
         screen_module(state.active).draw(screen_state(state), context, state.window_bounds)
+    elseif state.active == "title" then
+        screen_module(state.active).draw(screen_state(state), context, state.window_bounds)
     else
         screen_module(state.active).draw(screen_state(state), context)
     end
@@ -366,7 +368,8 @@ function flow.update(state, raw, context)
     end
     local shown_options = user_options.current()
     -- Local presentation data stays outside network and replay inputs.
-    if wider_layout(shown_options.battlefield_layout) then
+    -- (The title screen also takes it: its background reaches the window's edges.)
+    if wider_layout(shown_options.battlefield_layout) or state.active == "title" then
         state.window_bounds = input.screen or state.window_bounds
     else
         state.window_bounds = nil

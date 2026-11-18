@@ -62,10 +62,73 @@ function title.update(state, held, context)
     if held.click and x >= 0xdf and x < 0x23e and y > 0xc2 and y < 0x1b0 and x ~= 0 then state.key_list = 450 end
 end
 
-function title.draw(state, context)
+-- The background picture is the classic 794 x 550 or any other width (a wider one such as LF2 Darkfiren's 1018 x 550). It
+-- stands in the middle of the viewport, which is where the menu and the logo are, and a window of another shape shows
+-- more or less of it: what the window has beyond the picture is painted with the picture's own outermost column,
+-- stretched, and a picture wider than the window is cropped equally on both sides. The viewport stays 794 x 550, so
+-- the menu, the pointer's coordinates and every other screen are untouched.
+local picture_sizes = {}
+-- Width and height of an original picture, read from its header (BMP or PNG); the classic size when it cannot be read.
+local function picture_size(resource)
+    local size = picture_sizes[resource]
+    if size then return size[1], size[2] end
+    size = {constants.screen.width, constants.screen.height}
+    local ok, bytes = pcall(engine.read_resource, resource)
+    if ok and type(bytes) == "string" then
+        local width, height
+        if #bytes >= 26 and bytes:sub(1, 2) == "BM" then
+            local a, b, c, d, e, f, g, h = bytes:byte(19, 26)
+            width = a + b * 256 + c * 65536 + d * 16777216
+            height = e + f * 256 + g * 65536 + h * 16777216
+            if height >= 2147483648 then height = 4294967296 - height end   -- a top-down bitmap stores it negative
+        elseif #bytes >= 24 and bytes:sub(2, 4) == "PNG" then
+            local a, b, c, d, e, f, g, h = bytes:byte(17, 24)
+            width = a * 16777216 + b * 65536 + c * 256 + d
+            height = e * 16777216 + f * 65536 + g * 256 + h
+        end
+        if width and height and width >= 1 and width <= 4096 and height >= 1 and height <= 4096 then size = {width, height} end
+    end
+    picture_sizes[resource] = size
+    return size[1], size[2]
+end
+
+-- Paints [from, to) with one column of the picture stretched across it.
+local function paint_side(context, picture, column, rows, from, to, offset)
+    local x = from
+    while x < to do
+        local width = math.min(32, to - x)   -- the renderer scales a sprite 32 times at most
+        local at = x
+        if width < 2 then width, at = 2, to - 2 end   -- a scale of exactly 1 would be a plain sprite
+        context.sprite(picture, {column, 0, 1, rows}, 0, offset, true, false, false, 0xffffff, width, at)
+        x = x + width
+    end
+end
+
+-- window_bounds: the window's edges in viewport coordinates (left, top, right, bottom), as flow.lua gets them from the host.
+function title.draw(state, context, window_bounds)
     context.viewport(constants.screen.width, constants.screen.height, 18, 37, 101)
     local offset = state.vertical_offset
-    context.image("pe/menu_back" .. state.background, 0, offset, true)
+    local picture = "pe/menu_back" .. state.background
+    local bounds
+    if window_bounds then
+        bounds = {left = math.floor(math.min(window_bounds.left or 0, 0)), top = math.floor(math.min(window_bounds.top or 0, 0)),
+            right = math.ceil(math.max(window_bounds.right or 0, constants.screen.width)),
+            bottom = math.ceil(math.max(window_bounds.bottom or 0, constants.screen.height))}
+        -- Nothing to extend, or a size the renderer would refuse (a stale value from another screen's viewport).
+        if (bounds.left == 0 and bounds.top == 0 and bounds.right == constants.screen.width and bounds.bottom == constants.screen.height)
+                or bounds.right - bounds.left > 4096 or bounds.bottom - bounds.top > 4096 then
+            bounds = nil
+        end
+    end
+    local width, height = picture_size(picture)
+    local x = math.floor((constants.screen.width - width) / 2)
+    local left, right = bounds and bounds.left or 0, bounds and bounds.right or constants.screen.width
+    if bounds then
+        context.render_area(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top)
+    end
+    if left < x then paint_side(context, picture, 0, height, left, x, offset) end
+    if right > x + width then paint_side(context, picture, width - 1, height, x + width, right, offset) end
+    context.image(picture, x, offset, true)
     -- The whole logo, with the "ver 2.0a" in its bottom-right corner (it was drawn in two pieces to leave it out).
     context.sprite("pe/menu_clip", {0, 41, 496, 80}, 153, 96 + offset, true)
     context.sprite(menu_sheet, {0, 116, 305, 213}, 244, 206 + offset, true)
