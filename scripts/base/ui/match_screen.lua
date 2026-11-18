@@ -850,6 +850,37 @@ local function small_face(value)
     return own
 end
 
+-- R35: the small face of the status box (the frame of the HUD) only. `smallb` is the alternate small picture used there (readme "skin system.txt":
+-- "smallb - alternate small image at framebox"; the developer on Discord: it is like `small:` but only for the framebox, and a tag that is not
+-- written falls back to `small:`, so a bigger `small:` does not disturb the scoreboard and the championship menus, which keep `small`).
+-- The skin worn (record.data.skins[i].smallb where the skin's offset is the fighter's pic_offset), else the header's `smallb`
+-- (record.data.header.smallb) for the default look, else the usual small face. [BELUM PASTI] a worn skin without its own `smallb` uses its own
+-- `small` and not the header's `smallb`. A picture the game lacks falls back to the usual small face.
+local function readable_picture(path_text)
+    local path = path_text:gsub("\\", "/"):lower()
+    if skin_small_known[path] == nil then skin_small_known[path] = pcall(engine.read_resource, path) end
+    return skin_small_known[path]
+end
+local function framebox_face(value)
+    local data = value.record.data
+    local skins, offset = data.skins, value.pic_offset
+    if type(skins) == "table" and offset and offset ~= 0 then
+        for index = 1, 10 do
+            local skin = skins[index]
+            if skin and skin.offset == offset then
+                if type(skin.smallb) == "string" and readable_picture(skin.smallb) then return skin.smallb end
+                return small_face(value)
+            end
+        end
+        return small_face(value)
+    end
+    local header = data.header
+    local own = type(header) == "table" and header.smallb
+    if type(own) == "string" and readable_picture(own) then return own end
+    return small_face(value)
+end
+screen.framebox_face = framebox_face -- exported for the tests
+
 -- Custom counters and effect pictures of the HUD panel of a fighter (record.display, readme/dat file/stats count.txt and
 -- effect.txt). Both are placed from the top left corner of the fighter's HUD panel. [BELUM PASTI] that anchor.
 -- stats_count (up to 10 `count`s): the number of `type` (the types below; it starts at x and runs to the right; `facing: 1` ends at x and runs to the left, as the
@@ -990,7 +1021,7 @@ local function draw_status(context, state, style)
         context.image(style.frame_pic, column, row, false)
         local value = state.items[slot] or state.items[slot + 10]
         if value then
-            local small = small_face(value)
+            local small = framebox_face(value)
             if small then context.image(small:gsub("\\", "/"):lower(), column + style.small_x, row + style.small_y, false) end
             if value.hp > 0 then
                 local hp_bar, mp_bar = bar_of(value, "hp_bar", style), bar_of(value, "mp_bar", style)
