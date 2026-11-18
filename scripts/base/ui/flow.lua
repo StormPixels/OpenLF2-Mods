@@ -319,8 +319,8 @@ function flow.draw(state, context)
     -- The status line sits at the bottom of the canvas: 531 on the classic 794 x 550, lower and wider in the battle's
     -- 1018 / 1333 wide or taller layouts.
     local status_y, status_width = 0x213, constants.screen.width
-    if state.active == "match" then
-        local view = screen_module("match").view
+    if state.active == "match" or state.active == "characters" then
+        local view = screen_module(state.active).view
         if view then status_y, status_width = view.height - 19, view.width end
     end
     local status = recording.status_text()

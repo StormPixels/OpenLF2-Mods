@@ -19,21 +19,31 @@ local wide_1018_width = 1018
 -- Several `key: value` pairs may share a line, as in `name: mode#2   hidden: 0   respond: 1018`; a block without a
 -- `file` is dropped. A value is the first word after the colon (names with spaces are not supported).
 function ui_modes.parse(text)
-    local list, current = {}, nil
+    local list, current, given = {}, nil, false
     for line in (text or ""):gmatch("[^\r\n]+") do
         local tag = line:match("^%s*<([%w_]+)>")
         if tag == "mode_information" then
             current = {hidden = 0, respond = classic_width}
+            given = false
         elseif tag == "mode_information_end" then
-            if current and current.file then list[#list + 1] = current end
+            if current and current.file then
+                -- A block with a `width:` and no `respond:` (`width: 1333 height: 730`) answers to that width.
+                if current.width and not given then current.respond = current.width end
+                list[#list + 1] = current
+            end
             current = nil
         elseif current then
             for key, value in line:gmatch("([%w_]+)%s*:%s*(%S+)") do
                 if key == "file" then current.file = value:gsub("\\", "/"):lower()
                 elseif key == "name" then current.name = value
-                elseif key == "hidden" or key == "respond" then
+                elseif key == "hidden" or key == "respond" or key == "width" or key == "height" then
                     local number = tonumber(value)
-                    if number and (key == "hidden" or number >= 1) then current[key] = number end
+                    -- `width:` and `height:` are the picture's size in pixels (1 to 8192, the renderer's limit).
+                    local sized = key == "width" or key == "height"
+                    if number and (key == "hidden" or (number >= 1 and (not sized or number <= 8192))) then
+                        current[key] = number
+                        if key == "respond" then given = true end
+                    end
                 end
             end
         end
@@ -110,6 +120,19 @@ function ui_modes.layout_text(layout)
     if not text and width == wide_1018_width and layout ~= ten_player_layout then text, source = require("base/game/mode2_builtin"), "builtin" end
     sources[layout] = source or false
     return text, source
+end
+
+-- The picture size mode.dat gives a layout's mode (`width:` and `height:` of its <mode_information> block, as LF2
+-- Darkfiren reads it): width, height. Either is nil when the block lacks it, or when there is no block, no list or no
+-- such layout: the caller keeps its built-in size then.
+function ui_modes.layout_size(layout)
+    local width = ui_modes.layout_width(layout)
+    if not width then return nil, nil end
+    local listing = data_text.read(list_path)
+    if not listing then return nil, nil end
+    local entry = entry_for(layout, ui_modes.parse(listing), width)
+    if not entry then return nil, nil end
+    return entry.width, entry.height
 end
 
 -- Is the layout offered to the player? Every layout is, except the 10 player one while its mode is locked or the game
