@@ -51,10 +51,11 @@ function wide_menu.picture_width(resource)
     return known[resource] or nil
 end
 
--- A menu_back picture is centred by its own width and drawn as it is; what is left of the viewport keeps the viewport colour.
+
 local function background(context, width, resource, y, keyed)
     local picture = wide_menu.picture_width(resource) or base_width
-    context.image(resource, math.floor((width - picture) / 2), y, keyed)
+    local left = math.floor((width - picture) / 2)
+    context.image(resource, left, y, keyed)
 end
 
 -- `context` as the menu screens see it: 794 wide coordinates, moved into a viewport `width` wide.
