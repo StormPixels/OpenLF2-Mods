@@ -308,7 +308,9 @@ function flow.draw(state, context)
     -- like the filter above.
     context.fullscreen(shown_options.fullscreen)
     local menu_context = context
-    if state.menu_width and state.menu_width > constants.screen.width then menu_context = wide_menu.wrap(context, state.menu_width) end
+    if state.menu_width and (state.menu_width > constants.screen.width or state.menu_height > constants.screen.height) then
+        menu_context = wide_menu.wrap(context, state.menu_width, state.menu_height)
+    end
     if state.active == "match" and wider_layout(shown_options.battlefield_layout) then
         screen_module(state.active).draw(screen_state(state), context, state.window_bounds)
     else
@@ -322,6 +324,7 @@ function flow.draw(state, context)
     -- The status line sits at the bottom of the canvas: 531 on the classic 794 x 550, lower and wider in the battle's
     -- 1018 / 1333 wide or taller layouts.
     local status_y, status_width = 0x213, state.menu_width or constants.screen.width
+    if state.menu_height then status_y = state.menu_height - 19 end
     if state.active == "match" or state.active == "characters" then
         local view = screen_module(state.active).view
         if view then status_y, status_width = view.height - 19, view.width end
@@ -473,15 +476,22 @@ function flow.update(state, raw, context)
         state.pointer_x, state.pointer_y = pointer_x, pointer_y
     end
     input.pointer_x, input.pointer_y = state.pointer_x, state.pointer_y
-    -- The launch and title screens are laid out for 794 and drawn in a viewport as wide as the window: the pointer is moved
-    -- back into their coordinates (a width within 2 of the last one is kept, so a rounding of the window's edges cannot make
-    -- it wander).
-    state.menu_width = nil
+    -- The launch and title screens are laid out for 794 x 550 and drawn in a viewport as tall as their menu_back picture and as
+    -- wide as the window's shape makes it at that height: the pointer is moved back into their coordinates (a width within 6 of
+    -- the last one is kept, so a rounding of the window's edges cannot make it wander).
+    state.menu_width, state.menu_height = nil, nil
     if menu_screen then
-        local width = wide_menu.viewport_width(state.window_bounds)
-        if state.last_menu_width and math.abs(width - state.last_menu_width) <= 2 then width = state.last_menu_width end
-        state.last_menu_width, state.menu_width = width, width
+        local screen = state.active == "title" and state.title or state.launch
+        local picture = screen and screen.background and ("pe/menu_back" .. screen.background) or nil
+        local height = wide_menu.viewport_height(picture and wide_menu.picture_height(picture))
+        local width = wide_menu.viewport_width(state.window_bounds, height)
+        if state.last_menu_height == height and state.last_menu_width and math.abs(width - state.last_menu_width) <= 6 then
+            width = state.last_menu_width
+        end
+        state.last_menu_width, state.last_menu_height = width, height
+        state.menu_width, state.menu_height = width, height
         if input.pointer_x and input.pointer_x >= 0 then input.pointer_x = input.pointer_x - wide_menu.shift(width) end
+        if input.pointer_y and input.pointer_y >= 0 then input.pointer_y = input.pointer_y - wide_menu.shift_y(height) end
     end
     -- Renderer capability flags are kept for frames that don't repeat them.
     if input.filters then state.filters = input.filters end
