@@ -51,24 +51,10 @@ function wide_menu.picture_width(resource)
     return known[resource] or nil
 end
 
--- The bars of a menu_back picture narrower than the viewport: its first and last column stretched, drawn inside the viewport.
-local function paint_bar(context, picture, column, from, to, y)
-    local at = from
-    while at < to do
-        local width = math.min(32, to - at)
-        context.sprite(picture, {column, 0, 1, base_height}, 0, y, true, false, false, 0xffffff, width, at)
-        at = at + width
-    end
-end
-
+-- A menu_back picture is centred by its own width and drawn as it is; what is left of the viewport keeps the viewport colour.
 local function background(context, width, resource, y, keyed)
     local picture = wide_menu.picture_width(resource) or base_width
-    local left = math.floor((width - picture) / 2)
-    if left > 0 then
-        paint_bar(context, resource, 0, 0, left, y)
-        paint_bar(context, resource, picture - 1, left + picture, width, y)
-    end
-    context.image(resource, left, y, keyed)
+    context.image(resource, math.floor((width - picture) / 2), y, keyed)
 end
 
 -- `context` as the menu screens see it: 794 wide coordinates, moved into a viewport `width` wide.
