@@ -62,42 +62,10 @@ function title.update(state, held, context)
     if held.click and x >= 0xdf and x < 0x23e and y > 0xc2 and y < 0x1b0 and x ~= 0 then state.key_list = 450 end
 end
 
--- The picture is 794 x 550 and a window of another shape letterboxes it. The bars at its sides are painted with the
--- picture's own outermost column, stretched, so the background reaches the window's edges; the menu itself stays
--- where it is (and so do the pointer's coordinates: the viewport is still 794 x 550).
-local function paint_side(context, picture, column, from, to, offset)
-    local x = from
-    while x < to do
-        local width = math.min(32, to - x)   -- the renderer scales a sprite 32 times at most
-        local at = x
-        if width < 2 then width, at = 2, to - 2 end   -- a scale of exactly 1 would be a plain sprite
-        context.sprite(picture, {column, 0, 1, constants.screen.height}, 0, offset, true, false, false, 0xffffff, width, at)
-        x = x + width
-    end
-end
-
--- window_bounds: the window's edges in viewport coordinates (left, top, right, bottom), as flow.lua gets them from the host.
-function title.draw(state, context, window_bounds)
+function title.draw(state, context)
     context.viewport(constants.screen.width, constants.screen.height, 18, 37, 101)
     local offset = state.vertical_offset
-    local picture = "pe/menu_back" .. state.background
-    local bounds
-    if window_bounds then
-        bounds = {left = math.floor(math.min(window_bounds.left or 0, 0)), top = math.floor(math.min(window_bounds.top or 0, 0)),
-            right = math.ceil(math.max(window_bounds.right or 0, constants.screen.width)),
-            bottom = math.ceil(math.max(window_bounds.bottom or 0, constants.screen.height))}
-        -- Nothing to extend, or a size the renderer would refuse (a stale value from another screen's viewport).
-        if (bounds.left == 0 and bounds.top == 0 and bounds.right == constants.screen.width and bounds.bottom == constants.screen.height)
-                or bounds.right - bounds.left > 4096 or bounds.bottom - bounds.top > 4096 then
-            bounds = nil
-        end
-    end
-    if bounds then
-        context.render_area(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top)
-        paint_side(context, picture, 0, bounds.left, 0, offset)
-        paint_side(context, picture, constants.screen.width - 1, constants.screen.width, bounds.right, offset)
-    end
-    context.image(picture, 0, offset, true)
+    context.image("pe/menu_back" .. state.background, 0, offset, true)
     -- The whole logo, with the "ver 2.0a" in its bottom-right corner (it was drawn in two pieces to leave it out).
     context.sprite("pe/menu_clip", {0, 41, 496, 80}, 153, 96 + offset, true)
     context.sprite(menu_sheet, {0, 116, 305, 213}, 244, 206 + offset, true)
