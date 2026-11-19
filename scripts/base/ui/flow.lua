@@ -5,7 +5,6 @@ local constants = require("base/game/constants")
 local virtual_keys = constants.virtual_keys
 -- Session-owned screen routing. Base screens and replacements share this API.
 local title = require("base/ui/title")
-local wide_menu = require("base/ui/wide_menu")
 local speed = require("base/game/speed")
 local controls = require("base/ui/controls")
 local music = require("base/game/music")
@@ -307,12 +306,10 @@ function flow.draw(state, context)
     -- Fullscreen (OpenLF2 extension): no-op without a real window; reasserted every frame
     -- like the filter above.
     context.fullscreen(shown_options.fullscreen)
-    local menu_context = context
-    if state.menu_width and state.menu_width > constants.screen.width then menu_context = wide_menu.wrap(context, state.menu_width) end
     if state.active == "match" and wider_layout(shown_options.battlefield_layout) then
         screen_module(state.active).draw(screen_state(state), context, state.window_bounds)
     else
-        screen_module(state.active).draw(screen_state(state), menu_context)
+        screen_module(state.active).draw(screen_state(state), context)
     end
     -- The on-screen gamepad draws on top of every screen it drives; hidden while paused (it
     -- would sit under the PAUSE picture).
@@ -321,7 +318,7 @@ function flow.draw(state, context)
     end
     -- The status line sits at the bottom of the canvas: 531 on the classic 794 x 550, lower and wider in the battle's
     -- 1018 / 1333 wide or taller layouts.
-    local status_y, status_width = 0x213, state.menu_width or constants.screen.width
+    local status_y, status_width = 0x213, constants.screen.width
     if state.active == "match" or state.active == "characters" then
         local view = screen_module(state.active).view
         if view then status_y, status_width = view.height - 19, view.width end
@@ -335,7 +332,7 @@ function flow.draw(state, context)
         local fps_text = "FPS: " .. state.fps
         font.gdi(context, fps_text, math.floor((status_width - font.gdi_width(fps_text)) / 2), status_y)
     end
-    if state.quit_dialog then quit_dialog.draw(state.quit_dialog, menu_context) end
+    if state.quit_dialog then quit_dialog.draw(state.quit_dialog, context) end
 end
 local function disconnect(state, message)
     network.close(state.session)
@@ -369,9 +366,7 @@ function flow.update(state, raw, context)
     end
     local shown_options = user_options.current()
     -- Local presentation data stays outside network and replay inputs.
-    -- (The launch and title screens also take it: their viewport is as wide as the window, see base/ui/wide_menu.)
-    local menu_screen = state.active == "launch" or state.active == "title"
-    if wider_layout(shown_options.battlefield_layout) or menu_screen then
+    if wider_layout(shown_options.battlefield_layout) then
         state.window_bounds = input.screen or state.window_bounds
     else
         state.window_bounds = nil
@@ -473,16 +468,6 @@ function flow.update(state, raw, context)
         state.pointer_x, state.pointer_y = pointer_x, pointer_y
     end
     input.pointer_x, input.pointer_y = state.pointer_x, state.pointer_y
-    -- The launch and title screens are laid out for 794 and drawn in a viewport as wide as the window: the pointer is moved
-    -- back into their coordinates (a width within 2 of the last one is kept, so a rounding of the window's edges cannot make
-    -- it wander).
-    state.menu_width = nil
-    if menu_screen then
-        local width = wide_menu.viewport_width(state.window_bounds)
-        if state.last_menu_width and math.abs(width - state.last_menu_width) <= 2 then width = state.last_menu_width end
-        state.last_menu_width, state.menu_width = width, width
-        if input.pointer_x and input.pointer_x >= 0 then input.pointer_x = input.pointer_x - wide_menu.shift(width) end
-    end
     -- Renderer capability flags are kept for frames that don't repeat them.
     if input.filters then state.filters = input.filters end
     input.filters = state.filters or {}

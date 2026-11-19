@@ -11,7 +11,6 @@ module=ui/input|ui/input.lua
 module=ui/controls|ui/controls.lua
 module=ui/demo|ui/demo.lua
 module=ui/launch|ui/launch.lua
-module=ui/wide_menu|ui/wide_menu.lua
 module=ui/navigation|ui/navigation.lua
 module=ui/quit_dialog|ui/quit_dialog.lua
 module=ui/font|ui/font.lua
