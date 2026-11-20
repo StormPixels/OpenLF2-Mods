@@ -113,6 +113,7 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `<weapon_piece>` `team: 1` keeps the pieces in the broken weapon's team and owner, otherwise they are independent.
 
 ### Fixed
+- Character menu of the wide layouts reads the rest of `<menu_control>`: `name_x/y` (player name, "Join?", "Computer"), `fighter_x/y`, `team_x/y`, `name` (1 hides the player name), `team0_flag` to `team4_flag` (pictures) and `bound` with `mode:` lines (0: the same fighter cannot be chosen twice); a tag the file lacks keeps the classic place; `face_x/y` of R27 are part of it (AI4 R28)
 - Pictures asked for without an extension (the built-in `pe/...` ones, e.g. `menu_clip`, `menu_back3`) can be PNG files: the renderer decodes by the 8 byte PNG signature as well as by a `.png` name, so a `resource.dat` line or an `lf2_exe/` file that is a PNG loads with its alpha channel instead of failing as a BMP (bug011)
 - LF2 Darkfiren: the AI, the camera focus and the starting HP of a random healing drink follow `<hp_refill>` and `<mp_refill>` of system.dat instead of the milk (122) and beer (123) ids; without those lists the old ids apply (AI2 R36)
 - `data/resource.dat` is read by the order of its lines, not by file name: the Nth `pic:` line is the Nth built-in picture (LF2_CURSOR, MENU_CLIP, ... LOADING; 48 names), so changing a line's folder or name now changes where that picture is read from; a shorter file keeps the executable's bitmaps for the rest (AI1 R12)

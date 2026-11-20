@@ -294,4 +294,20 @@ function ui_modes.kill_settings(layout)
     return settings or nil
 end
 
+-- The values of a key written several times in a block (`mode: 2` and `mode: 3` of <menu_control>): the list in file order, {} when
+-- the block or the key is missing. Comments (`;` and `#`) are cut.
+function ui_modes.repeated(text, tag, key)
+    local found, inside = {}, false
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local open = line:match("^%s*<([%w_]+)>")
+        if open == tag then inside = true
+        elseif open == tag .. "_end" or (open and open:sub(-4) == "_end") then inside = false
+        elseif inside then
+            local value = line:gsub("[;#].*$", ""):match("^%s*" .. key .. "%s*:%s*(-?%d+)")
+            if value then found[#found + 1] = tonumber(value) end
+        end
+    end
+    return found
+end
+
 return ui_modes

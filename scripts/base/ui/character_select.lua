@@ -51,10 +51,35 @@ local time_list, time_type = {}, 1
 -- LF2 Darkfiren <cost> of mode4.dat: the pools the options menu offers and the prices (cost mode).
 local cost_settings = {kind = 100, pools = {}, groups = {}}
 local per_row, shift, step_x, step_y = 4, 0, 153, 212
--- Where a slot's face picture goes from the slot's corner: 147 and 94 in the classic menu; in the wide menu face_x and face_y of <menu_control>
--- (the place of the face of the first slot on the screen, so face_x - start_x + 40 from the corner as the corner is start_x - 40 from the classic one).
-local face_dx, face_dy = 147, 94
-local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212, face_x = 117, face_y = 94}
+local ABSENT = -99999   -- "the file does not write this tag" (mode_layout.apply only takes a value of the type of the default)
+local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212,
+    face_x = ABSENT, face_y = ABSENT, name_x = ABSENT, name_y = ABSENT, fighter_x = ABSENT, fighter_y = ABSENT, team_x = ABSENT, team_y = ABSENT,
+    name_hide = ABSENT, bound = ABSENT, flag0 = "", flag1 = "", flag2 = "", flag3 = "", flag4 = ""}
+-- The places of a slot's pictures and texts from its corner (x) and from its row (y): the classic menu's own, in the wide menu the
+-- mode file's face_x, name_x, fighter_x, team_x (the place of the first slot on the screen: value - start_x + 40 from the corner,
+-- as the corner is start_x - 40 from the classic one) and the y values as they are. A tag the file lacks keeps the classic place.
+local places = {face_dx = 147, face_dy = 94, name_dx = 177, name_y = 219, fighter_dx = 177, fighter_y = 241, team_dx = 167, team_y = 263,
+    name_hide = false, same_allowed = true, flags = {}}
+local function set_places(wide, modes)
+    local function across(tag, default) local v = menu[tag] return (wide and type(v) == "number" and v ~= ABSENT) and v - menu.x + 40 or default end
+    local function down(tag, default) local v = menu[tag] return (wide and type(v) == "number" and v ~= ABSENT) and v or default end
+    places.face_dx, places.face_dy = across("face_x", 147), down("face_y", 94)
+    places.name_dx, places.name_y = across("name_x", 177), down("name_y", 219)
+    places.fighter_dx, places.fighter_y = across("fighter_x", 177), down("fighter_y", 241)
+    places.team_dx, places.team_y = across("team_x", 167), down("team_y", 263)
+    places.name_hide = wide and menu.name_hide == 1
+    -- `bound` 0: the same fighter may not be chosen twice (in the modes of the `mode:` lines, all without any); 1 or no tag: allowed.
+    places.same_allowed = true
+    if wide and menu.bound == 0 then
+        local applies = not modes or #modes == 0
+        for _, mode in ipairs(modes or {}) do if mode == places.mode then applies = true end end
+        places.same_allowed = not applies
+    end
+    for team = 0, 4 do
+        local path = wide and menu["flag" .. team] or ""
+        places.flags[team] = path ~= "" and (path:gsub("\\", "/"):lower()) or nil
+    end
+end
 layout_targets.menu = menu
 local function origin(slot)
     return (slot % per_row) * step_x + shift, math.floor(slot / per_row) * step_y
@@ -75,10 +100,10 @@ local function wide_wanted(width, mode_text)
     return wide_known[menu.pic]
 end
 local function use_layout(state)
-    if state.wide then
-        per_row, shift, step_x, step_y = menu.row, menu.x - 40, menu.step_x, menu.step_y
-        face_dx, face_dy = menu.face_x - menu.x + 40, menu.face_y
-    else per_row, shift, step_x, step_y, face_dx, face_dy = 4, 0, 153, 212, 147, 94 end
+    if state.wide then per_row, shift, step_x, step_y = menu.row, menu.x - 40, menu.step_x, menu.step_y
+    else per_row, shift, step_x, step_y = 4, 0, 153, 212 end
+    places.mode = state.mode
+    set_places(state.wide, state.menu_modes)
 end
 local function pressed(keys, key) return keys:find(key, 1, true) ~= nil end
 -- What the wide menu adds to the classic 794 wide pictures: popup_gap is the extra width (for things at the right edge) and
@@ -103,10 +128,12 @@ local function text(state, value, x, y, color, background, align)
 end
 -- The name field below a slot. Translated text is centered in its black area; the original's bitmap text
 -- starts at a fixed column, padded with spaces.
-local function slot_text(state, value, col, row, color, y, offset)
-    local x = i18n.active() and col + 207
-    if x then text(state, i18n.tr(value):match("^%s*(.-)$"), x, y or row + 219, color, nil, "center")
-    else text(state, value, col + (offset or 177), y or row + 219, color) end
+-- A text of a slot: its place is `offset` from the slot's corner and `y` (the name's by default), centred on `center` when a language
+-- is active (the name and the fighter 30 pixels on from their x, the team 40 from its x).
+local function slot_text(state, value, col, row, color, y, offset, center)
+    local x = i18n.active() and col + (center or places.name_dx + 30)
+    if x then text(state, i18n.tr(value):match("^%s*(.-)$"), x, y or row + places.name_y, color, nil, "center")
+    else text(state, value, col + (offset or places.name_dx), y or row + places.name_y, color) end
 end
 local function sprite(state, path, rectangle, x, y, keyed)
     state.display[#state.display + 1] = {"sprite", path, rectangle, x + (state.dx or 0), y, keyed}
@@ -183,6 +210,7 @@ function selection.create(options)
         if file_height then state.height = file_height end
         if state.wide and file_width then state.width = file_width end
     end
+    state.menu_modes = state.wide and mode_text and ui_modes.repeated(mode_text, "menu_control", "mode") or nil
     -- Ten player slots only in the 10 player layout, and only when it really drew (a layout that fell back is the classic menu).
     -- A championship has eight entrants whatever the layout: it keeps the eight slots in the 10 player layout.
     local championship = mode == constants.modes.championship or mode == constants.modes.team_championship
@@ -288,8 +316,25 @@ local function skin_picture(fighter, slot, key)
 end
 
 -- Changing the fighter forgets the skin (coming back to a fighter does not bring the old skin back).
-local function next_fighter(state, slot) slot.fighter, slot.skin = catalog.step(state.fighters, slot.fighter, 1), nil end
-local function previous_fighter(state, slot) slot.fighter, slot.skin = catalog.step(state.fighters, slot.fighter, -1), nil end
+-- `bound: 0` of <menu_control> (for the modes of its `mode:` lines): the same fighter may not be chosen by two slots, so the
+-- stepping jumps over a fighter another slot has (Random, 0, is always free). Without the tag or with `bound: 1` anyone may be taken.
+local function step_fighter(state, slot, direction)
+    local position = slot.fighter
+    for _ = 0, #state.fighters + 1 do
+        position = catalog.step(state.fighters, position, direction)
+        local taken = false
+        if not places.same_allowed and position ~= 0 then
+            for index = 0, state.slot_count - 1 do
+                local other = state.slots[index]
+                if other ~= slot and other and other.phase >= slot_phases.choosing_fighter and other.fighter == position then taken = true end
+            end
+        end
+        if not taken then break end
+    end
+    slot.fighter, slot.skin = position, nil
+end
+local function next_fighter(state, slot) step_fighter(state, slot, 1) end
+local function previous_fighter(state, slot) step_fighter(state, slot, -1) end
 
 -- Extra pictures over a fighter's face in the menu (<menu_face> of its data, readme/dat file/menu face.txt, up to 30 layers): each
 -- layer `pic` (source dx, dy; w x h) at (x, y) from the face picture's corner, `amount` copies `loop` pixels apart; `respond`
@@ -333,13 +378,20 @@ local function draw_fighter(state, slot, col, row, color)
     if state.options and state.options.hide_random and slot.was_random then fighter = nil end
     local head = fighter and skin_picture(fighter, slot, "head")
     if head and not pcall(engine.read_resource, head) then head = nil end   -- a picture the game lacks keeps the fighter's own
-    image(state, head or (fighter and fighter.portrait) or "pe/rface", col + face_dx, row + face_dy)
-    draw_menu_face(state, slot, fighter, col + face_dx, row + face_dy)
-    slot_text(state, fighter and fighter.name or " Random", col, row, color, row + 241)
+    image(state, head or (fighter and fighter.portrait) or "pe/rface", col + places.face_dx, row + places.face_dy)
+    draw_menu_face(state, slot, fighter, col + places.face_dx, row + places.face_dy)
+    slot_text(state, fighter and fighter.name or " Random", col, row, color, row + places.fighter_y, places.fighter_dx, places.fighter_dx + 30)
 end
+local flag_known = {}
+-- team0_flag (independent) to team4_flag of <menu_control>: a picture in place of the text, at the place of the team text.
 local function draw_team(state, slot, col, row, color)
-    if slot.team == constants.teams.independent then slot_text(state, "Independent", col, row, color, row + 263, 167)
-    else slot_text(state, "Team " .. slot.team, col, row, color, row + 263, 187) end
+    local flag = places.flags[slot.team == constants.teams.independent and 0 or slot.team]
+    if flag then
+        if flag_known[flag] == nil then flag_known[flag] = pcall(engine.read_resource, flag) end
+        if flag_known[flag] then image(state, flag, col + places.team_dx, row + places.team_y) return end
+    end
+    if slot.team == constants.teams.independent then slot_text(state, "Independent", col, row, color, row + places.team_y, places.team_dx, places.team_dx + 40)
+    else slot_text(state, "Team " .. slot.team, col, row, color, row + places.team_y, places.team_dx + 20, places.team_dx + 40) end
 end
 
 -- The last slot to pick a team may not join the side every other ready slot is on.
@@ -378,9 +430,9 @@ end
 
 local function empty_slot(state, index, slot, keys, col, row, all_empty)
     if state.countdown == idle_countdown then
-        image(state, state.blink % 5 < 3 and "pe/cma" or "pe/cma2", col + face_dx, row + face_dy)
+        image(state, state.blink % 5 < 3 and "pe/cma" or "pe/cma2", col + places.face_dx, row + places.face_dy)
     elseif state.countdown >= 0 then
-        image(state, "pe/cm" .. (math.floor(state.countdown / 30) + 1), col + face_dx, row + face_dy)
+        image(state, "pe/cm" .. (math.floor(state.countdown / 30) + 1), col + places.face_dx, row + places.face_dy)
     end
     if pressed(keys, "c") then
         if trigger(slot, state.last_menu == menus.human_slots) then
@@ -660,7 +712,8 @@ local function slots_pass(state, held)
         local slot = state.slots[index]
         local keys = held[index] or ""
         local col, row = origin(index)
-        if slot.phase < slot_phases.choosing_fighter then
+        if places.name_hide then -- `name: 1` of <menu_control>: no name text
+        elseif slot.phase < slot_phases.choosing_fighter then
             -- "Join?" blinks while the join screen runs; afterwards the empty slot shows dashes.
             if state.menu == menus.human_slots then slot_text(state, "   Join?", col, row, blink_color(state))
             else slot_text(state, "     ----", col, row, white) end
@@ -671,7 +724,7 @@ local function slots_pass(state, held)
             draw_fighter(state, slot, col, row, blink_color(state))
             fighter_slot(state, slot, keys, col, row)
             -- Darkfiren places the grid from the top left corner of the fighter's portrait (the frame sits just above it).
-            if slot.phase_grid then draw_phase_grid(state, slot, col + face_dx, row + face_dy) end
+            if slot.phase_grid then draw_phase_grid(state, slot, col + places.face_dx, row + places.face_dy) end
         end
         if slot.phase == slot_phases.choosing_team then
             draw_fighter(state, slot, col, row, white)

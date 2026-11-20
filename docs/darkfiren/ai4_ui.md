@@ -269,3 +269,12 @@ Pengguna mengirim lima tangkapan layar HUD di ponsel (Crazy_Ui1, 2, 3, Widescree
 
 Posisi gambar wajah tiap slot di layar pilih karakter layout lebar sebelumnya tetap (slot + 147, + 94); `face_x` dan `face_y` di berkas mode tidak dibaca. Sekarang `menu_control: face_x, face_y` = tempat wajah slot pertama di layar (mode4.dat: 117, 94; mode2.dat: 147, 94); slot berikutnya bergeser sebesar `centerx`/`centery`/`row`. Hitungan: dari sudut slot, `face_x - start_x + 40` dan `face_y` (sudut slot = `start_x - 40`). Menu classic tidak membaca berkas mode (tetap 147, 94). Wajah dipakai juga oleh `menu_face`, hitung mundur dan grid transformasi (semuanya dari pojok kiri atas wajah). Tes: `tests/face_position_test.lua` (membaca nilai, `start_x` tidak menggeser wajah, nilai bukan angka, ganti layout dalam satu modul).
 Tag lain di `<menu_control>` yang BELUM dibaca (tetap di tempat bawaan dalam kode): `name_x/y`, `fighter_x/y`, `team_x/y`, `cost_x/y`, `team_cmb_x/y`, `team1_cmb` sampai `team5_cmb`, `hidden`, `transform`, `respond`, `bound`, `mode`.
+
+## 27. Putaran 28: sisa tag `<menu_control>` (readme/mode dat.txt)
+
+- **Tempat teks dan gambar slot** (layout lebar; classic memakai angka bawaan): `face_x/y` (wajah), `name_x/y` (nama pemain, juga "Join?", "Computer" dan "----"), `fighter_x/y` (nama karakter dan "Random"), `team_x/y` (tulisan tim; "Team N" +20 dari `team_x`, seperti kata readme). Semuanya tempat slot pertama di layar (`x - start_x + 40` dari sudut slot; y apa adanya); tag yang tidak ditulis memakai tempat classic (sudut + 177, 219 dan seterusnya). `places` dihitung ulang tiap `create`.
+- **`name: 1`**: teks nama pemain tidak digambar (nama karakter dan tim tetap).
+- **`team0_flag` sampai `team4_flag`**: gambar (independent dan tim 1 sampai 4) di tempat tulisan tim, bila berkasnya ada; selain itu tulisan.
+- **`bound` dan `mode:`**: `bound: 0` = karakter yang sama tidak boleh dipilih dua slot pada mode yang tertulis di baris `mode:` (semua mode bila tidak ada baris); `bound: 1` atau tanpa tag = boleh. Langkah pilih karakter (kanan dan kiri) melompati karakter yang dipegang slot lain; Random selalu bebas. Daftar `mode:` berulang dibaca `ui_modes.repeated`.
+- **Belum**: `cost_x/y` dan `team_cmb_x/y`, `team1_cmb` sampai `team5_cmb` (penanda mode biaya per slot: menu biaya per slot belum ada), `transform`, `hidden` pada `<menu_control>`, `respond` (penyesuaian bila ukuran jendela berubah; rumusnya tidak dijelaskan), `facing: 10`, `caughtact`.
+- Tes: `tests/menu_control_test.lua`.
