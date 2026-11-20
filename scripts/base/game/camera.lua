@@ -8,8 +8,7 @@ local camera_motion_previous_step_weight = constants.camera_motion.previous_step
 local camera_motion_step_weight_divisor = constants.camera_motion.step_weight_divisor
 local camera_motion_target_distance_divisor = constants.camera_motion.target_distance_divisor
 local state_lying = constants.frame_states.lying
-local item_id_beer = constants.item_ids.beer
-local item_id_milk = constants.item_ids.milk
+local st_refill = require("base/game/st_refill")   -- hp / mp refill ids from system.dat (default: milk 122, beer 123)
 local item_slots = constants.item_slots
 local mode_stage = constants.modes.stage
 local screen_width = constants.screen.width
@@ -79,7 +78,7 @@ local function clamp(state)
                 if state.stage_bound > 0 and state.stage_bound < value.x and value.team ~= team_enemies and value.blink == 0 then
                     value.x = state.stage_bound
                 end
-            elseif (value.record.id == item_id_milk or value.record.id == item_id_beer)
+            elseif st_refill.any(value.record.id)
                    and (value.battle_side > 0 or (state.mode == mode_stage and math.floor(state.stage_run.id / 10) == stage_group_survival)) then
                 if value.x < world_edge_drink_margin then value.x = world_edge_drink_margin end
                 if width - world_edge_drink_margin < value.x then value.x = width - world_edge_drink_margin end

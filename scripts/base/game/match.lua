@@ -28,6 +28,7 @@ local cost = require("base/game/cost")
 local item = require("base/game/item")
 local control = require("base/game/control")
 local physics = require("base/game/physics")
+local st_refill = require("base/game/st_refill")
 local platform = require("base/game/platform")
 local fx_constants = require("base/game/fx_constants")
 local animation = require("base/game/animation")
@@ -611,7 +612,7 @@ local function fill_weapons(state)
                 if item_value then item_value.pair_rest[slot] = 0 end
             end
             value.vx, value.vy, value.vz = 0.0, 0.0, 0.0
-            if id == constants.item_ids.milk then value.hp = constants.points.milk_hp end
+            if st_refill.hp(id) then value.hp = constants.points.milk_hp end   -- an hp refill drink (system.dat; default milk) starts full
             value.x_int, value.y_int, value.z_int = trunc(value.x), trunc(value.y), trunc(value.z)
         end
     end

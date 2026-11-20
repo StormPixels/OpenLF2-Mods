@@ -34,8 +34,7 @@ local state_falling = constants.frame_states.falling
 local state_lying = constants.frame_states.lying
 local state_resting_light_item = constants.frame_states.resting_light_item
 local state_running = constants.frame_states.running
-local item_id_beer = constants.item_ids.beer
-local item_id_milk = constants.item_ids.milk
+local st_refill = require("base/game/st_refill")   -- hp / mp refill ids from system.dat (default: milk 122, beer 123)
 local mode_stage = constants.modes.stage
 local no_order = constants.no_order
 local object_john_ball = constants.object_ids.john_ball
@@ -680,7 +679,7 @@ local function weapon_keys(state, context, target, index, self_state, other_stat
             press(S, "attack")
         end
     end
-    if kind ~= item_id_milk and kind ~= item_id_beer then return true end
+    if not st_refill.any(kind) then return true end
     for _, key in ipairs({"defend", "jump", "attack", "down", "up", "left", "right"}) do S.keys[key] = false end
     if self_state == constants.frame_states.drinking and close_target == 1 and danger_aligned == 0 and S.blink ~= 0 then
         press(S, "defend")
@@ -929,8 +928,8 @@ function ai.control(state, index, mode, context)
                     if S.weapon == weapon_none and distance < nearest_distance * 2 and distance < special_distance
                        and (math.floor(type / 100) == 1 or type == constants.item_ids.ice_sword) and O.weapon == weapon_none
                        and (frame_state == state_resting_light_item or frame_state == constants.frame_states.resting_heavy_item) then
-                        if not (needs_help == 1 and type == item_id_milk) and not (cautious == 1 and type == item_id_beer)
-                           and not (S.follow_order == 1 and type ~= item_id_milk) then
+                        if not (needs_help == 1 and st_refill.hp(type)) and not (cautious == 1 and st_refill.mp(type))
+                           and not (S.follow_order == 1 and not st_refill.hp(type)) then
                             target, special_distance = k, distance
                         end
                     end
@@ -947,7 +946,7 @@ function ai.control(state, index, mode, context)
                         found = 1
                     end
                 end
-                if strongest == 1 and type == item_id_milk and state_of(O, context) == state_resting_light_item and S.weapon == weapon_none then
+                if strongest == 1 and st_refill.hp(type) and state_of(O, context) == state_resting_light_item and S.weapon == weapon_none then
                     target, found = k, 1
                 end
             end
@@ -980,7 +979,7 @@ function ai.control(state, index, mode, context)
         if S.weapon > 0 then
             local held = objects.lookup(state, S.held_item)
             local held_id = held and held.record.id
-            if held_id == item_id_milk or held_id == item_id_beer then
+            if st_refill.any(held_id) then
                 fresh(S, "attack"); press(S, "attack")
                 return
             end
@@ -1164,7 +1163,7 @@ function ai.control(state, index, mode, context)
     press(S, "down")
     do return end
     ::pick_up::
-    if S.follow_order ~= 0 and far_from(S, T) and T.record.id ~= item_id_milk and T.record.id ~= item_id_beer then goto pick_close end
+    if S.follow_order ~= 0 and far_from(S, T) and not st_refill.any(T.record.id) then goto pick_close end
     if S.x_int > T.x_int + 6 then
         press(S, "left")
         if S.x_int > T.x_int + 250 and random(context.skill3 + 3) == 0 then fresh(S, "left") end

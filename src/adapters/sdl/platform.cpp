@@ -4,6 +4,7 @@
 #include "openlf2/ports/platform.hpp"
 #include "openlf2/detail/sdl/frame_upscaler.hpp"
 #include "openlf2/detail/sdl/haptics.hpp"
+#include "openlf2/detail/sdl/image_signature.hpp"
 #include "openlf2/detail/sdl/setup_screen.hpp"
 #include "openlf2/detail/sdl/text_renderer.hpp"
 #include "openlf2/detail/sdl/sprite_effects.hpp"
@@ -881,7 +882,8 @@ private:
                 if (!bytes) return std::unexpected(bytes.error());
                 std::unique_ptr<SDL_IOStream, CloseStream> stream(SDL_IOFromConstMem(bytes->data(), bytes->size()));
                 if (!stream) return error();
-                const bool png = sprite.resource.ends_with(".png");
+                // A `.png` name, or PNG bytes under another name (a built-in picture whose resource.dat line points to a PNG).
+                const bool png = sprite.resource.ends_with(".png") || starts_with_png_signature(bytes->data(), bytes->size());
                 // The images of mods/ (the on-screen controls' icons) are 32-bit with an alpha channel.
                 const bool keep_alpha = png || sprite.resource.starts_with("mods/");
 #if SDL_VERSION_ATLEAST(3, 4, 0)

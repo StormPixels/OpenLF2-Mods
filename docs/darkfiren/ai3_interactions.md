@@ -279,3 +279,9 @@ Sumber: readme Darkfiren `system dat.txt`; `system.dat` asli update 17 diuji den
 - Pemetaan `weapon_flute_sky` = itr kind 10 dan `weapon_ww_sky` = itr kind 15 mengikuti bunyi readme ("tidak terpengaruh itk15") dan jenis cabang kodenya; [BELUM PASTI] bila readme berbeda dari yang kubaca.
 - Masih tertanam, tanpa tag di readme: daftar bola yang bisa dipecahkan, id benda tahanan (`record_ids.criminal`), nomor frame bola dan senjata (10, 20, 30, 115, 116), dan id susu / bir pada awal HP minuman, frame jatuh dan pecahan senjata (`weapons.lua`: HP awal susu, daftar frame, `drop` dan `piece`): hanya cabang minum yang mengikuti `<hp_refill>` / `<mp_refill>`.
 - Bukan wilayah AI3 (tag ada di `system.dat`, tidak dibaca di Lua yang kuperiksa): `<weapon_throw>`, `<weapon_run>`, `<id_locked>`, `<stage_com>`, `<id_no_blink>`.
+
+## R35: `smallb` di kotak status HUD (dikerjakan di berkas AI4 atas perintah pengguna)
+- Gambar kecil karakter di kotak status pertandingan (`draw_status` di `ui/match_screen.lua`) kini memakai `smallb` bila ada: `smallb:` di `<bmp_begin>` untuk tampilan bawaan, atau `smallb:` di entri skin `<pic>` untuk skin yang dipakai. Tanpa `smallb` dipakai `small` seperti sebelumnya. Papan skor tetap memakai `small` (kata pengembang: mengubah ukuran `small` tidak mengganggu papan skor dan menu championship).
+- Sumber: readme `skin system.txt` ("smallb - alternate small image at framebox") dan jawaban pengembang Darkfiren di Discord. Parser C++ sudah membaca tag ini (`record.data.header.smallb` untuk tampilan bawaan, `record.data.skins[i].smallb` untuk skin).
+- [BELUM PASTI] skin yang dipakai tetapi tidak punya `smallb` memakai `small` miliknya sendiri, bukan `smallb` bawaan karakter. Gambar yang tidak ada di game kembali ke `small`.
+- Belum dikerjakan: `small_x` / `small_y` di `<bmp_begin>` (menggeser posisi gambar kecil; parser sudah membacanya, belum dipakai HUD; arti geser atau mutlak belum diketahui).

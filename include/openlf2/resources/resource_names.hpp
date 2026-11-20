@@ -13,8 +13,10 @@
 
 namespace openlf2 {
 // LF2 Darkfiren no longer carries its bitmaps inside lf2.exe: `data/resource.dat` lists them as files.
-// Keyed by the file name without extension in upper case (the original resource name), valued by the
-// normalized virtual path. Empty when the game has no readable resource.dat.
+// Keyed by the original resource name in upper case, valued by the normalized virtual path. The n-th `pic:` line of
+// resource.dat names the n-th built-in bitmap (readme `resource dat.txt`: "do not change the order"), so a line may point
+// to any file; entries beyond the built-in list are also kept under their file name without extension.
+// Empty when the game has no readable resource.dat.
 using ResourceNames = std::map<std::string, std::string, std::less<>>;
 ResourceNames load_resource_names(const ResourceSource& resources);
 // Files that may hold the executable bitmap resource `name` (upper case), most specific first:

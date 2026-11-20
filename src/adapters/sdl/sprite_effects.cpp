@@ -2,6 +2,7 @@
 // Copyright (c) 2026 OpenLF2 contributors
 
 #include "openlf2/detail/sdl/sprite_effects.hpp"
+#include "openlf2/detail/sdl/image_signature.hpp"
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <array>
@@ -111,7 +112,7 @@ struct SpriteEffects::Impl {
         if (!data) return std::unexpected(data.error());
         std::unique_ptr<SDL_IOStream, CloseStream> stream(SDL_IOFromConstMem(data->data(), data->size()));
         if (!stream) return error();
-        const bool png = name.ends_with(".png");
+        const bool png = name.ends_with(".png") || starts_with_png_signature(data->data(), data->size());   // (or PNG bytes under another name)
 #if SDL_VERSION_ATLEAST(3, 4, 0)
         Surface loaded(png ? SDL_LoadPNG_IO(stream.get(), false) : SDL_LoadBMP_IO(stream.get(), false));
 #else

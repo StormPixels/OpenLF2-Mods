@@ -65,6 +65,7 @@ module=game/st_constants|game/st_constants.lua
 module=game/st_input|game/st_input.lua
 module=game/st_frame|game/st_frame.lua
 module=game/st_states|game/st_states.lua
+module=game/st_refill|game/st_refill.lua
 module=game/st_spawn|game/st_spawn.lua
 module=game/st_stats|game/st_stats.lua
 module=game/st_block|game/st_block.lua

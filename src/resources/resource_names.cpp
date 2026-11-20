@@ -4,6 +4,7 @@
 #include "openlf2/resources/resource_names.hpp"
 #include "openlf2/core/files.hpp"
 #include "openlf2/resources/data_file.hpp"
+#include <array>
 #include <cstdint>
 
 namespace openlf2 {
@@ -36,11 +37,25 @@ bool digits(std::string_view text) {
 }
 }
 
+// The bitmaps of the executable in the order readme `resource dat.txt` fixes ("do not change the order of these files"):
+// the n-th `pic:` line of resource.dat belongs to the n-th name, whatever the file is called.
+constexpr std::array<std::string_view, 48> builtin_names{
+    "LF2_CURSOR", "MENU_CLIP", "MENU_CLIP2", "MENU_CLIP3", "MENU_CLIP4", "MENU_CLIP5", "MENU_CLIP6", "BG_RANDOM",
+    "BG_FRAME", "SLOGAN", "ENDING", "CS2", "CS3", "CS4", "CS5", "CS6", "WORDS0", "WORDS1", "WORDS2", "WORDS3",
+    "WORDS4", "WORDS5", "PAUSE", "DEMO", "SCORE_BOARD1", "SCORE_BOARD2", "SCORE_BOARD3", "SCORE_BOARD4", "WIN_ALIVE",
+    "WIN_DEAD", "LOSE_DEAD", "LOSE_ALIVE", "CHARMENU", "CM1", "CM2", "CM3", "CM4", "CM5", "CMA", "CMA2", "CMC", "CMC2",
+    "RFACE", "SPARK", "BATTLEMODE", "BATTLETROOPS", "INFORMATION", "LOADING"};
+
 ResourceNames load_resource_names(const ResourceSource& resources) {
     ResourceNames names;
     auto text = read_data_text(resources, "data/resource.dat", 1024 * 1024);
     if (!text) return names;
     const std::string_view all(text->data(), text->size());
+    // First pass: by position, as the executable does. A `pic:` line whose path cannot be used still takes its place.
+    // Second pass: lines beyond the built-in list, and every file name that is not already a name, are also kept under
+    // the file name without extension (how earlier OpenLF2 versions matched, and the only way for extra entries).
+    std::vector<std::pair<std::string, std::string>> by_stem;
+    std::size_t position = 0;
     for (std::size_t start = 0; start < all.size();) {
         auto end = all.find('\n', start);
         if (end == std::string_view::npos) end = all.size();
@@ -48,10 +63,13 @@ ResourceNames load_resource_names(const ResourceSource& resources) {
         start = end + 1;
         if (!line.starts_with("pic:")) continue;
         const auto value = trim(line.substr(4));
+        const auto slot = position++;
         auto path = virtual_path(value);
         if (!path) continue;
-        names.emplace(upper_stem(value), std::move(*path));  // the first of equal names wins
+        if (slot < builtin_names.size()) names.emplace(std::string(builtin_names[slot]), *path);  // the first of equal names wins
+        by_stem.emplace_back(upper_stem(value), std::move(*path));
     }
+    for (auto& [stem, path] : by_stem) names.emplace(std::move(stem), std::move(path));
     return names;
 }
 
