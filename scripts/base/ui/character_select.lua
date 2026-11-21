@@ -118,10 +118,17 @@ local function keyed_image(state, path, x, y) state.display[#state.display + 1] 
 local white, computer_red, option_blue = 0xffffff, 0xff9b9b, 0x9b9bff
 local music_title, music_hint = 0x5a77d8, 0x223fa0
 local count_greyed, count_box = 0x5068c0, 0x2f479f
--- Red and green step up by 30 every 6th of the counter, from (25, 70); blue stays full.
+-- The blinking text moves from `from` to `to` in 6 steps of the counter; `done` is the text of a confirmed choice. These are
+-- the built-in colours (from (25, 70, 255) to (175, 220, 255), red and green stepping up by 30; white): selection.create sets
+-- them again for each visit and takes the <TCo> block of the mode file (Hex1, Hex2, Hex3) over them.
+local tco = {from = 0x1946ff, to = 0xafdcff, done = 0xffffff}
 local function blink_color(state)
-    local step = state.blink % 6
-    return (step * 30 + 0x19) * 65536 + (step * 30 + 0x46) * 256 + 0xff
+    local step, color = state.blink % 6, 0
+    for _, shift in ipairs({65536, 256, 1}) do
+        local a, b = math.floor(tco.from / shift) % 256, math.floor(tco.to / shift) % 256
+        color = color + math.floor(a + (b - a) * step / 5 + 0.5) * shift
+    end
+    return color
 end
 local function text(state, value, x, y, color, background, align)
     state.display[#state.display + 1] = {"text", value, x + (state.dx or 0), y, color, background, align}
@@ -182,6 +189,7 @@ function selection.create(options)
     -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
     -- that lacks a tag (or is gone) leaves the built-in one.
     reset_layout()
+    tco.from, tco.to, tco.done = 0x1946ff, 0xafdcff, white
     time_list, time_type = {}, 1
     cost_settings = {kind = 100, pools = {}, groups = {}}
     small_layers = {}
@@ -195,6 +203,8 @@ function selection.create(options)
             time_type, time_list = mode_layout.time_limits(mode_text)
             cost_settings = mode_layout.cost_settings(mode_text)
             small_layers = menu_small.parse(mode_text)
+            local from, to, done = mode_layout.text_colors(mode_text)
+            tco.from, tco.to, tco.done = from or tco.from, to or tco.to, done or tco.done
         end
     end
     local state = {mode = mode, fighters = catalog.load(), backgrounds = catalog.backgrounds(),
@@ -716,8 +726,8 @@ local function slots_pass(state, held)
         elseif slot.phase < slot_phases.choosing_fighter then
             -- "Join?" blinks while the join screen runs; afterwards the empty slot shows dashes.
             if state.menu == menus.human_slots then slot_text(state, "   Join?", col, row, blink_color(state))
-            else slot_text(state, "     ----", col, row, white) end
-        elseif slot.phase < computer_phase then slot_text(state, controls.name(index), col, row, white)
+            else slot_text(state, "     ----", col, row, tco.done) end
+        elseif slot.phase < computer_phase then slot_text(state, controls.name(index), col, row, tco.done)
         else slot_text(state, "Computer", col, row, computer_red) end
         if slot.phase == slot_phases.empty and state.menu == menus.human_slots then empty_slot(state, index, slot, keys, col, row, all_empty) end
         if slot.phase == slot_phases.choosing_fighter then
@@ -727,13 +737,13 @@ local function slots_pass(state, held)
             if slot.phase_grid then draw_phase_grid(state, slot, col + places.face_dx, row + places.face_dy) end
         end
         if slot.phase == slot_phases.choosing_team then
-            draw_fighter(state, slot, col, row, white)
+            draw_fighter(state, slot, col, row, tco.done)
             team_slot(state, index, slot, keys, col, row)
         end
         slot.ready = false
         if slot.phase == slot_phases.ready then
-            draw_fighter(state, slot, col, row, white)
-            draw_team(state, slot, col, row, white)
+            draw_fighter(state, slot, col, row, tco.done)
+            draw_team(state, slot, col, row, tco.done)
             if ready_slot(state, slot, keys) then skip = true end
             if slot.phase == slot_phases.ready then
                 ready_count = ready_count + 1

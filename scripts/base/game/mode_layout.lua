@@ -125,6 +125,25 @@ function mode_layout.time_limits(text)
     return kind, list
 end
 
+-- The <TCo> block (OpenLF2): the colours of the texts on the character menu, `Hex1:` and `Hex2:` the two colours the
+-- blinking text moves between, `Hex3:` the colour of a confirmed text, each as RRGGBB (a leading # is allowed). The block ends
+-- at <TCEnd>. A colour the file does not give, or gives in the wrong form, is nil (the caller keeps its built-in one). The
+-- values are read here, not by blocks(), which would turn a number-looking value such as 00FF00 into a decimal.
+-- Returns Hex1, Hex2, Hex3.
+function mode_layout.text_colors(text)
+    local found, inside = {}, false
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag == "TCo" then inside = true
+        elseif tag == "TCEnd" then break
+        elseif inside then
+            local key, value = line:match("^%s*(Hex%d)%s*:%s*#?(%x%x%x%x%x%x)")
+            if key then found[key] = tonumber(value, 16) end
+        end
+    end
+    return found.Hex1, found.Hex2, found.Hex3
+end
+
 -- The <cost> block (LF2 Darkfiren cost mode): `kind:` is the price of a fighter no `cost:` group lists, `respond:` each
 -- a choice of pool for the menu (up to 100), `cost: N` followed by `id:` lines the price N of those fighters (the
 -- `random:` ... `random_end:` blocks are lists of ids a fighter may respawn as). Returns {kind, pools, groups, randoms}.
