@@ -123,13 +123,13 @@ function catalog.selectable(fighter)
     end
     return not fighter.hidden or unlock.flags.characters == 1
 end
+-- The next (step 1) or previous (step -1) selectable fighter after list position `position`
+-- (0 is Random); running past either end gives Random, as the original's -1.
 -- Shown in the character menu and roster: `kind: -1` ids stay out, but a <phase> list can still offer them.
 function catalog.listed(fighter)
     return not fighter.menu_hidden and catalog.selectable(fighter)
 end
 
--- The next (step 1) or previous (step -1) selectable fighter after list position `position`
--- (0 is Random); running past either end gives Random, as the original's -1.
 function catalog.step(fighters, position, step)
     repeat
         position = (position + step) % (#fighters + 1)
