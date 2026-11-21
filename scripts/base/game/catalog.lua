@@ -25,6 +25,23 @@ function catalog.load()
     local section = assert(source:match("<object>(.-)<object_end>"), "missing object catalog")
     local fighters = {}
     local record = -1
+    -- LF2 Darkfiren: `hidden:` and `kind:` written in <bmp_begin> decide; the id range only gives a default.
+    local function header_number(header, key)
+        for line in (header .. "\n"):gmatch("([^\r\n]*)[\r\n]") do
+            local name, value = line:match("^%s*([%a_]+)%s*:%s*(%-?%d+)")
+            if name == key then return tonumber(value) end
+        end
+        return nil
+    end
+    local function default_locked(id)
+        local ok, system_data = pcall(require, "base/game/system_data")
+        if ok and type(system_data) == "table" and system_data.ids then
+            local listed = system_data.ids("id_locked")
+            if type(listed) == "table" and next(listed) ~= nil then return listed[id] == true end
+        end
+        local group = math.floor(id / 10)
+        return group == 3 or group == 5
+    end
     for line in (section .. "\n"):gmatch("([^\n]*)\n") do
         line = line:gsub("#.*$", "")
         local id, kind, path = line:match("id:%s*(%d+)%s+type:%s*(%d+)%s+file:%s*(%S+)")
@@ -41,10 +58,11 @@ function catalog.load()
                 local portrait = assert(header:match("head:%s*(%S+)"), "missing portrait: " .. path)
                 -- The small picture of the HP frame, also the face on the wide layout's roster (optional).
                 local small = header:match("small:%s*(%S+)")
-                local family = math.floor(id / 10)
+                local lock = header_number(header, "hidden")
+                local menu_kind = header_number(header, "kind")
                 fighters[#fighters + 1] = {id = id, record = record, name = name,
                     portrait = canonical(portrait), small = small and canonical(small) or nil, path = path,
-                    hidden = family == 3 or family == 5}
+                    hidden = default_locked(id), lock = lock, menu_hidden = menu_kind == -1}
                 assert(#fighters <= 1000, "too many character records")
             end
         elseif line:find("%S") and not id then error("invalid object catalog line") end
@@ -93,14 +111,29 @@ function catalog.words_checksum()
 end
 
 function catalog.selectable(fighter)
-    return not fighter.hidden or require("base/game/unlock").flags.characters == 1
+    local unlock = require("base/game/unlock")
+    local lock = fighter.lock
+    if lock ~= nil then   -- `hidden:` written in the file overrides the id default
+        if lock == 4 then return false end   -- never selectable
+        if lock >= 1 and lock <= 3 then
+            if unlock.allows then return unlock.allows(lock) == true end
+            return unlock.flags.characters == 1
+        end
+        return true   -- 0, or 10~1000: the phase grid checks those keys with unlock.allows
+    end
+    return not fighter.hidden or unlock.flags.characters == 1
 end
+-- Shown in the character menu and roster: `kind: -1` ids stay out, but a <phase> list can still offer them.
+function catalog.listed(fighter)
+    return not fighter.menu_hidden and catalog.selectable(fighter)
+end
+
 -- The next (step 1) or previous (step -1) selectable fighter after list position `position`
 -- (0 is Random); running past either end gives Random, as the original's -1.
 function catalog.step(fighters, position, step)
     repeat
         position = (position + step) % (#fighters + 1)
-    until position == 0 or catalog.selectable(fighters[position])
+    until position == 0 or catalog.listed(fighters[position])
     return position
 end
 -- Every <object> record in file order: {id, kind (type:), path}. FindRecordIndex in the original

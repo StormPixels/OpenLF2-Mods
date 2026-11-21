@@ -1830,7 +1830,7 @@ end
 local function roster_fighters(state)
     local cells = {0}
     for index, fighter in ipairs(state.fighters) do
-        if catalog.selectable(fighter) then cells[#cells + 1] = index end
+        if catalog.listed(fighter) then cells[#cells + 1] = index end
     end
     return cells
 end
