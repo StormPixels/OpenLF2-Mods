@@ -8,6 +8,7 @@ local navigation = require("base/ui/input")
 local sounds = require("base/game/sounds")
 local controls = require("base/ui/controls")
 local font = require("base/ui/font")
+local menu_data = require("base/game/menu_data")  -- HOOK(AI5): data\\menu.dat
 local menu_sheet = "pe/menu_clip3"
 local highlighted = {
     {32, 331, 210, 22, 289, 204},
@@ -62,6 +63,26 @@ function title.update(state, held, context)
     if state.key_list > 0 then state.key_list = state.key_list - 1 end
     local x, y = held.pointer_x, held.pointer_y - state.vertical_offset
     if held.click and x >= 0xdf and x < 0x23e and y > 0xc2 and y < 0x1b0 and x ~= 0 then state.key_list = 450 end
+    -- menu.dat's <menu2_name>: a link under the pointer opens its address on a click.
+    local names = menu_data.names(2)
+    if names and held.click then
+        for _, item in ipairs(menu_data.texts(names, x, y, font.gdi_width)) do
+            if item.hover and item.url then
+                sounds.direct(state, "ok")
+                context.open_url(item.url)
+                break
+            end
+        end
+    end
+end
+
+-- One picture of menu.dat's <menu2>: its place (the built-in one when unset) and whether black is clear; `custom` is the
+-- resource to draw instead of the built-in sprite of `sheet` (nil: the sprite).
+local function draw_picture(context, data, custom, sheet, rectangle, x, y, keyed, offset)
+    x, y = data and data.x or x, data and data.y or y
+    if data and data.keyed ~= nil then keyed = data.keyed end
+    if custom then context.image(custom, x, y + offset, keyed)
+    else context.sprite(sheet, rectangle, x, y + offset, keyed) end
 end
 
 function title.draw(state, context)
@@ -71,13 +92,29 @@ function title.draw(state, context)
     local offset = state.vertical_offset
     if back then sd_menu_back.paint(context, back, state.menu_ticks, offset)
     else context.image("pe/menu_back" .. state.background, 0, offset, true) end
+    -- The pictures: menu.dat's <menu2> moves them, and swaps in its own pictures when the game has them (`pic2:` of the base
+    -- while a network game runs, which is when the recording entry is off).
+    local layers = menu_data.pictures(2) or {}
     -- The whole logo, with the "ver 2.0a" in its bottom-right corner (it was drawn in two pieces to leave it out).
-    context.sprite("pe/menu_clip", {0, 41, 496, 80}, 153, 96 + offset, true)
-    context.sprite(menu_sheet, {0, 116, 305, 213}, 244, 206 + offset, true)
-    local replay = state.replay_disabled and {293, 504, 277, 25} or {405, 532, 277, 25}
-    context.sprite(menu_sheet, replay, 257, 366 + offset, true)
+    local logo = layers[1]
+    draw_picture(context, logo, logo and menu_data.picture(logo.pic), "pe/menu_clip", {0, 41, 496, 80}, 153, 96, true, offset)
+    local base = layers[2]
+    local base_picture = base and (state.replay_disabled and menu_data.picture(base.pic2) or menu_data.picture(base.pic))
+    draw_picture(context, base, base_picture, menu_sheet, {0, 116, 305, 213}, 244, 206, true, offset)
+    if not base_picture then
+        -- The recording entry is drawn again, dimmed or lit; it moves with the base picture.
+        local replay = state.replay_disabled and {293, 504, 277, 25} or {405, 532, 277, 25}
+        context.sprite(menu_sheet, replay, 257 + (base and base.x or 244) - 244, 366 + offset + (base and base.y or 206) - 206, true)
+    end
     local frame = highlighted[state.selection + 1]
-    context.sprite(menu_sheet, frame, frame[5], frame[6] + offset, false)
+    local lit = layers[state.selection + 3]
+    draw_picture(context, lit, lit and menu_data.picture(lit.pic), menu_sheet, frame, frame[5], frame[6], false, offset)
+    local names = menu_data.names(2)
+    if names then
+        for _, item in ipairs(menu_data.texts(names, state.pointer_x, state.pointer_y - offset, font.gdi_width)) do
+            font.gdi(context, item.value, item.x, item.y + offset, item.color)
+        end
+    end
     if state.showing_keys then
         context.sprite("pe/menu_clip5", {0, 389, 530, 200}, 5, 0x27, true)
         local settings = controls.current()

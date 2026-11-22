@@ -89,6 +89,7 @@ module=game/fx_stats|game/fx_stats.lua
 module=game/armor|game/armor.lua
 module=game/sd_quest|game/sd_quest.lua
 module=game/sd_menu_back|game/sd_menu_back.lua
+module=game/menu_data|game/menu_data.lua
 module=game/platform|game/platform.lua
 module=game/fx_ball|game/fx_ball.lua
 # Fonts for the translated languages (see i18n/i18n.lua); their licenses are next to them.

@@ -62,6 +62,7 @@ struct ScriptFrame {
     std::vector<MusicCommand> music;
     std::vector<RumbleCommand> rumbles;
     std::vector<std::string> actions;
+    std::vector<std::string> urls; // addresses a screen asks to open (checked by the host: http or https only)
     std::optional<FileDialogText> file_dialog; // for a "replay" action in this frame
 };
 class ScriptRuntime {

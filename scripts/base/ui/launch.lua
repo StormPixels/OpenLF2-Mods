@@ -11,6 +11,7 @@ local ui_hud = require("base/game/ui_hud")
 local navigation = require("base/ui/navigation")
 local constants = require("base/game/constants")
 local sd_menu_back = require("base/game/sd_menu_back")  -- HOOK(AI5): system.dat <menu_back_N>
+local menu_data = require("base/game/menu_data")  -- HOOK(AI5): data\\menu.dat
 local virtual_keys = constants.virtual_keys
 local screen = {}
 
@@ -71,73 +72,96 @@ local function background(state)
     else image(state, "pe/menu_back" .. state.background, 0, 0, true) end
 end
 
+-- One picture of menu.dat's <menu1>: its place (the built-in one when unset), its own picture when the game has it (else the
+-- built-in sprite of `sheet`) and whether black is clear.
+local function menu_picture(state, data, sheet, rectangle, x, y, keyed)
+    x, y = data and data.x or x, data and data.y or y
+    if data and data.keyed ~= nil then keyed = data.keyed end
+    local custom = data and menu_data.picture(data.pic)
+    if custom then image(state, custom, x, y, keyed) else sprite(state, sheet, rectangle, x, y, keyed) end
+end
+-- The five entries under the base picture: the picture shown while the pointer is over one, its place and its pointer area
+-- {left, right, top, bottom} (menu.dat's dx, dvx, dy, dvy).
+local menu_entries = {
+    {"pe/menu_clip", menu_clip[7], 0x115, 0xca + 0xd, {0x114, 0x208, 0xca + 0xf, 0xca + 0x27}},
+    {"pe/menu_clip", menu_clip[8], 0x115, 0xca + 0x2d, {0x114, 0x208, 0xca + 0x2d, 0xca + 0x46}},
+    {"pe/menu_clip", menu_clip[9], 0x115, 0xca + 0x4c, {0x114, 0x208, 0xca + 0x4d, 0xca + 0x66}},
+    {"pe/menu_clip5", menu_clip5[1], 0x117, 0xca + 0x6b, {0x114, 0x208, 0xca + 0x6b, 0xca + 0x84}},
+    {"pe/menu_clip5", menu_clip5[2], 0x117, 0xca + 0x8b, {0x114, 0x208, 0xca + 0x89, 0xca + 0xa2}},
+}
+local function activate_entry(state, input, context, index)
+    sounds.direct(state, "ok")
+    if index == 1 then
+        state.page = "waiting"
+    elseif index == 2 then
+        state.page = "network"
+    elseif index == 3 then
+        state.page = "controls"
+        -- The original keeps the edited name between visits; the port starts idle.
+        state.name_player = 0
+        state.editing = controls.copy(controls.current())
+        state.previous_keys = input.keys
+    elseif index == 4 then
+        local settings = controls.current()
+        state.page = "recording"
+        state.record = {record = settings.record, author = settings.author, email = settings.email, info = settings.info}
+        state.previous_keys = input.keys
+    else
+        -- OpenLF2's project site; the credits link opens the original game's site.
+        context.action("open_website")
+    end
+end
+
 local function menu(state, input, context)
     background(state)
     text(state, engine.build_label, 790 - font.gdi_width(engine.build_label), 4, 0x5077d0)
-    -- The block is left-aligned, as far right as its widest line allows; the last line (the links) sits a little
-    -- apart from the others.
-    local widest = 0
-    for _, line in ipairs(state.credits) do
-        local width = 0
-        for _, entry in ipairs(line) do width = width + font.gdi_width(entry[1]) + (entry[3] or 0) end
-        widest = math.max(widest, width - (line[#line][3] or 0))
-    end
-    local left = math.min(0x24f, 790 - widest)
-    for index, line in ipairs(state.credits) do
-        local y = 0x213 - (#state.credits - index) * 0x14 - (index < #state.credits and 6 or 0)
-        local x = left
-        for _, entry in ipairs(line) do
-            local value, action = entry[1], entry[2]
-            local width = font.gdi_width(value)
-            local hover = action and inside(input, x, y, x + width, y + 15)
-            text(state, value, x, y, hover and 0xffffff or 0x5077d0)
-            if hover and input.click then
+    local names = menu_data.names(1)
+    if names then
+        -- menu.dat's <menu1_name>: the game's own text lines and links replace the built-in credits.
+        for _, item in ipairs(menu_data.texts(names, input.pointer_x, input.pointer_y, font.gdi_width)) do
+            text(state, item.value, item.x, item.y, item.color)
+            if item.hover and item.url and input.click then
                 sounds.direct(state, "ok")
-                context.action(action)
+                context.open_url(item.url)
             end
-            x = x + width + (entry[3] or 0)
+        end
+    else
+        -- The block is left-aligned, as far right as its widest line allows; the last line (the links) sits a little
+        -- apart from the others.
+        local widest = 0
+        for _, line in ipairs(state.credits) do
+            local width = 0
+            for _, entry in ipairs(line) do width = width + font.gdi_width(entry[1]) + (entry[3] or 0) end
+            widest = math.max(widest, width - (line[#line][3] or 0))
+        end
+        local left = math.min(0x24f, 790 - widest)
+        for index, line in ipairs(state.credits) do
+            local y = 0x213 - (#state.credits - index) * 0x14 - (index < #state.credits and 6 or 0)
+            local x = left
+            for _, entry in ipairs(line) do
+                local value, action = entry[1], entry[2]
+                local width = font.gdi_width(value)
+                local hover = action and inside(input, x, y, x + width, y + 15)
+                text(state, value, x, y, hover and 0xffffff or 0x5077d0)
+                if hover and input.click then
+                    sounds.direct(state, "ok")
+                    context.action(action)
+                end
+                x = x + width + (entry[3] or 0)
+            end
         end
     end
-    logo(state, 0x60)
-    local top = 0xca
-    sprite(state, "pe/menu_clip5", menu_clip5[0], 0x107, top, true)
-    if input.pointer_x < 0x114 or input.pointer_x > 0x208 then return end
-    local y = input.pointer_y
-    if y >= top + 0xf and y <= top + 0x27 then
-        sprite(state, "pe/menu_clip", menu_clip[7], 0x115, top + 0xd, true)
-        if input.click then
-            sounds.direct(state, "ok")
-            state.page = "waiting"
-        end
-    elseif y >= top + 0x2d and y <= top + 0x46 then
-        sprite(state, "pe/menu_clip", menu_clip[8], 0x115, top + 0x2d, true)
-        if input.click then state.page = "network"; sounds.direct(state, "ok") end
-    elseif y >= top + 0x4d and y <= top + 0x66 then
-        sprite(state, "pe/menu_clip", menu_clip[9], 0x115, top + 0x4c, true)
-        if input.click then
-            sounds.direct(state, "ok")
-            state.page = "controls"
-            -- The original keeps the edited name between visits; the port starts idle.
-            state.name_player = 0
-            state.editing = controls.copy(controls.current())
-            state.previous_keys = input.keys
-        end
-    elseif y >= top + 0x6b and y <= top + 0x84 then
-        sprite(state, "pe/menu_clip5", menu_clip5[1], 0x117, top + 0x6b, true)
-        if input.click then
-            sounds.direct(state, "ok")
-            local settings = controls.current()
-            state.page = "recording"
-            state.record = {record = settings.record, author = settings.author, email = settings.email,
-                info = settings.info}
-            state.previous_keys = input.keys
-        end
-    elseif y >= top + 0x89 and y <= top + 0xa2 then
-        -- OpenLF2's project site; the credits link opens the original game's site.
-        sprite(state, "pe/menu_clip5", menu_clip5[2], 0x117, top + 0x8b, true)
-        if input.click then
-            sounds.direct(state, "ok")
-            context.action("open_website")
+    -- The pictures: menu.dat's <menu1> moves them, and swaps in its own pictures when the game has them.
+    local layers = menu_data.pictures(1) or {}
+    menu_picture(state, layers[1], "pe/menu_clip", {0, 41, 496, 80}, 0x9b, 0x60, true)
+    menu_picture(state, layers[2], "pe/menu_clip5", menu_clip5[0], 0x107, 0xca, true)
+    for index, entry in ipairs(menu_entries) do
+        local data = layers[index + 2]
+        local hit = data and data.hit or entry[5]
+        if input.pointer_x >= hit[1] and input.pointer_x <= hit[2] and input.pointer_y >= hit[3] and input.pointer_y <= hit[4] then
+            menu_picture(state, data, entry[1], entry[2], entry[3], entry[4], true)
+            if input.click then activate_entry(state, input, context, index) end
+            break
         end
     end
 end

@@ -192,7 +192,7 @@ int create_bridge_slot(lua_State* state) {
 // Private protocol, matching the fixed-size opcodes in runtime/bootstrap.lua.
 enum class FrameOpcode {
     viewport = 1, sprite, fill, overlay, render_area, clip, sound, rumble,
-    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite, icon, slow
+    music, speed, render_filter, text_input, replay_drop, fullscreen, action, text, file_dialog, world_sprite, icon, slow, open_url
 };
 class FrameReader {
 public:
@@ -278,7 +278,7 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
         int commands = 0;
         while (reader.remaining()) {
             if (++commands > 4096) throw std::runtime_error("too many frame commands");
-            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 20));
+            const auto opcode = static_cast<FrameOpcode>(reader.integer(1, 21));
             switch (opcode) {
             case FrameOpcode::viewport:
                 if (frame.viewport.width) throw std::runtime_error("duplicate viewport");
@@ -394,6 +394,13 @@ Result<ScriptFrame> decode_frame(lua_State* state, int table, int count) {
                 frame.file_dialog = FileDialogText{std::string(reader.text()), std::string(reader.text()),
                                                    std::string(reader.text())};
                 break;
+            case FrameOpcode::open_url: {
+                // A link of the game's data (menu.dat): the host checks the address before it opens it.
+                const auto url = reader.text();
+                if (frame.urls.size() >= 4) throw std::runtime_error("too many frame URLs");
+                frame.urls.emplace_back(url);
+                break;
+            }
             case FrameOpcode::action: {
                 const auto name = reader.text();
                 if (name.empty() || name.find_first_not_of("abcdefghijklmnopqrstuvwxyz_") != std::string_view::npos)

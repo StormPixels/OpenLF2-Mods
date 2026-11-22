@@ -108,7 +108,7 @@ local state = screen.create(runtime_settings or {menu_seed = 0})
 local FrameOpcode = {
     viewport = 1, sprite = 2, fill = 3, overlay = 4, render_area = 5,
     clip = 6, sound = 7, rumble = 8, music = 9, speed = 10,
-    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18, icon = 19, slow = 20,
+    render_filter = 11, text_input = 12, replay_drop = 13, fullscreen = 14, action = 15, text = 16, file_dialog = 17, world_sprite = 18, icon = 19, slow = 20, open_url = 21,
 }
 local RumbleTarget = {gamepad = 0, phone = 1}
 local MusicKind = {play = 0, stop = 1, resume = 2, volume = 3}
@@ -160,6 +160,8 @@ local function render(input)
     function context.icon(resource, x, y, w, h, alpha, tint)
         command(FrameOpcode.icon, resource, x, y, w, h, alpha or 255, tint or 0xffffff)
     end
+    -- Opens an http(s) address in the system's browser (a link of the game's data, e.g. menu.dat); the host checks it.
+    function context.open_url(url) command(FrameOpcode.open_url, tostring(url)) end
     function context.fill(x, y, w, h, r, g, b, alpha) command(FrameOpcode.fill, x, y, w, h, r, g, b, alpha or 255) end
     function context.overlay(active) command(FrameOpcode.overlay, active) end
     function context.render_area(x, y, w, h) command(FrameOpcode.render_area, x, y, w, h) end

@@ -1550,6 +1550,17 @@ Result<void> run(const Configuration& config) {
             }
             std::cout << "Requested screen: " << action << " (not implemented yet)\n";
         }
+        // Links of the game's data (menu.dat's `facing:`): only plain http(s) addresses of a sane length are opened.
+        for (const auto& url : frame->urls) {
+            const bool scheme = url.starts_with("http://") || url.starts_with("https://");
+            const bool plain = std::ranges::all_of(url, [](char c) { return c > 0x20 && c < 0x7f; });
+            if (!scheme || !plain || url.size() > 512) {
+                std::cerr << "Website: refused the address " << url.substr(0, 64) << '\n';
+                continue;
+            }
+            auto shown = platform->open_url(url);
+            if (!shown) std::cerr << "Website: " << shown.error().message << '\n';
+        }
         // All settings, replay offers and window actions above happen while Lua
         // is idle. Resource reads during presentation use immutable archive data
         // and independent decompression streams.

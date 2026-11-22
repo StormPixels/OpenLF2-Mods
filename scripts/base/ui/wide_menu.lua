@@ -105,23 +105,25 @@ function wide_menu.wrap(context, width, height)
     -- A menu_back layer of system.dat (sd_menu_back): the scene spans left..right in its own coordinates. Like a stage at camera
     -- 0 it starts at the viewport's left edge (what is wider is cut off on the right); a scene narrower than the viewport is
     -- centred. A `loop` picture is repeated across the whole viewport, to its left edge too.
-    function wrapped.backdrop(resource, x, y, keyed, loop, left, right, sky)
+    function wrapped.backdrop(resource, x, y, keyed, loop, left, right, sky, scene_height)
         left, right = left or 0, right or base_width
         local shift = math.max(0, math.floor((width - (right - left)) / 2)) - left
+        -- A scene taller than 550 sets the viewport's height (it starts at the top); otherwise the 550 high layout's place.
+        local top = scene_height and scene_height > base_height and math.floor((height - scene_height) / 2) or dy
         if not loop or loop <= 0 then
             if sky then
                 -- The sky picture ends short of the viewport's right edge: it is stretched to reach it.
                 local picture_width, picture_height = picture_size(resource)
                 local edge = width - shift
                 if picture_width and picture_height and x + picture_width < edge then
-                    return context.icon(resource, x + shift, y + dy, edge - x, picture_height)
+                    return context.icon(resource, x + shift, y + top, edge - x, picture_height)
                 end
             end
-            return context.image(resource, x + shift, y + dy, keyed)
+            return context.image(resource, x + shift, y + top, keyed)
         end
         local at, copies = (x + shift) % loop - loop, 0
         while at < width and copies < 200 do
-            context.image(resource, at, y + dy, keyed)
+            context.image(resource, at, y + top, keyed)
             at, copies = at + loop, copies + 1
         end
     end

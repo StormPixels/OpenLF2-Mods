@@ -6,6 +6,7 @@ local virtual_keys = constants.virtual_keys
 -- Session-owned screen routing. Base screens and replacements share this API.
 local title = require("base/ui/title")
 local wide_menu = require("base/ui/wide_menu")
+local sd_menu_back = require("base/game/sd_menu_back")  -- HOOK(AI5): system.dat <menu_back_N>
 local speed = require("base/game/speed")
 local controls = require("base/ui/controls")
 local music = require("base/game/music")
@@ -483,7 +484,10 @@ function flow.update(state, raw, context)
     if menu_screen then
         local screen = state.active == "title" and state.title or state.launch
         local picture = screen and screen.background and ("pe/menu_back" .. screen.background) or nil
-        local height = wide_menu.viewport_height(picture and wide_menu.picture_height(picture))
+        -- With a <menu_back_N> block of system.dat the pictures drawn are its own, so its height counts, not the one of the
+        -- pe/menu_back<N> picture the screen chose at random (whose size changed the viewport from start to start).
+        local back = screen and sd_menu_back.view(state.active == "title" and 2 or 1, screen.menu_seed)
+        local height = wide_menu.viewport_height(back and back.height or picture and wide_menu.picture_height(picture))
         local width = wide_menu.viewport_width(state.window_bounds, height)
         if state.last_menu_height == height and state.last_menu_width and math.abs(width - state.last_menu_width) <= 6 then
             width = state.last_menu_width

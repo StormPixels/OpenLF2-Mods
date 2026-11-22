@@ -47,6 +47,13 @@ function sd_menu_back.view(index, seed)
             end
         end
     end
+    -- The height the pictures span (their lowest edge): the viewport of the menu screens is as tall as this, not as tall as the
+    -- unrelated pe/menu_back<N> picture of the screen's own random choice.
+    view.height = 0
+    for _, layer in ipairs(view.layers) do
+        local height = wide_menu.picture_height(layer.resource)
+        if height then view.height = math.max(view.height, layer.y + height) end
+    end
     -- The sky: of the opaque, unlooped layers on the top row the one reaching furthest right. On a viewport wider than the
     -- scene the wide menu stretches it to the right edge, so no bare viewport colour is left beside it.
     local top
@@ -71,14 +78,14 @@ local function visible(layer, tick)
     return phase >= (layer.c1 or 0) and phase <= (layer.c2 or layer.cc)
 end
 
--- The draw commands of a view, one per shown layer: {"backdrop", resource, x, y, keyed, loop, left, right, sky}. `y_offset` moves
+-- The draw commands of a view, one per shown layer: {"backdrop", resource, x, y, keyed, loop, left, right, sky, height}. `y_offset` moves
 -- everything down (the title screen's vertical offset). Draw them with draw_command.
 function sd_menu_back.commands(view, tick, y_offset)
     local commands = {}
     for index, layer in ipairs(view.layers) do
         if visible(layer, tick) then
             commands[#commands + 1] = {"backdrop", layer.resource, layer.x, layer.y + (y_offset or 0), layer.keyed,
-                layer.loop or 0, view.left, view.right, index == view.sky}
+                layer.loop or 0, view.left, view.right, index == view.sky, view.height}
         end
     end
     return commands
@@ -88,7 +95,7 @@ end
 -- wider than 794; a plain 794 context repeats it every loop pixels to the right edge (at most 20 times).
 function sd_menu_back.draw_command(context, command)
     local resource, x, y, keyed, loop = command[2], command[3], command[4], command[5], command[6] or 0
-    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8], command[9]) end
+    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8], command[9], command[10]) end
     local copies = 1
     if loop > 0 then copies = math.min(repeat_limit, math.floor(794 / loop) + 1) end
     for copy = 0, copies - 1 do context.image(resource, x + copy * loop, y, keyed) end
