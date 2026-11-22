@@ -217,7 +217,19 @@ function weapons.drop_background(state)
     if count >= constants.weapon_spawn.max_existing or random(constants.weapon_spawn.chance_denominator) ~= 0 then return end
     local slot = objects.free_slot(state)
     local candidates = {}
-    for _, entry in ipairs(catalog.objects().list) do
+    local area = state.bg_area
+    if area and area.weapon_ids then
+        -- LF2 Darkfiren: the mode's own list (see bg_modes.area): `id` objects drop normally, an `oid` one only half the time and not
+        -- in the modes of `drop`. A mode without a list (but whose background has one) drops nothing.
+        local known = {}
+        for _, entry in ipairs(catalog.objects().list) do known[entry.id] = true end
+        for _, id in ipairs(area.weapon_ids) do
+            if known[id] and (not area.rare_ids[id] or (random(2) ~= 0 and not area.no_rare_modes[state.mode])) then
+                candidates[#candidates + 1] = id
+            end
+        end
+    end
+    for _, entry in ipairs(area and area.weapon_ids and {} or catalog.objects().list) do
         local id = entry.id
         if id > constants.record_id_ranges.background_weapon_lower_exclusive
            and id < constants.record_id_ranges.background_weapon_end_exclusive

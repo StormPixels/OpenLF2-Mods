@@ -37,9 +37,43 @@ end
 -- (the height weapons, criminals and battle-mode armies drop from, below 0) and `attacking` (the damage percent
 -- of every hit, 0 or more). Returns nil when the mode carries none of them. A value the readme does not allow
 -- (a dvy or centery of 0 or more, a negative attacking, a zboundary without two numbers) is dropped.
-function bg_modes.area(mode)
+-- "100,101" -> {100, 101} in the order written (numbers only).
+local function number_list(text)
+    local list = {}
+    for item in tostring(text or ""):gmatch("[^,]+") do
+        local number = tonumber(item)
+        if number then list[#list + 1] = math.floor(number) end
+    end
+    return list
+end
+
+-- `first` is the first mode of the same background: its `id` list stands for the whole background, so a mode that leaves
+-- the list out drops no random weapon at all (the readme: "if you want to completely disable weapon drop then simply don't
+-- add these ids"), while a background whose modes have no list keeps the stock random drops.
+function bg_modes.area(mode, first)
     if mode == nil then return nil end
     local area = {}
+    -- Weapon drops: `id` the objects that drop at random, `oid` those among them that drop rarely (half the time) and only in
+    -- the modes `drop` does not list (0 vs, 1 stage, 2 1on1, 3 2on2, 4 battle: the values of constants.modes).
+    if mode.id ~= nil then
+        area.weapon_ids = number_list(mode.id)
+        area.rare_ids = value_set(mode.oid) or {}
+        area.no_rare_modes = value_set(mode.drop) or {}
+    elseif first ~= nil and first.id ~= nil then
+        area.weapon_ids, area.rare_ids, area.no_rare_modes = {}, {}, {}
+    end
+    -- `state: 1` a thrown fighter spares its own team while falling; `effect: 1` F7 leaves the timer of t3 objects alone;
+    -- `kind` 1..4 hides names and reserves (see match_screen); `fronthurtact` the hp a whirlwind victim loses every 12th
+    -- frame (9), `backhurtact` the fall damage when the whirlwind ends (20), `decrease` the breaking-ice damage (10; read
+    -- but not used yet).
+    if tonumber(mode.state) == 1 then area.spare_team = true end
+    if tonumber(mode.effect) == 1 then area.keep_timers = true end
+    local names = tonumber(mode.kind)
+    if names and names >= 1 and names <= 4 then area.names = math.floor(names) end
+    for key, name in pairs({fronthurtact = "fronthurtact", backhurtact = "backhurtact", decrease = "decrease"}) do
+        local amount = tonumber(mode[key])
+        if amount and amount >= 1 then area[name] = math.floor(amount) end
+    end
     local width = tonumber(mode.width)
     if width and (width == -1 or width > 0) then area.width = math.floor(width) end
     local near, far = tostring(mode.zboundary or ""):match("^%s*(-?%d+)[%s,]+(-?%d+)")
@@ -89,9 +123,9 @@ end
 -- opoint that has no value of its own has value 0, so a mode that lists 1 and 2 only leaves out the plain ones.
 -- `area` (see bg_modes.area) travels with them: background.filtered applies its width and zboundary, and the
 -- round reads the rest as state.bg_area.
-function bg_modes.filters(mode)
+function bg_modes.filters(mode, first)
     return {respond = value_set(mode.respond), arest = value_set(mode.arest), wait = value_set(mode.wait),
-        fall = value_set(mode.fall), area = bg_modes.area(mode)}
+        fall = value_set(mode.fall), area = bg_modes.area(mode, first)}
 end
 
 -- True when the mode has a respond or arest key, or one of the area tags, at all.

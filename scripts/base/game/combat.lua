@@ -184,7 +184,9 @@ local function eligible(state, a_entry, b_entry, itr, force_friendly)
     -- Frozen or caught victims can be hit by their own team; so can a ball met head-on.
     local defender_state = b_entry.frame.state
     local friendly_fire = bg_modes.friendly_fire(state.bg_mode) or fx_itr.friendly(itr) or force_friendly
+    -- `state: 1` of the background mode: a thrown fighter (itr kind 4) spares its own team while it falls.
     local team_rule = attack_kind <= attack_kinds.catch or attack_kind == attack_kinds.super_window
+        or (attack_kind == attack_kinds.thrown_body and state.bg_area ~= nil and state.bg_area.spare_team == true)
         or (attack_kind == attack_kinds.reflect_ball and defender_kind == record_kinds.character)
         or attack_kind == attack_kinds.whirlwind or attack_kind == attack_kinds.conditional_whirlwind
         or attack_kind == attack_kinds.pulling_whirlwind or attack_kind == attack_kinds.freezing_whirlwind
@@ -1006,7 +1008,8 @@ end
 local function whirl(state, p, attacker, victim)
     local kind = victim.record.kind
     if kind == record_kinds.character then
-        victim.fall_damage = -20
+        -- The mode's `backhurtact` is the fall damage when the whirlwind ends (20).
+        victim.fall_damage = -((state.bg_area and state.bg_area.backhurtact) or 20)
         if victim.follow == -1 and state.counter_12 == 0 then
             local owner = state.items[attacker.owner]
             if owner then owner.damage_dealt = owner.damage_dealt + 11 end

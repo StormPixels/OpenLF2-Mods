@@ -270,6 +270,7 @@ function screen.snapshot(state, snapshot)
     while #events > kill_max_events or (events[1] and clock - events[1].born > kill_max_age) do table.remove(events, 1) end
     snapshot.kills, snapshot.kill_clock = events, clock
     snapshot.etc_width = type(state.bg_area) == "table" and state.bg_area.etc_width or nil
+    snapshot.names_kind = type(state.bg_area) == "table" and state.bg_area.names or nil -- the mode's `kind`
     snapshot.boss_slot = type(state.stage_run) == "table" and state.stage_run.boss_slot or nil
     snapshot.camera, snapshot.shake = state.camera, state.shake
     snapshot.time_left = state.time_limit and math.max(0, state.time_limit * 30 - state.elapsed) or state.stage_clock
@@ -669,7 +670,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         end
     end
     if visible and not on_screen then draw_blood(context, entry, frame, camera, shake) end
-    if entry.lives > 1 then
+    if entry.lives > 1 and not (view.names_kind and view.names_kind >= 3) then
         -- Remaining lives ("x2"; two digits at most) above the head, in the default font, unclamped.
         local text = entry.lives < 10 and ("x" .. entry.lives)
             or ("x" .. math.floor(entry.lives / 10) % 10 .. entry.lives % 10)
@@ -687,6 +688,12 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
            or entry.record.id > constants.record_id_ranges.enemy_character_last or entry.record.id == constants.fighter_ids.bat) then
         -- Bosses and other enemy characters in slots 20+ (WORDS5 sheet).
         label, sheet = "Com", "pe/words5"
+    end
+    -- The mode's `kind` (LF2 Darkfiren): 1 and 3 hide the names of computers that were not picked in the menu, 2 and 4 the names of
+    -- the players too (the computers of the menu keep theirs); 3 and 4 hide the reserve ("x2") above the head as well.
+    if label and view.names_kind then
+        local human = entry.index < constants.player_slots
+        if (human and (view.names_kind == 2 or view.names_kind == 4)) or (not human and entry.index >= 20) then label = nil end
     end
     if label and entry.blink > -25 and frame.bound ~= 1 then
         local length = #label
@@ -1273,7 +1280,7 @@ function screen.draw(state, context, window_bounds)
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
         view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage,
-            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock, etc_width = view.etc_width, boss_slot = view.boss_slot}
+            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock, etc_width = view.etc_width, names_kind = view.names_kind, boss_slot = view.boss_slot}
         -- Only matters for a stage narrower than the window.
         bounds = {left = math.max(window_bounds.left, -shift), right = math.min(window_bounds.right, stage_width - shift)}
         passable_bounds = {left = bounds.left, right = bounds.right}

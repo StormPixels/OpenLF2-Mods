@@ -533,15 +533,16 @@ local function regenerate(state, value)
     if value.hp > 0 and value.hp < value.dark_hp and state.counter_12 == 0 and not (mode and mode.regen_hp == 1) and not weak then
         value.hp = math.min(value.dark_hp, value.hp + st_stats.hp_step(value))
     end
-    -- Whirlwind victims lose 9 hp (900 / armor) every twelfth frame.
+    -- Whirlwind victims lose 9 hp (900 / armor) every twelfth frame; the mode's `fronthurtact` changes the 9.
     if value.fall_damage < 0 and state.counter_12 == 0 then
-        local loss = 9
-        if value.armor > 0 then loss = math.floor(900 / value.armor) end
+        local base = (state.bg_area and state.bg_area.fronthurtact) or 9
+        local loss = base
+        if value.armor > 0 then loss = math.floor(base * 100 / value.armor) end
         value.hp = value.hp - loss
         value.dark_hp = value.dark_hp + cdiv(loss, -damage_dark_hp_divisor)
         if value.hp < 0 then value.hp = 0 end
         if value.dark_hp < 0 then value.dark_hp = 0 end
-        value.hp_spent = value.hp_spent + 9
+        value.hp_spent = value.hp_spent + base
     end
     if state.counter_3 ~= 0 or value.blink <= -1 or (mode and mode.regen_mp == 1) then return end
     local hp = math.min(value.hp, points_full)
@@ -628,7 +629,10 @@ local function function_key_effects(state, index, value)
             value.hp, value.mp = 0, 0
         end
     end
-    if state.heal_all and (state.mode ~= mode_stage or (index < constants.player_slots and value.team == constants.teams.player_one)) then
+    -- The mode's `effect: 1`: F7 leaves the timer of t3 objects alone. [BELUM PASTI] which field the readme's hit_d timer is; the
+    -- balls are the t3 objects, so they are skipped altogether.
+    local keep_timer = state.bg_area ~= nil and state.bg_area.keep_timers == true and kind == record_kinds.ball
+    if state.heal_all and not keep_timer and (state.mode ~= mode_stage or (index < constants.player_slots and value.team == constants.teams.player_one)) then
         if value.max_hp < points_full then value.max_hp = points_full end
         value.dark_hp = value.max_hp
         value.hp = value.dark_hp

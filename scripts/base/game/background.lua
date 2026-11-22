@@ -440,7 +440,7 @@ function background.switch(state, row, mode_index)
     if mode_index ~= nil then
         local mode = target ~= constants.background_rows.lee_on_road and mode_of(target, mode_index) or nil
         if not mode then return false end
-        filters = bg_modes.filters(mode)
+        filters = bg_modes.filters(mode, mode_of(target, 0))
     elseif row ~= nil and row ~= state.background_row then
         filters = target ~= constants.background_rows.lee_on_road and bg_modes.default_filters(target) or nil
     else

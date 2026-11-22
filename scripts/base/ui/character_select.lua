@@ -1074,6 +1074,10 @@ local mode_effects = {bound = true, weapon_drop = true, recmp = true, regen_hp =
 local mode_neutral = {name = true, hex = true, small = true, smallb = true, hidden = true, spark = true,
     bg_pause = true, cam_pause = true, id = true, oid = true, drop = true, etc_width = true, etc_mode = true,
     dicontrol = true}
+-- Tags the round reads from the mode's area (bg_modes.area): they travel with the mode's filters, so they work in every mode.
+local mode_area = {zcam = true, zcamera = true, shadow = true, shadowsize = true, start_frame = true, reserve = true,
+    dx = true, dvx = true, dz = true, dvz = true, caught = true, caughtact = true, state = true, effect = true, kind = true,
+    fronthurtact = true, backhurtact = true}
 local mode_filters = {respond = true, arest = true, fall = true, wait = true}
 local mode_filters_done = {respond = true, arest = true}
 local bg_modes = require("base/game/bg_modes")
@@ -1083,19 +1087,28 @@ local function load_modes(row)
     local ok, text = pcall(engine.read_resource, "game/bg_modes/" .. row)
     local modes = bg_modes.parse(ok and text or "")
     for position, mode in ipairs(modes) do
-        local supported = true
+        -- The tags that keep the mode from being chosen yet (shown under the grid). The first mode is the plain default, so it is
+        -- always chosen; in another mode a tag that is not done does no harm when the first mode carries the very same value
+        -- (a game that writes `wait: 1`, `bg_center: 1` or `effect: 1` in every mode), because then it changes nothing.
+        local reasons = {}
+        local first = modes[1]
         for key, value in pairs(mode) do
-            if mode_filters[key] then
-                if position > 1 and not mode_filters_done[key] then
+            local same = position == 1 or (first ~= nil and first[key] == value)
+            if position == 1 or same or type(key) ~= "string" then
+                -- nothing to report
+            elseif mode_filters[key] then
+                if not mode_filters_done[key] then
                     for item in value:gmatch("[^,]+") do
-                        if tonumber(item) ~= 0 then supported = false end
+                        if tonumber(item) ~= 0 then reasons[#reasons + 1] = key; break end
                     end
                 end
-            elseif not mode_effects[key] and not mode_neutral[key] then
-                supported = false
+            elseif not mode_effects[key] and not mode_neutral[key] and not mode_area[key] then
+                reasons[#reasons + 1] = key
             end
         end
-        mode.supported = supported
+        table.sort(reasons)
+        mode.unsupported = reasons
+        mode.supported = #reasons == 0
         mode.title = (mode.name:gsub("<boss>", ""):gsub("_", " "):gsub("^%s+", ""):gsub("%s+$", ""))
         local effects = {}
         for key in pairs(mode_effects) do
@@ -1106,7 +1119,7 @@ local function load_modes(row)
         -- its own when it has some, or when the first mode has (a mode without respond/arest lets everything
         -- through, which must not fall back to the first mode's filters).
         if position > 1 and (bg_modes.has_filters(mode) or bg_modes.has_filters(modes[1])) then
-            effects.filters = bg_modes.filters(mode)
+            effects.filters = bg_modes.filters(mode, modes[1])
         end
         mode.effects = next(effects) and effects or nil
     end
@@ -1354,6 +1367,12 @@ local function mode_popup(state, previous_menu)
                 text(state, mode.title, x + grid_mode.name_x, y + grid_mode.name_y, mode.supported and white or 0x808098)
             end
         end
+    end
+    -- Why the mode under the cursor cannot be chosen: the tags of its file that are not done yet.
+    local under = grid.cells[grid.cursor]
+    if under and not under.supported and under.unsupported and #under.unsupported > 0 then
+        text(state, "Not supported yet: " .. table.concat(under.unsupported, ", "):sub(1, 90), grid_mode.panel_x + 12,
+            grid_mode.panel_y + grid_mode.panel_h - 20, 0xffb060)
     end
 end
 
