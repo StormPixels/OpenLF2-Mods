@@ -47,6 +47,19 @@ function sd_menu_back.view(index, seed)
             end
         end
     end
+    -- The sky: of the opaque, unlooped layers on the top row the one reaching furthest right. On a viewport wider than the
+    -- scene the wide menu stretches it to the right edge, so no bare viewport colour is left beside it.
+    local top
+    for _, layer in ipairs(view.layers) do
+        if not layer.keyed and not (layer.loop and layer.loop > 0) and (not top or layer.y < top) then top = layer.y end
+    end
+    local reach = -1
+    for index, layer in ipairs(view.layers) do
+        if top and not layer.keyed and not (layer.loop and layer.loop > 0) and layer.y == top then
+            local width = wide_menu.picture_width(layer.resource)
+            if width and layer.x + width > reach then view.sky, reach = index, layer.x + width end
+        end
+    end
     return view
 end
 
@@ -58,14 +71,14 @@ local function visible(layer, tick)
     return phase >= (layer.c1 or 0) and phase <= (layer.c2 or layer.cc)
 end
 
--- The draw commands of a view, one per shown layer: {"backdrop", resource, x, y, keyed, loop, left, right}. `y_offset` moves
+-- The draw commands of a view, one per shown layer: {"backdrop", resource, x, y, keyed, loop, left, right, sky}. `y_offset` moves
 -- everything down (the title screen's vertical offset). Draw them with draw_command.
 function sd_menu_back.commands(view, tick, y_offset)
     local commands = {}
-    for _, layer in ipairs(view.layers) do
+    for index, layer in ipairs(view.layers) do
         if visible(layer, tick) then
             commands[#commands + 1] = {"backdrop", layer.resource, layer.x, layer.y + (y_offset or 0), layer.keyed,
-                layer.loop or 0, view.left, view.right}
+                layer.loop or 0, view.left, view.right, index == view.sky}
         end
     end
     return commands
@@ -75,7 +88,7 @@ end
 -- wider than 794; a plain 794 context repeats it every loop pixels to the right edge (at most 20 times).
 function sd_menu_back.draw_command(context, command)
     local resource, x, y, keyed, loop = command[2], command[3], command[4], command[5], command[6] or 0
-    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8]) end
+    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8], command[9]) end
     local copies = 1
     if loop > 0 then copies = math.min(repeat_limit, math.floor(794 / loop) + 1) end
     for copy = 0, copies - 1 do context.image(resource, x + copy * loop, y, keyed) end
