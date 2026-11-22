@@ -257,7 +257,7 @@ Result<std::optional<std::filesystem::path>> find_installer(const std::filesyste
     if (matches.empty()) return std::optional<std::filesystem::path>{};
     return std::optional{matches.front()};
 }
-#ifndef __SWITCH__
+#if !defined(__SWITCH__) && !defined(__ANDROID__)
 // Candidate installer sources; identify_installer verifies content before saving.
 struct InstallerSource {
     std::string_view name;
