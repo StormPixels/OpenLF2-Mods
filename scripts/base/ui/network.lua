@@ -8,6 +8,7 @@ local i18n = require("base/i18n/i18n")
 local sounds = require("base/game/sounds")
 local navigation = require("base/ui/navigation")
 local constants = require("base/game/constants")
+local sd_menu_back = require("base/game/sd_menu_back")  -- HOOK(AI5): system.dat <menu_back_N>
 local virtual_keys = constants.virtual_keys
 local screen = {}
 local frames = {[1] = {0, 41, 496, 80}, [2] = {434, 41, 62, 68}, [3] = {0, 247, 304, 126}, [4] = {0, 376, 363, 123},
@@ -20,7 +21,7 @@ end
 function screen.create(options)
     return {session = transport.create(options), page = "choice", address = "", previous_keys = {},
         nav = navigation.create(), keyboard = false,
-        background = (options.menu_seed or 0) % 13 + 1, pointer_x = 0, pointer_y = 0,
+        background = (options.menu_seed or 0) % 13 + 1, menu_seed = options.menu_seed or 0, pointer_x = 0, pointer_y = 0,
         bind = options.network_bind or "0.0.0.0", started = engine.network_time()}
 end
 function screen.begin(state, host, address)
@@ -42,6 +43,7 @@ local function navigation_spec(page)
         target(0x104, 0x150, 0x223, 0x169)}}
 end
 function screen.update(state, flow_input, context)
+    state.menu_ticks = (state.menu_ticks or 0) + 1  -- HOOK(AI5)
     local input = navigation.apply(state.nav, flow_input, navigation_spec(state.page))
     state.pointer_x, state.pointer_y = input.pointer_x, input.pointer_y
     local cancel = input.nav.cancel
@@ -98,8 +100,11 @@ function screen.update(state, flow_input, context)
 end
 function screen.draw(state, context)
     local function sprite(frame, x, y) context.sprite("pe/menu_clip", frames[frame], x, y, true) end
-    context.viewport(constants.screen.width, constants.screen.height, 16, 32, 108)
-    context.image("pe/menu_back" .. state.background, 0, 0, true)
+    local back = sd_menu_back.view(1, state.menu_seed)  -- HOOK(AI5)
+    local color = back and back.color or {16, 32, 108}
+    context.viewport(constants.screen.width, constants.screen.height, color[1], color[2], color[3])
+    if back then sd_menu_back.paint(context, back, state.menu_ticks, 0)
+    else context.image("pe/menu_back" .. state.background, 0, 0, true) end
     -- The whole logo, with the "ver 2.0a" in its bottom-right corner.
     sprite(1, 0x9b, 0x69)
     sprite(3, 0xfd, 0xde)

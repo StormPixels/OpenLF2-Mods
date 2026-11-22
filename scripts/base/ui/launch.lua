@@ -10,6 +10,7 @@ local ui_modes = require("base/game/ui_modes")
 local ui_hud = require("base/game/ui_hud")
 local navigation = require("base/ui/navigation")
 local constants = require("base/game/constants")
+local sd_menu_back = require("base/game/sd_menu_back")  -- HOOK(AI5): system.dat <menu_back_N>
 local virtual_keys = constants.virtual_keys
 local screen = {}
 
@@ -36,7 +37,7 @@ function screen.create(options)
         {{"2026+, MIT licensed"}},
         {{"lf2.net", "open_original_website", 16}, {"openlf2.github.io/OpenLF2", "open_website"}},
     }
-    return {page = "menu", background = (options.menu_seed or 0) % 13 + 1, nav = navigation.create(), keyboard = false,
+    return {page = "menu", background = (options.menu_seed or 0) % 13 + 1, menu_seed = options.menu_seed or 0, nav = navigation.create(), keyboard = false,
         display = {}, capture = nil, name_player = 0, previous_keys = {}, credits = credits,
         message = options.problem and note(i18n.tr("Configuration ignored: %s", options.problem))}
 end
@@ -63,8 +64,11 @@ local function inside(input, left, top, right, bottom)
 end
 
 local function background(state)
-    add(state, {"fill", 0, 0, constants.screen.width, constants.screen.height, 0x10, 0x20, 0x6c})
-    image(state, "pe/menu_back" .. state.background, 0, 0, true)
+    local back = sd_menu_back.view(1, state.menu_seed)  -- HOOK(AI5): block <menu_back_1> of system.dat (nil without one)
+    local color = back and back.color or {0x10, 0x20, 0x6c}
+    add(state, {"fill", 0, 0, constants.screen.width, constants.screen.height, color[1], color[2], color[3]})
+    if back then for _, command in ipairs(sd_menu_back.commands(back, state.menu_ticks)) do add(state, command) end
+    else image(state, "pe/menu_back" .. state.background, 0, 0, true) end
 end
 
 local function menu(state, input, context)
@@ -672,6 +676,7 @@ end
 
 function screen.update(state, flow_input, context)
     state.display = {}
+    state.menu_ticks = (state.menu_ticks or 0) + 1  -- HOOK(AI5)
     state.features = flow_input.filters
     local input = flow_input
     if state.page ~= "waiting" then
@@ -714,7 +719,9 @@ function screen.update(state, flow_input, context)
 end
 
 function screen.draw(state, context)
-    context.viewport(constants.screen.width, constants.screen.height, 16, 32, 108)
+    local back = sd_menu_back.view(1, state.menu_seed)  -- HOOK(AI5)
+    local color = back and back.color or {16, 32, 108}
+    context.viewport(constants.screen.width, constants.screen.height, color[1], color[2], color[3])
     for _, command in ipairs(state.display) do
         local kind = command[1]
         if kind == "sprite" then

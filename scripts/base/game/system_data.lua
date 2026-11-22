@@ -40,31 +40,74 @@ function system_data.parse(text)
     return result
 end
 
--- A `<menu_back_N>` block (the main menu's background pictures): `type:` 0 a colour only, 1 one random picture, 2 every picture (with
--- animations), 3 random animations using `bound:`; `rect32:` the colour number; one `layer:` line per picture (`pic:`, `transparency:`,
--- `respond:`), up to 100 (readme "system dat.txt"). {type, color, bound, layers = {{pic, transparency, respond}}}.
+-- The colour of a `rect:` value: the original reads it as RGB565 and widens it (same as bg.dat layers).
+local function rgb565(value)
+    local red, green, blue = math.floor(value / 2048) % 32, math.floor(value / 32) % 64, value % 32
+    return ((red * 0x200 + green) * 0x80 + blue) * 8 + 0x070707
+end
+
+-- A `<menu_back_N>` block (the main menu's background pictures; readme "system dat.txt"): `type:` 0 a colour only, 1 one
+-- random picture, 2 every picture (with animations), 3 random animations using `bound:`; `rect32:` the colour as 0xRRGGBB
+-- and `rect:` the colour as RGB565; one `layer:` per picture, up to 100: `pic:`, `x:`, `y:`, `amount:`, `loop:`, `cc:`, `c1:`,
+-- `c2:`, `transparency:` (0 or 1), `bound:` (the animation group, -1 never shown), `respond:` (kept, not described).
+-- Result {type, color, bound, layers = {{pic, x, y, amount, loop, cc, c1, c2, transparency, bound, respond}}}; a layer's
+-- unset numbers are absent, transparency and respond are 0, bound is 0. [UNCERTAIN] what `respond:` means and the default of amount.
 function system_data.parse_menu_back(block)
     local back = {type = 0, layers = {}}
     local layer
     local function number(text) return tonumber(tostring(text):match("^%s*(%-?%d+)")) end
+    local layer_fields = {x = true, y = true, amount = true, loop = true, cc = true, c1 = true, c2 = true}
     for _, line in ipairs(block.lines) do
         for _, pair in ipairs(sd_text.pairs_of_line(line)) do
             local key, value = pair[1], pair[2]
             if key == "type" then back.type = number(value) or 0
             elseif key == "rect32" then back.color = number(value)
-            elseif key == "bound" then back.bound = number(value)
+            elseif key == "rect" then
+                local raw = number(value)
+                if raw then back.color = rgb565(raw) end
             elseif key == "layer" then layer = nil
             elseif key == "pic" then
                 if #back.layers < max_entries then
-                    layer = {pic = (value:gsub("%s+layer_end%s*$", "")), transparency = 0, respond = 0}
+                    layer = {pic = (value:gsub("%s+layer_end%s*$", "")), transparency = 0, respond = 0, bound = 0}
                     back.layers[#back.layers + 1] = layer
                 else layer = nil end
+            elseif key == "bound" then
+                if layer then layer.bound = number(value) or 0 else back.bound = number(value) end
             elseif layer and key == "transparency" then layer.transparency = number(value) or 0
             elseif layer and key == "respond" then layer.respond = number(value) or 0
+            elseif layer and layer_fields[key] then layer[key] = number(value)
             end
         end
     end
     return back
+end
+
+-- What a menu background shows now: {color, layers = {...}} from `system_data.menu_back(index)`, chosen the way `type:` says
+-- with `random(n)` (0 .. n-1; pass engine.random so recordings stay deterministic). Type 0 no picture, 1 one random picture
+-- (a layer with bound -1 is never taken), 2 every picture, 3 every picture of one random animation group 0 .. bound-1.
+-- nil when the file has no such block.
+function system_data.menu_back_choose(index, random)
+    local back = system_data.menu_back(index)
+    if not back then return nil end
+    local shown = {color = back.color, layers = {}}
+    local candidates = {}
+    for _, layer in ipairs(back.layers) do
+        if layer.bound ~= -1 then candidates[#candidates + 1] = layer end
+    end
+    if back.type == 1 then
+        if #candidates > 0 then shown.layers[1] = candidates[random(#candidates) + 1] end
+    elseif back.type == 2 then
+        shown.layers = candidates
+    elseif back.type == 3 then
+        local groups = back.bound or 0
+        if groups > 0 then
+            local group = random(groups)
+            for _, layer in ipairs(candidates) do
+                if layer.bound == group then shown.layers[#shown.layers + 1] = layer end
+            end
+        end
+    end
+    return shown
 end
 
 -- Replaces the data (tests, hosts that already hold the text). nil forgets it so the next read loads again.

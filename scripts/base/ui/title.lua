@@ -3,6 +3,7 @@
 
 local title = {}
 local constants = require("base/game/constants")
+local sd_menu_back = require("base/game/sd_menu_back")  -- HOOK(AI5): system.dat <menu_back_N>
 local navigation = require("base/ui/input")
 local sounds = require("base/game/sounds")
 local controls = require("base/ui/controls")
@@ -23,7 +24,7 @@ local destinations = {"versus", "stage", "championship", "team_championship", "b
 function title.create(options)
     options = options or {}
     return {selection = 0, replay_disabled = false, vertical_offset = 0,
-        background = (options.menu_seed or 0) % 13 + 1, input = navigation.create(),
+        background = (options.menu_seed or 0) % 13 + 1, menu_seed = options.menu_seed or 0, input = navigation.create(),
         key_list = 0, pointer_x = 0, pointer_y = 0}
 end
 
@@ -39,6 +40,7 @@ end
 
 function title.update(state, held, context)
     state.pointer_x, state.pointer_y = held.pointer_x, held.pointer_y
+    state.menu_ticks = (state.menu_ticks or 0) + 1  -- HOOK(AI5)
     local input = navigation.sample(state.input, held)
     if input == "u" or input == "d" or input == "c" then state.key_list = 0 end
     -- Original code processes up before down, then confirm in each input snapshot.
@@ -63,9 +65,12 @@ function title.update(state, held, context)
 end
 
 function title.draw(state, context)
-    context.viewport(constants.screen.width, constants.screen.height, 18, 37, 101)
+    local back = sd_menu_back.view(2, state.menu_seed)  -- HOOK(AI5): block <menu_back_2> of system.dat (nil without one)
+    local color = back and back.color or {18, 37, 101}
+    context.viewport(constants.screen.width, constants.screen.height, color[1], color[2], color[3])
     local offset = state.vertical_offset
-    context.image("pe/menu_back" .. state.background, 0, offset, true)
+    if back then sd_menu_back.paint(context, back, state.menu_ticks, offset)
+    else context.image("pe/menu_back" .. state.background, 0, offset, true) end
     -- The whole logo, with the "ver 2.0a" in its bottom-right corner (it was drawn in two pieces to leave it out).
     context.sprite("pe/menu_clip", {0, 41, 496, 80}, 153, 96 + offset, true)
     context.sprite(menu_sheet, {0, 116, 305, 213}, 244, 206 + offset, true)
