@@ -727,6 +727,7 @@ function screen.draw(state, context)
         if kind == "sprite" then
             context.sprite(command[2], command[3], command[4], command[5], command[6], command[7], command[8])
         elseif kind == "image" then context.image(command[2], command[3], command[4], command[5])
+        elseif kind == "backdrop" then sd_menu_back.draw_command(context, command)
         elseif kind == "fill" then context.fill(command[2], command[3], command[4], command[5], command[6], command[7], command[8])
         -- Entries with a variant are the original's bitmap-font fields; the rest is GDI text.
         elseif command[5] then font.draw(context, command[2], command[3], command[4], command[5], nil, command[8])

@@ -6,6 +6,7 @@
 -- 0x122565 those screens always drew). Without a block (original LF2) the screens keep their own picture and colour.
 -- The screens call view() and paint() / commands(); nothing here draws by itself. Kept compatible with Lua 5.1/LuaJIT.
 local system_data = require("base/game/system_data")
+local wide_menu = require("base/ui/wide_menu")
 local sd_menu_back = {}
 
 local default_pictures = 13  -- pe/menu_back1 .. pe/menu_back13, sprite/menu/1.bmp .. 13.bmp
@@ -34,6 +35,18 @@ function sd_menu_back.view(index, seed)
         view.layers[#view.layers + 1] = {resource = resource_of(layer.pic), x = layer.x or 0, y = layer.y or 0,
             keyed = layer.transparency ~= 0, loop = layer.loop, cc = layer.cc, c1 = layer.c1, c2 = layer.c2}
     end
+    -- The width the pictures span (never under the classic 794): a wider scene is centred on the screen by the wide menu
+    -- viewport (wide_menu.wrap `backdrop`), so its sides are not cut off on one side only. Looped layers are tiled, not measured.
+    view.left, view.right = 0, 794
+    for _, layer in ipairs(view.layers) do
+        if not (layer.loop and layer.loop > 0) then
+            local width = wide_menu.picture_width(layer.resource)
+            if width then
+                view.left = math.min(view.left, layer.x)
+                view.right = math.max(view.right, layer.x + width)
+            end
+        end
+    end
     return view
 end
 
@@ -45,25 +58,30 @@ local function visible(layer, tick)
     return phase >= (layer.c1 or 0) and phase <= (layer.c2 or layer.cc)
 end
 
--- The draw commands of a view: {"image", resource, x, y, keyed}, a picture with `loop:` repeated every loop pixels to the
--- right edge (at most 20 times). `y_offset` moves everything down (the title screen's vertical offset).
+-- The draw commands of a view, one per shown layer: {"backdrop", resource, x, y, keyed, loop, left, right}. `y_offset` moves
+-- everything down (the title screen's vertical offset). Draw them with draw_command.
 function sd_menu_back.commands(view, tick, y_offset)
     local commands = {}
     for _, layer in ipairs(view.layers) do
         if visible(layer, tick) then
-            local copies = 1
-            if layer.loop and layer.loop > 0 then copies = math.min(repeat_limit, math.floor(794 / layer.loop) + 1) end
-            for copy = 0, copies - 1 do
-                commands[#commands + 1] = {"image", layer.resource, layer.x + copy * (layer.loop or 0), layer.y + (y_offset or 0), layer.keyed}
-            end
+            commands[#commands + 1] = {"backdrop", layer.resource, layer.x, layer.y + (y_offset or 0), layer.keyed,
+                layer.loop or 0, view.left, view.right}
         end
     end
     return commands
 end
 
+-- Draws one backdrop command. The wide menu context tiles a `loop:` picture across its whole viewport and centres a scene
+-- wider than 794; a plain 794 context repeats it every loop pixels to the right edge (at most 20 times).
+function sd_menu_back.draw_command(context, command)
+    local resource, x, y, keyed, loop = command[2], command[3], command[4], command[5], command[6] or 0
+    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8]) end
+    local copies = 1
+    if loop > 0 then copies = math.min(repeat_limit, math.floor(794 / loop) + 1) end
+    for copy = 0, copies - 1 do context.image(resource, x + copy * loop, y, keyed) end
+end
+
 function sd_menu_back.paint(context, view, tick, y_offset)
-    for _, command in ipairs(sd_menu_back.commands(view, tick, y_offset)) do
-        context.image(command[2], command[3], command[4], command[5])
-    end
+    for _, command in ipairs(sd_menu_back.commands(view, tick, y_offset)) do sd_menu_back.draw_command(context, command) end
 end
 return sd_menu_back
