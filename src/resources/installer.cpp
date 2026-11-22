@@ -350,10 +350,10 @@ Result<std::unique_ptr<DirectoryArchive>> DirectoryArchive::open(const std::file
         while ((at = text.find("file:", at)) != std::string_view::npos) {
             at += 5;
             while (at < text.size() && (text[at] == ' ' || text[at] == '\t')) ++at;
-            std::size_t end = at;
-            while (end < text.size() && text[end] != ' ' && text[end] != '\t' && text[end] != '\r' && text[end] != '\n') ++end;
-            const auto listed = virtual_path(text.substr(at, end - at));
-            at = end;
+            std::size_t stop = at;
+            while (stop < text.size() && text[stop] != ' ' && text[stop] != '\t' && text[stop] != '\r' && text[stop] != '\n') ++stop;
+            const auto listed = virtual_path(text.substr(at, stop - at));
+            at = stop;
             if (!listed || archive->files_.contains(*listed)) continue;
             if (++missing_files <= 3) missing += *listed + " ";
         }
