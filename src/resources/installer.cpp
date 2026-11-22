@@ -330,6 +330,36 @@ Result<std::unique_ptr<DirectoryArchive>> DirectoryArchive::open(const std::file
     if (ec) return fail(ErrorCode::io, "cannot list LF2 folder: " + ec.message());
     auto identified = identify_folder(*archive);
     if (!identified) return std::unexpected(identified.error());
+    // A folder is not proof of complete assets: data/ and sprite/ must hold files, and every file that
+    // data.txt lists (`file: data\\x.dat`) must exist.
+    std::string missing;
+    for (const std::string_view prefix : {"data/", "sprite/"}) {
+        const auto first = archive->files_.lower_bound(prefix);
+        if (first == archive->files_.end() || !first->first.starts_with(prefix)) missing += std::string(prefix) + " (empty) ";
+    }
+    std::string data_path = "data/data.txt";
+    if (const auto system_dat = read_data_text(*archive, "data/system.dat", 1024 * 1024)) {
+        data_path = data_path_from_system_dat(std::string_view(reinterpret_cast<const char*>(system_dat->data()), system_dat->size()));
+    }
+    auto data_text = read_data_text(*archive, data_path, 4 * 1024 * 1024);
+    if (!data_text && data_path != "data/data.txt") data_text = read_data_text(*archive, "data/data.txt", 4 * 1024 * 1024);
+    std::size_t missing_files = 0;
+    if (data_text) {
+        const std::string_view text(data_text->data(), data_text->size());
+        std::size_t at = 0;
+        while ((at = text.find("file:", at)) != std::string_view::npos) {
+            at += 5;
+            while (at < text.size() && (text[at] == ' ' || text[at] == '\t')) ++at;
+            std::size_t end = at;
+            while (end < text.size() && text[end] != ' ' && text[end] != '\t' && text[end] != '\r' && text[end] != '\n') ++end;
+            const auto listed = virtual_path(text.substr(at, end - at));
+            at = end;
+            if (!listed || archive->files_.contains(*listed)) continue;
+            if (++missing_files <= 3) missing += *listed + " ";
+        }
+    }
+    if (missing_files > 3) missing += "(+" + std::to_string(missing_files - 3) + " more) ";
+    if (!missing.empty()) return fail(ErrorCode::io, "LF2 assets incomplete, missing: " + missing);
     return archive;
 }
 

@@ -321,7 +321,14 @@ Result<std::optional<Bytes>> download_with_progress(SetupDialog& dialog, const D
 Result<std::optional<std::filesystem::path>> offer_installer_download(const std::filesystem::path& directory,
                                                                       SetupDialog& dialog) {
     const auto location = directory.string();
-#ifdef __SWITCH__
+#ifdef __ANDROID__
+    // Android: nothing is downloaded. The user puts the extracted LF2_v2.0a folder into LF2_ENGINE.
+    const std::array close{std::string("Close")};
+    auto shown = dialog.choose("LF2_ENGINE NOT INSTALLED\n\nPut the LF2_v2.0a folder (data, sprite, ...) in\n" + location
+                               + "\n\nIf it is already there, allow \"All files access\" for OpenLF2 and start it again.", close);
+    if (!shown) return std::unexpected(shown.error());
+    return std::optional<std::filesystem::path>{};
+#elif defined(__SWITCH__)
     const std::array close{std::string("Close")};
     auto shown = dialog.choose("A supported Little Fighter 2 v2.0a installer was not found.\n\n"
                                "Copy LF2_v2.0a.exe or lf2_v20a_Setup.exe to\n" + location + "\n\nand start OpenLF2 again.", close);
@@ -380,14 +387,19 @@ std::optional<std::filesystem::path> find_game_folder(const std::filesystem::pat
         }
         return false;
     };
+#ifdef __ANDROID__
+    // Android: only LF2_ENGINE/LF2_v2.0a counts; LF2_v2.0a is never created automatically.
+    const std::array candidates{directory / "LF2_v2.0a"};
+#else
     const std::array candidates{directory / "LF2_v2.0a", directory};
+#endif
     for (const auto& candidate : candidates) {
         if (has_executable(candidate)) return candidate;
     }
     return std::nullopt;
 }
-// Directories searched for the game data, in order: --config-dir alone, otherwise (Android) the app's
-// external files directory, which the user can fill without root, then the settings directory.
+// Directories searched for the game data, in order: --config-dir alone, otherwise (Android) only
+// /storage/emulated/0/LF2_ENGINE (created if missing), elsewhere the settings directory.
 Result<std::vector<std::filesystem::path>> data_directories(const Configuration& config) {
     std::vector<std::filesystem::path> directories;
     if (config.config_directory) {
@@ -398,7 +410,14 @@ Result<std::vector<std::filesystem::path>> data_directories(const Configuration&
         return fail(ErrorCode::io, "headless runs need --installer PATH or --config-dir DIR holding LF2_v2.0a.exe, lf2_v20a_Setup.exe or an LF2_v2.0a folder");
     }
 #ifdef __ANDROID__
-    directories.emplace_back("/storage/emulated/0/Android/data/io.github.openlf2.openlf2/files");
+    // The one asset location: /storage/emulated/0/LF2_ENGINE/LF2_v2.0a/. Only LF2_ENGINE is created here.
+    {
+        const std::filesystem::path root = "/storage/emulated/0/LF2_ENGINE";
+        std::error_code create_error;
+        std::filesystem::create_directories(root, create_error);
+        directories.push_back(root);
+        return directories;
+    }
 #endif
     auto settings = settings_directory();
     if (!settings) return std::unexpected(settings.error());
@@ -435,7 +454,23 @@ Result<std::optional<GameData>> open_game_data(const Configuration& config,
     auto directories = data_directories(config);
     if (!directories) return std::unexpected(directories.error());
     for (const auto& directory : *directories) {
-        if (const auto folder = find_game_folder(directory)) return from_folder(*folder);
+        if (const auto folder = find_game_folder(directory)) {
+#ifdef __ANDROID__
+            // A folder alone is not proof of complete assets: report an incomplete one as not installed.
+            auto opened = from_folder(*folder);
+            if (!opened && dialog) {
+                std::cerr << opened.error().message << '\n';
+                const std::array close{std::string("Close")};
+                auto shown = dialog->get().choose("LF2_ENGINE NOT INSTALLED\n\n" + opened.error().message
+                                                  + "\n\nFolder: " + folder->string(), close);
+                if (!shown) return std::unexpected(shown.error());
+                return std::optional<GameData>{};
+            }
+            return opened;
+#else
+            return from_folder(*folder);
+#endif
+        }
         auto found = find_installer(directory);
         if (!found) return std::unexpected(found.error());
         if (*found) return from_installer(**found);

@@ -1,7 +1,14 @@
 package io.github.openlf2.openlf2;
 
+import android.Manifest;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.util.Log;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -22,7 +29,33 @@ public final class OpenLF2Activity extends SDLActivity {
             Log.e(TAG, "Could not stage Lua modules", error);
             throw new IllegalStateException("Could not stage Lua modules", error);
         }
+        requestStorageAccess();
         super.onCreate(savedInstanceState);
+    }
+
+    /**
+     * The game data is read from /storage/emulated/0/LF2_ENGINE, outside the app's own folders: Android 11+
+     * needs "All files access", older versions the storage permission. Until it is granted the native
+     * side shows LF2_ENGINE NOT INSTALLED; grant it and start OpenLF2 again.
+     */
+    private void requestStorageAccess() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (!Environment.isExternalStorageManager()) {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                            != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[] {
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+            }
+        } catch (RuntimeException error) {
+            Log.e(TAG, "Could not request storage access", error);
+        }
     }
 
     @Override
