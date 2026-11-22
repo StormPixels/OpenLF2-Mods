@@ -35,8 +35,8 @@ function sd_menu_back.view(index, seed)
         view.layers[#view.layers + 1] = {resource = resource_of(layer.pic), x = layer.x or 0, y = layer.y or 0,
             keyed = layer.transparency ~= 0, loop = layer.loop, cc = layer.cc, c1 = layer.c1, c2 = layer.c2}
     end
-    -- The width the pictures span (never under the classic 794): a wider scene is centred on the screen by the wide menu
-    -- viewport (wide_menu.wrap `backdrop`), so its sides are not cut off on one side only. Looped layers are tiled, not measured.
+    -- The width the pictures span (never under the classic 794): the wide menu viewport (wide_menu.wrap `backdrop`) starts a
+    -- wider scene at its left edge and centres a narrower one. Looped layers are tiled, not measured.
     view.left, view.right = 0, 794
     for _, layer in ipairs(view.layers) do
         if not (layer.loop and layer.loop > 0) then

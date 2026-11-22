@@ -102,10 +102,12 @@ function wide_menu.wrap(context, width, height)
         if type(resource) == "string" and resource:find("^pe/menu_back") then return background(context, width, height, resource, y, keyed) end
         return context.image(resource, x + dx, y + dy, keyed)
     end
-    -- A menu_back layer of system.dat (sd_menu_back): the scene spans left..right in 794 coordinates and is centred on the
-    -- layout when it is wider than 794; a `loop` picture is repeated across the whole viewport, to its left edge too.
+    -- A menu_back layer of system.dat (sd_menu_back): the scene spans left..right in its own coordinates. Like a stage at camera
+    -- 0 it starts at the viewport's left edge (what is wider is cut off on the right); a scene narrower than the viewport is
+    -- centred. A `loop` picture is repeated across the whole viewport, to its left edge too.
     function wrapped.backdrop(resource, x, y, keyed, loop, left, right)
-        local shift = dx + math.floor(base_width / 2 - ((left or 0) + (right or base_width)) / 2)
+        left, right = left or 0, right or base_width
+        local shift = math.max(0, math.floor((width - (right - left)) / 2)) - left
         if not loop or loop <= 0 then return context.image(resource, x + shift, y + dy, keyed) end
         local at, copies = (x + shift) % loop - loop, 0
         while at < width and copies < 200 do
