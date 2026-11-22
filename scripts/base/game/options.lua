@@ -78,7 +78,39 @@ local gamepad_defaults = {
     dj = {right = 72, bottom = 165, radius = 26},
     daj = {right = 72, bottom = 80, radius = 26},
 }
-local defaults = {battlefield_layout = "classic", gamepad = gamepad_defaults, onscreen = onscreen.defaults(), unlock_characters = false, upscaling_filter = "linear", fullscreen = false, digipad = true, show_fps = false,
+-- The game folders of LF2_ENGINE (Android; the host lists them in "game/game_list": the opened game's name
+-- first, then every selectable name, a line each). Elsewhere the list is empty and the option is hidden.
+local game_list
+local function read_games()
+    if game_list then return game_list end
+    game_list = {current = "", names = {}}
+    local ok, text = pcall(engine.read_resource, "game/game_list")
+    if ok and type(text) == "string" then
+        local first = true
+        for line in text:gmatch("[^\n]+") do
+            if first then
+                game_list.current, first = line, false
+            else
+                game_list.names[#game_list.names + 1] = line
+            end
+        end
+    end
+    return game_list
+end
+function options.game_names() return read_games().names end
+-- The text of a game's dropdown value: the name, or the opened game's name for none (or a folder that is gone).
+function options.game_label(value)
+    local list = read_games()
+    for _, name in ipairs(list.names) do
+        if name == value then return value end
+    end
+    return list.current
+end
+-- A game folder name as saved: at most 64 characters, no control characters; "" picks the default game.
+local function valid_game(value)
+    return type(value) == "string" and #value <= 64 and not value:find("%c")
+end
+local defaults = {game = "", battlefield_layout = "classic", gamepad = gamepad_defaults, onscreen = onscreen.defaults(), unlock_characters = false, upscaling_filter = "linear", fullscreen = false, digipad = true, show_fps = false,
     rumble = false, show_gamepad = false, language = "default", font_antialiasing = true,
     character_shading = false, projected_shadows = false,
     light_azimuth = -50, light_elevation = 70, shadow_blur = 2, shadow_opacity = 0.275, hud_style = "Default"}
@@ -113,7 +145,8 @@ local function valid_hud_style(value)
     return type(value) == "string" and #value >= 1 and #value <= 40 and value:find("^[%w_%-]+$") ~= nil
 end
 local function copy(values)
-    return {battlefield_layout = valid_layout(values.battlefield_layout) and values.battlefield_layout or defaults.battlefield_layout,
+    return {game = valid_game(values.game) and values.game or defaults.game,
+        battlefield_layout = valid_layout(values.battlefield_layout) and values.battlefield_layout or defaults.battlefield_layout,
         gamepad = copy_gamepad(values.gamepad), onscreen = onscreen.normalize(values.onscreen), unlock_characters = values.unlock_characters,
         upscaling_filter = valid_filter(values.upscaling_filter) and values.upscaling_filter or defaults.upscaling_filter,
         fullscreen = values.fullscreen, digipad = values.digipad, show_fps = values.show_fps, rumble = values.rumble,
@@ -174,6 +207,7 @@ function options.load()
         values.battlefield_layout = saved.battlefield_layout
     end
     if type(saved) == "table" and valid_hud_style(saved.hud_style) then values.hud_style = saved.hud_style end
+    if type(saved) == "table" and valid_game(saved.game) then values.game = saved.game end
     current = values
     return copy(values)
 end

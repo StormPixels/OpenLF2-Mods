@@ -185,6 +185,9 @@ end
 -- `available` gets the host's features and the values being edited; a dropdown's `display` turns a
 -- value into its text (default: translated).
 local option_rows = {
+    -- The game folders of LF2_ENGINE (Android); the pick is used from the next start. Hidden where the host lists none.
+    {key = "game", label = "Game (restart to apply)", choices = options.game_names, display = options.game_label,
+        available = function() return #options.game_names() > 0 end},
     -- Only hosts that can draw TrueType text have another language to offer; elsewhere the page stays as it was.
     {key = "language", label = "Language", choices = options.available_languages, display = i18n.language_label,
         available = function(features) return features.text end},

@@ -368,36 +368,102 @@ Result<std::optional<std::filesystem::path>> offer_installer_download(const std:
     return fail(ErrorCode::io, "LF2_v2.0a.exe could not be downloaded");
 #endif
 }
-// An extracted (non-installer) LF2 v2.0a folder: `directory/LF2_v2.0a` or `directory` itself, holding lf2.exe in any case.
-std::optional<std::filesystem::path> find_game_folder(const std::filesystem::path& directory) {
-    const auto has_executable = [](const std::filesystem::path& folder) {
-        std::error_code error;
-        if (!std::filesystem::is_directory(folder, error)) return false;
-        std::filesystem::directory_iterator entries(folder, error);
-        if (error) return false;
-        for (const auto& entry : entries) {
-            auto name = entry.path().filename().string();
-            for (auto& character : name) {
-                if (character >= 'A' && character <= 'Z') character = static_cast<char>(character + ('a' - 'A'));
-            }
-            std::error_code file_error;
-            if (name == "lf2.exe" && entry.is_regular_file(file_error)) return true;
-            // No lf2.exe: LF2 Darkfiren plus the lf2_exe/ folder written by tools/extract_lf2_exe.py.
-            if (name == "lf2_exe" && entry.is_directory(file_error)) return true;
+// A folder that looks like an extracted LF2: lf2.exe in any case, or (LF2 Darkfiren) the lf2_exe/ folder.
+bool has_game_marker(const std::filesystem::path& folder) {
+    std::error_code error;
+    if (!std::filesystem::is_directory(folder, error)) return false;
+    std::filesystem::directory_iterator entries(folder, error);
+    if (error) return false;
+    for (const auto& entry : entries) {
+        auto name = entry.path().filename().string();
+        for (auto& character : name) {
+            if (character >= 'A' && character <= 'Z') character = static_cast<char>(character + ('a' - 'A'));
         }
-        return false;
-    };
-#ifdef __ANDROID__
-    // Android: only LF2_ENGINE/LF2_v2.0a counts; LF2_v2.0a is never created automatically.
-    const std::array candidates{directory / "LF2_v2.0a"};
-#else
+        std::error_code file_error;
+        if (name == "lf2.exe" && entry.is_regular_file(file_error)) return true;
+        // No lf2.exe: LF2 Darkfiren plus the lf2_exe/ folder written by tools/extract_lf2_exe.py.
+        if (name == "lf2_exe" && entry.is_directory(file_error)) return true;
+    }
+    return false;
+}
+#ifndef __ANDROID__
+// An extracted (non-installer) LF2 v2.0a folder: `directory/LF2_v2.0a` or `directory` itself.
+std::optional<std::filesystem::path> find_game_folder(const std::filesystem::path& directory) {
     const std::array candidates{directory / "LF2_v2.0a", directory};
-#endif
     for (const auto& candidate : candidates) {
-        if (has_executable(candidate)) return candidate;
+        if (has_game_marker(candidate)) return candidate;
     }
     return std::nullopt;
 }
+#else
+// Android: every folder of LF2_ENGINE is a game. One counts when it has the marker and complete assets
+// (DirectoryArchive::open checks them); an incomplete one is only reported (`problem`).
+struct GameFolder {
+    std::string name;
+    std::filesystem::path path;
+};
+struct GameScan {
+    std::vector<GameFolder> games;
+    std::string problem;
+};
+GameScan scan_games(const std::filesystem::path& root) {
+    GameScan scan;
+    std::error_code error;
+    std::filesystem::directory_iterator entries(root, error);
+    if (error) return scan;
+    for (const auto& entry : entries) {
+        std::error_code entry_error;
+        if (!entry.is_directory(entry_error)) continue;
+        const auto name = entry.path().filename().string();
+        if (name.empty() || name.size() > 64 || name.front() == '.') continue;
+        if (std::ranges::any_of(name, [](char c) { return static_cast<unsigned char>(c) < 32; })) continue;
+        if (!has_game_marker(entry.path())) continue;
+        auto opened = DirectoryArchive::open(entry.path());
+        if (!opened) {
+            if (scan.problem.empty()) scan.problem = name + ": " + opened.error().message;
+            continue;
+        }
+        scan.games.push_back(GameFolder{name, entry.path()});
+    }
+    std::ranges::sort(scan.games, {}, &GameFolder::name);
+    return scan;
+}
+// The game the player picked on the options page, else LF2_v2.0a, else the first one.
+const GameFolder* pick_game(const GameScan& scan, std::string_view selected) {
+    for (const auto& game : scan.games) {
+        if (game.name == selected) return &game;
+    }
+    for (const auto& game : scan.games) {
+        if (game.name == "LF2_v2.0a") return &game;
+    }
+    return scan.games.empty() ? nullptr : &scan.games.front();
+}
+// The text of the resource "game/game_list": the opened game's name, then every selectable name, a line each.
+std::string game_list_text(const GameScan& scan, const GameFolder& chosen) {
+    std::string text = chosen.name + "\n";
+    for (const auto& game : scan.games) text += game.name + "\n";
+    return text;
+}
+// options.game of config.json (written by the options page); empty when there is none.
+std::string saved_game_name(const SettingsStore& settings) {
+    auto text = settings.load();
+    if (!text || !*text) return {};
+    auto document = parse_json(**text);
+    if (!document) return {};
+    const auto field = [](const ScriptValue& value, std::string_view key) -> const ScriptValue* {
+        const auto* table = std::get_if<ScriptTable>(&value.value);
+        if (!table) return nullptr;
+        for (const auto& entry : *table) {
+            if (const auto* name = std::get_if<std::string>(&entry.key); name && *name == key) return &entry.value;
+        }
+        return nullptr;
+    };
+    const auto* group = field(*document, "options");
+    const auto* game = group ? field(*group, "game") : nullptr;
+    const auto* name = game ? std::get_if<std::string>(&game->value) : nullptr;
+    return name ? *name : std::string();
+}
+#endif
 // Directories searched for the game data, in order: --config-dir alone, otherwise (Android) only
 // /storage/emulated/0/LF2_ENGINE (created if missing), elsewhere the settings directory.
 Result<std::vector<std::filesystem::path>> data_directories(const Configuration& config) {
@@ -428,23 +494,25 @@ Result<std::vector<std::filesystem::path>> data_directories(const Configuration&
 struct GameData {
     std::unique_ptr<ResourceSource> source;
     std::size_t file_count = 0;
+    std::string game_list;  // Android: the resource "game/game_list" (see game_list_text), empty elsewhere
 };
 // --installer (a file or a folder), else the data directories (an extracted folder first, then an installer),
 // offering a download into the first directory if nothing is found (not headless). Nothing when declined.
 Result<std::optional<GameData>> open_game_data(const Configuration& config,
                                                std::optional<std::reference_wrapper<SetupDialog>> dialog,
-                                               const Decompressor& decompressor) {
+                                               const Decompressor& decompressor,
+                                               [[maybe_unused]] std::string_view selected_game) {
     const auto from_installer = [&](const std::filesystem::path& path) -> Result<std::optional<GameData>> {
         auto opened = InstallerArchive::open(path, decompressor);
         if (!opened) return std::unexpected(opened.error());
         const auto files = (*opened)->file_count();
-        return std::optional<GameData>{GameData{std::move(*opened), files}};
+        return std::optional<GameData>{GameData{std::move(*opened), files, {}}};
     };
     const auto from_folder = [&](const std::filesystem::path& path) -> Result<std::optional<GameData>> {
         auto opened = DirectoryArchive::open(path);
         if (!opened) return std::unexpected(opened.error());
         const auto files = (*opened)->file_count();
-        return std::optional<GameData>{GameData{std::move(*opened), files}};
+        return std::optional<GameData>{GameData{std::move(*opened), files, {}}};
     };
     if (!config.installer.empty()) {
         std::error_code error;
@@ -454,23 +522,24 @@ Result<std::optional<GameData>> open_game_data(const Configuration& config,
     auto directories = data_directories(config);
     if (!directories) return std::unexpected(directories.error());
     for (const auto& directory : *directories) {
-        if (const auto folder = find_game_folder(directory)) {
 #ifdef __ANDROID__
-            // A folder alone is not proof of complete assets: report an incomplete one as not installed.
-            auto opened = from_folder(*folder);
-            if (!opened && dialog) {
-                std::cerr << opened.error().message << '\n';
-                const std::array close{std::string("Close")};
-                auto shown = dialog->get().choose("LF2_ENGINE NOT INSTALLED\n\n" + opened.error().message
-                                                  + "\n\nFolder: " + folder->string(), close);
-                if (!shown) return std::unexpected(shown.error());
-                return std::optional<GameData>{};
-            }
+        const auto scan = scan_games(directory);
+        if (const auto* chosen = pick_game(scan, selected_game)) {
+            auto opened = from_folder(chosen->path);
+            if (opened && *opened) (*opened)->game_list = game_list_text(scan, *chosen);
             return opened;
-#else
-            return from_folder(*folder);
-#endif
         }
+        if (scan.games.empty() && !scan.problem.empty() && dialog) {
+            // A folder alone is not proof of complete assets: report an incomplete one as not installed.
+            std::cerr << scan.problem << '\n';
+            const std::array close{std::string("Close")};
+            auto shown = dialog->get().choose("LF2_ENGINE NOT INSTALLED\n\n" + scan.problem, close);
+            if (!shown) return std::unexpected(shown.error());
+            return std::optional<GameData>{};
+        }
+#else
+        if (const auto folder = find_game_folder(directory)) return from_folder(*folder);
+#endif
         auto found = find_installer(directory);
         if (!found) return std::unexpected(found.error());
         if (*found) return from_installer(**found);
@@ -571,9 +640,9 @@ Result<Configuration> configuration(std::span<const std::string> arguments,
 class GameResources final : public ResourceSource {
 public:
     GameResources(const ResourceSource& archive, Bytes executable, std::span<const PackageAsset> assets, std::string saves_path,
-                  std::string data_path, std::string control_path)
+                  std::string data_path, std::string control_path, std::string game_list)
         : archive_(archive), executable_(std::move(executable)), saves_path_(std::move(saves_path)),
-          data_path_(std::move(data_path)), control_path_(std::move(control_path)) {
+          data_path_(std::move(data_path)), control_path_(std::move(control_path)), game_list_(std::move(game_list)) {
         for (const auto& asset : assets) assets_.emplace(asset.resource, asset);
         names_ = load_resource_names(archive_);
     }
@@ -600,6 +669,7 @@ public:
         }
         // LF2 Darkfiren: decrypted text of any data file ("game/dat_text/<path>") and of mode1..mode4.dat.
         if (auto text = read_dat_text_resource(archive_, *normalized)) return std::move(*text);
+        if (*normalized == "game/game_list") return Bytes(game_list_.begin(), game_list_.end());
         if (*normalized == "game/spark_block") {
             // LF2 Darkfiren: one spark block is spark_w x spark_h (system.dat) plus a one pixel separator.
             // Empty text means the original's sheet layout.
@@ -659,6 +729,7 @@ private:
     std::string saves_path_;  // the only game file scripts may write (LF2 Darkfiren: the unlocked keys)
     std::string data_path_;     // system.dat `data:` (default data/data.txt)
     std::string control_path_;  // system.dat `control:` (default data/control.txt)
+    std::string game_list_;     // Android: the game folders of LF2_ENGINE, see game_list_text
     ResourceNames names_;
     std::map<std::string, PackageAsset, std::less<>> assets_;
 };
@@ -1042,7 +1113,13 @@ Result<void> run(const Configuration& config) {
                   << (platform->supports(RenderFilter::xbrz) ? " (xBRZ upscaling available)\n" : "\n");
         if (!platform->supports_text()) std::cout << "Translated languages unavailable: this build has no SDL3_ttf\n";
     }
-    auto game = open_game_data(config, platform ? std::optional{std::ref(platform->setup_dialog())} : std::nullopt, *decompressor);
+#ifdef __ANDROID__
+    const std::string selected_game = saved_game_name(*settings);
+#else
+    const std::string selected_game;
+#endif
+    auto game = open_game_data(config, platform ? std::optional{std::ref(platform->setup_dialog())} : std::nullopt, *decompressor,
+                               selected_game);
     if (!game) return std::unexpected(game.error());
     if (!*game) {
         std::cerr << "OpenLF2 needs LF2_v2.0a.exe, lf2_v20a_Setup.exe or an extracted LF2_v2.0a folder; stopping.\n";
@@ -1050,6 +1127,7 @@ Result<void> run(const Configuration& config) {
     }
     archive = std::move((*game)->source);
     archive_files = (*game)->file_count;
+    std::string game_list = std::move((*game)->game_list);
     // lf2.exe is optional (LF2 Darkfiren has none): bitmaps then come from resource.dat and lf2_exe/,
     // the recording key and version from lf2_exe/recording.txt.
     Bytes executable;
@@ -1069,7 +1147,8 @@ Result<void> run(const Configuration& config) {
     const auto& resources = game_data.attach(std::make_unique<GameResources>(*archive, std::move(executable), scripts->assets,
                                                                               saves_path_from_system_dat(system_dat_text),
                                                                               data_path_from_system_dat(system_dat_text),
-                                                                              control_path_from_system_dat(system_dat_text)));
+                                                                              control_path_from_system_dat(system_dat_text),
+                                                                              std::move(game_list)));
     // LF2 Darkfiren: the window takes the title of system.dat's `name:` (the game keeps "OpenLF2" without one).
     if (platform) {
         if (const auto title = window_title_from_system_dat(system_dat_text)) platform->set_window_title(*title);
