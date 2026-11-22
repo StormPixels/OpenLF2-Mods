@@ -106,6 +106,11 @@ function options.game_label(value)
     end
     return list.current
 end
+-- Whether `value` names another game than the one running; false where the host lists no games.
+function options.game_differs(value)
+    local list = read_games()
+    return #list.names > 0 and options.game_label(value) ~= list.current
+end
 -- A game folder name as saved: at most 64 characters, no control characters; "" picks the default game.
 local function valid_game(value)
     return type(value) == "string" and #value <= 64 and not value:find("%c")

@@ -185,8 +185,8 @@ end
 -- `available` gets the host's features and the values being edited; a dropdown's `display` turns a
 -- value into its text (default: translated).
 local option_rows = {
-    -- The game folders of LF2_ENGINE (Android); the pick is used from the next start. Hidden where the host lists none.
-    {key = "game", label = "Game (restart to apply)", choices = options.game_names, display = options.game_label,
+    -- The game folders of LF2_ENGINE (Android); the app restarts to open the pick. Hidden where the host lists none.
+    {key = "game", label = "Game", choices = options.game_names, display = options.game_label,
         available = function() return #options.game_names() > 0 end},
     -- Only hosts that can draw TrueType text have another language to offer; elsewhere the page stays as it was.
     {key = "language", label = "Language", choices = options.available_languages, display = i18n.language_label,
@@ -297,7 +297,7 @@ local function checkbox(state, input, box, label, checked, blocked)
     bold(state, label, label_x, box.y + 1, pointed and constants.font_variants.blue or constants.font_variants.white)
     return pointed and input.click
 end
-local function options_page(state, input)
+local function options_page(state, input, context)
     background(state)
     logo(state, 0x37)
     local layout = options_layout(input.filters, state.options)
@@ -329,6 +329,8 @@ local function options_page(state, input)
         local saved, problem = options.save(values)
         state.message = not saved and note(i18n.tr("Options not saved: %s", tostring(problem))) or nil
         state.page, state.options, state.option_open = "menu", nil, false
+        -- Another game was picked: the host restarts the app, which then opens it.
+        if saved and options.game_differs(values.game) then context.action("restart_game") end
     elseif button(state, input, layout.cancel, i18n.tr("Cancel"), was_open) and not was_open then
         sounds.direct(state, "cancel")
         state.page, state.options, state.option_open = "menu", nil, false
@@ -686,7 +688,7 @@ function screen.update(state, flow_input, context)
     elseif state.page == "recorded" then
         recorded_page(state, input, context)
     elseif state.page == "options" then
-        options_page(state, input)
+        options_page(state, input, context)
     else
         menu(state, input, context)
         options_entry(state, input)

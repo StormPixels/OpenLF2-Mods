@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
 import java.io.File;
@@ -56,6 +57,33 @@ public final class OpenLF2Activity extends SDLActivity {
         } catch (RuntimeException error) {
             Log.e(TAG, "Could not request storage access", error);
         }
+    }
+
+    /**
+     * The options page picked another game: native code leaves restart_requested in the files directory and
+     * returns, which makes SDL finish this activity. The app then starts again in a fresh process (through
+     * RestartActivity, which starts while this activity is still visible) and opens the picked game.
+     */
+    @Override
+    public void finish() {
+        File marker = new File(getFilesDir(), "restart_requested");
+        if (marker.exists()) {
+            marker.delete();
+            try {
+                Intent relaunch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                if (relaunch != null) {
+                    relaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    Intent restart = new Intent(this, RestartActivity.class);
+                    restart.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    restart.putExtra(RestartActivity.EXTRA_RELAUNCH, relaunch);
+                    restart.putExtra(RestartActivity.EXTRA_PID, Process.myPid());
+                    startActivity(restart);
+                }
+            } catch (RuntimeException error) {
+                Log.e(TAG, "Could not restart", error);
+            }
+        }
+        super.finish();
     }
 
     @Override

@@ -35,6 +35,7 @@
 #include <atomic>
 #include <cassert>
 #include <exception>
+#include <fstream>
 #ifdef OPENLF2_SIMULATION_THREADS
 #include <condition_variable>
 #include <mutex>
@@ -1068,6 +1069,9 @@ private:
 #endif
 };
 
+// Set by the "restart_game" action (the options page picked another game): run_application then asks the
+// Android activity to start the app again, which opens the picked game.
+bool restart_requested = false;
 Result<void> run(const Configuration& config) {
     std::vector<std::filesystem::path> packages{config.scripts / "base"};
     packages.insert(packages.end(), config.mods.begin(), config.mods.end());
@@ -1512,6 +1516,11 @@ Result<void> run(const Configuration& config) {
                 save_window();
                 return {};
             }
+            if (action == "restart_game") {
+                restart_requested = true;
+                save_window();
+                return {};
+            }
             if (action == "open_recordings") {
                 if (const auto folder = recording_directory->path()) {
                     auto shown = platform->open_folder(*folder);
@@ -1746,8 +1755,13 @@ int run_application(std::span<const std::string> arguments, const std::filesyste
                          "Only explicitly selected, trusted local mod packages are supported.\n";
             return 0;
         }
+        restart_requested = false;
         auto result = run(*config);
         if (!result) { std::cerr << result.error().message << '\n'; return 1; }
+#ifdef __ANDROID__
+        // OpenLF2Activity.finish() sees this file and starts the app again in a fresh process.
+        if (restart_requested) std::ofstream(directory / "restart_requested") << '1';
+#endif
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "Application failure: " << error.what() << '\n';
