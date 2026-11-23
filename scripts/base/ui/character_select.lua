@@ -1025,6 +1025,32 @@ local function grid_has(path)
     if grid_available[path] == nil then grid_available[path] = pcall(engine.read_resource, path) end
     return grid_available[path]
 end
+-- The picture of a background in the list. LF2 Darkfiren keeps it where the background's own file says (`small:` of data/bg/*.dat,
+-- e.g. UI\bgmaps\maps\hkc.png, which is also how the file is named: hkc.dat -> hkc.png); the older layout keeps it in
+-- bg/sys/grid/<name>.bmp. The first of these that exists in the game is used.
+local function background_pictures(state, row, old_folder)
+    local list = {}
+    local function add(path)
+        if type(path) == "string" and path ~= "" then list[#list + 1] = (path:gsub("\\", "/"):lower()) end
+    end
+    if row == constants.background_rows.lee_on_road then
+        add("ui/bgmaps/maps/lor.png")
+    else
+        local entry = state.backgrounds[row + 1]
+        if entry then
+            local ok, data = pcall(background.load, entry.path)
+            if ok and type(data) == "table" then add(data.small) end
+            local stem = tostring(entry.path):match("([^/\\]+)%.dat$")
+            if stem then add("ui/bgmaps/maps/" .. stem .. ".png") end
+        end
+    end
+    add(old_folder)
+    return list
+end
+local function first_existing(list)
+    for _, path in ipairs(list) do if grid_has(path) then return path end end
+    return list[#list]
+end
 local function grid_picture(state, row)
     if row == constants.background_rows.random then return grid_bg.random_pic end
     local folder = "lor"
@@ -1033,7 +1059,7 @@ local function grid_picture(state, row)
         -- bg/sys/<name>/bg.dat has its picture in bg/sys/grid/<name>.bmp; the templates share temp.bmp.
         folder = entry and entry.path:match("bg/sys/([^/]+)/") or "temp"
     end
-    return "bg/sys/grid/" .. folder .. ".bmp"
+    return first_existing(background_pictures(state, row, "bg/sys/grid/" .. folder .. ".bmp"))
 end
 local function grid_cells(state)
     local cells = {constants.background_rows.random, constants.background_rows.lee_on_road}
@@ -1233,7 +1259,84 @@ local function grid_strip_popup(state, previous_menu)
     end
 end
 
+-- The background list as a grid (grid_bg of a mode file with both `centerx` and `centery`, e.g. mode1.dat: `row: 3`, 246 x 127
+-- pictures every 260 by 135 pixels from (10, 10)): `columns` pictures to a line, `rows` lines to a page, the page following
+-- the cursor. Left and right move by one, up and down by a line, attack chooses, jump leaves, a tap chooses a picture or, outside
+-- the panel, closes the list. The name is centred in its picture unless the mode gives a `name_x`.
+local function grid_matrix_popup(state, previous_menu)
+    local grid, held = state.grid, state.held
+    local columns, rows = math.max(1, grid_bg.columns), math.max(1, grid_bg.rows)
+    local per_page = columns * rows
+    local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
+    local first = math.floor((grid.cursor - 1) / per_page) * per_page
+    local panel_h = math.max(grid_mode.panel_h, grid_bg.y + rows * grid_bg.step)
+    if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
+        local px, py = held.pointer_x - (state.dx or 0), held.pointer_y
+        for index = 0, per_page - 1 do
+            local row = grid.cells[first + index + 1]
+            local x = grid_bg.x + (index % columns) * grid_bg.step_x
+            local y = grid_bg.y + math.floor(index / columns) * grid_bg.step
+            if row and inside(px, py, x, y, grid_bg.w, grid_bg.h) then
+                grid_choose(state, row)
+                return
+            end
+        end
+        if not inside(px, py, grid_bg.panel_x, grid_bg.panel_y, grid_bg.strip_w, panel_h) then
+            state.grid = nil
+            return
+        end
+    end
+    local keys = {}
+    local accept = previous_menu == menus.options
+    for index = 0, (state.slot_count or 8) - 1 do
+        local slot = state.slots[index]
+        if slot.ready then
+            local keys_held = state.held[index] or ""
+            local key
+            for _, candidate in ipairs({"l", "r", "u", "d", "c", "b"}) do
+                if pressed(keys_held, candidate) then key = candidate; break end
+            end
+            if key then keys[key] = trigger(slot, accept) or keys[key]
+            else slot.latched = false end
+        end
+    end
+    if keys.l then grid.cursor = math.max(1, grid.cursor - 1) end
+    if keys.r then grid.cursor = math.min(#grid.cells, grid.cursor + 1) end
+    if keys.u then grid.cursor = math.max(1, grid.cursor - columns) end
+    if keys.d then grid.cursor = math.min(#grid.cells, grid.cursor + columns) end
+    first = math.floor((grid.cursor - 1) / per_page) * per_page
+    if keys.b then state.grid = nil; return end
+    if keys.c then grid_choose(state, grid.cells[grid.cursor]); return end
+    image(state, grid_bg.panel_pic, grid_bg.panel_x, grid_bg.panel_y)
+    local chosen = state.options.random_background and constants.background_rows.random or state.options.background
+    for index = 0, per_page - 1 do
+        local position = first + index + 1
+        local row = grid.cells[position]
+        if row then
+            local x = grid_bg.x + (index % columns) * grid_bg.step_x
+            local y = grid_bg.y + math.floor(index / columns) * grid_bg.step
+            local picture = grid_picture(state, row)
+            if grid_has(picture) then image(state, picture, x, y) end
+            local gray = row == chosen and 255 or (position == grid.cursor and 140 or nil)
+            if gray then
+                fill(state, x - 2, y - 2, grid_bg.w + 4, 2, gray)
+                fill(state, x - 2, y + grid_bg.h, grid_bg.w + 4, 2, gray)
+                fill(state, x - 2, y - 2, 2, grid_bg.h + 4, gray)
+                fill(state, x + grid_bg.w, y - 2, 2, grid_bg.h + 4, gray)
+            end
+            local name = background_name(state, row)
+            local name_x = x + grid_bg.name_x
+            if grid_bg.name_x <= 0 then
+                local ok, width = pcall(font.width, name)
+                name_x = x + math.floor((grid_bg.w - (ok and type(width) == "number" and width or 0)) / 2)
+            end
+            text(state, name, name_x, y + grid_bg.name_y, white)
+        end
+    end
+end
+
 local function grid_popup(state, previous_menu)
+    if grid_bg.step_x >= 1 and grid_bg.step >= 1 then return grid_matrix_popup(state, previous_menu) end
     if grid_bg.step_x >= 1 then return grid_strip_popup(state, previous_menu) end
     local grid, held = state.grid, state.held
     local last_top = math.max(0, #grid.cells - grid_bg.rows)
@@ -1456,8 +1559,17 @@ local function stage_popup(state, previous_menu)
         local info = grid.cells[position]
         if info then
             local x, y = grid_stage.x + column * grid_stage.step_x, grid_stage.y
-            local picture = (info.small or ""):gsub("\\", "/"):lower()
-            if picture ~= "" and grid_has(picture) then image(state, picture, x, y) end
+            -- The level's `small`, else its `pic`; also looked for under sprite/ where a game keeps its UI there.
+            local picture = ""
+            for _, name in ipairs({info.small or "", info.pic or ""}) do
+                local path = (name:gsub("\\", "/"):lower())
+                if path ~= "" then
+                    for _, candidate in ipairs({path, "sprite/" .. path}) do
+                        if picture == "" and grid_has(candidate) then picture = candidate end
+                    end
+                end
+            end
+            if picture ~= "" then image(state, picture, x, y) end
             local gray = info.id == chosen and 255 or (position == grid.cursor and 140 or nil)
             if gray then
                 fill(state, x - 2, y - 2, grid_stage.w + 4, 2, gray)
@@ -1914,7 +2026,7 @@ local function small_background(state)
         picture = "bg/sys/map/lor.bmp"
     else
         local entry = state.backgrounds[row + 1]
-        picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
+        picture = first_existing(background_pictures(state, row, "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"))
     end
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
