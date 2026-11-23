@@ -1033,18 +1033,28 @@ local function existing_picture(path)
     if grid_has(plain:lower()) then return plain:lower() end
     return nil
 end
--- Set below, after load_modes: the picture the first <mode> block of a background gives with `small:`, or nil.
-local background_small_picture
+-- The picture a background's own .dat names with `small:` before its layers (bg/sys/grid/hkc.bmp for HK Coliseum), or nil.
+local own_picture_cache = {}
+local function background_own_picture(entry)
+    if not entry then return nil end
+    local cached = own_picture_cache[entry.path]
+    if cached == nil then
+        local ok, data = pcall(engine.read_background_data, entry.path)
+        cached = ok and type(data) == "table" and existing_picture(data.small) or false
+        own_picture_cache[entry.path] = cached
+    end
+    return cached or nil
+end
 -- Forward declaration: the chosen background's small picture is drawn behind the lists too (see options_menu).
 local small_background
 local function grid_picture(state, row)
     if row == constants.background_rows.random then return grid_bg.random_pic end
-    -- The background's own `small:` (first <mode> block of its data file) is its picture in the list; without it the stock one.
-    local own = background_small_picture and row >= 0 and row < constants.background_rows.lee_on_road and background_small_picture(row)
-    if own then return own end
     local folder = "lor"
     if row ~= constants.background_rows.lee_on_road then
         local entry = state.backgrounds[row + 1]
+        -- The background's own `small:` first, as the original list does; the path-derived stock picture is the fallback.
+        local own = background_own_picture(entry)
+        if own then return own end
         -- bg/sys/<name>/bg.dat has its picture in bg/sys/grid/<name>.bmp; the templates share temp.bmp.
         folder = entry and entry.path:match("bg/sys/([^/]+)/") or "temp"
     end
@@ -1141,13 +1151,6 @@ local function load_modes(row)
     mode_cache[row] = modes
     return modes
 end
-background_small_picture = function(row)
-    for _, mode in ipairs(load_modes(row)) do
-        local picture = existing_picture(mode.small)
-        if picture then return picture end
-    end
-    return nil
-end
 -- May a `hidden:` value be used? game/unlock.allows (cheat codes and the saved keys); a host without it keeps the old rule.
 local function allows(hidden)
     if unlock.allows then return unlock.allows(hidden) end
@@ -1175,6 +1178,7 @@ local function mode_choose(state, mode)
     if not mode.supported then return false end
     state.options.bg_mode = mode.effects
     state.options.bg_mode_title = mode.title
+    state.options.bg_mode_small = mode.small   -- the preview follows the chosen mode's `small:`
     sounds.direct(state, "ok")
     state.mode_grid = nil
     return true
@@ -1184,6 +1188,7 @@ local function grid_choose(state, row)
     state.options.background = row
     state.options.bg_mode = nil
     state.options.bg_mode_title = nil
+    state.options.bg_mode_small = nil
     sounds.direct(state, "ok")
     state.grid = nil
     -- A background of the catalog may have modes to choose from; Random and Lee On Road have none.
@@ -1376,7 +1381,8 @@ local function mode_popup(state, previous_menu)
             local mode = grid.cells[position]
             if mode then
                 local x, y = grid_mode.x + column * grid_mode.step_x, grid_mode.y + line * grid_mode.step_y
-                local picture = existing_picture(mode.smallb)
+                -- `smallb` is the alternate small picture; a mode that does not write it falls back to its `small`.
+                local picture = existing_picture(mode.smallb) or existing_picture(mode.small)
                 if picture then image(state, picture, x, y) end
                 local gray = ((chosen == mode.effects and (chosen ~= nil or position == 1)) and 255)
                     or (position == grid.cursor and 140 or nil)
@@ -1941,6 +1947,18 @@ small_background = function(state)
     else
         local entry = state.backgrounds[row + 1]
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
+    end
+    -- The preview is the `small:` of the chosen background mode, else of the background's first mode; without either, the
+    -- picture derived from the path above.
+    if not (state.options.random_background or row == constants.background_rows.random) and row >= 0 and row < constants.background_rows.lee_on_road then
+        local wanted = existing_picture(state.options.bg_mode_small)
+        if not wanted then
+            for _, mode in ipairs(load_modes(row)) do
+                wanted = existing_picture(mode.small)
+                if wanted then break end
+            end
+        end
+        if wanted then picture = wanted end
     end
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.

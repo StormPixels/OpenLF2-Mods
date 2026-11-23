@@ -101,6 +101,7 @@ struct Background {
     std::array<std::int32_t, 2> perspective{};
     std::optional<std::string> shadow;
     std::array<std::optional<std::int32_t>, 2> shadow_size;
+    std::optional<std::string> small; // the picture of the background in the background list (`small:` before the layers)
     std::vector<Layer> layers;
     std::vector<Opoint> opoints;
     std::vector<TeamFrame> team_frames;

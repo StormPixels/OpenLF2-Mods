@@ -26,6 +26,14 @@ public:
             }
             first = false;
             scanning::add_token_checksum(data_.token_checksum, word_);
+            // `small:` (the background list picture) is not consumed here, so the checksum and the diagnostics stay as they were:
+            // its value is the next word of this loop, which is kept as the picture and then ignored as before.
+            if (small_next_) {
+                small_next_ = false;
+                if (!data_.small) data_.small = word_;
+            } else if (word_ == "small:") {
+                small_next_ = true;
+            }
             if (word_ == "name:") name();
             else if (word_ == "width:") read_int(data_.width);
             else if (word_ == "zboundary:") read_pair(data_.zboundary);
@@ -226,6 +234,7 @@ private:
     TokenStream stream_;
     Background data_;
     std::string word_;
+    bool small_next_ = false;
 };
 
 ScriptValue integer(std::int32_t value) { return ScriptValue{value}; }
@@ -325,6 +334,7 @@ ScriptValue to_script_value(const Background& background) {
     if (background.name) set_field(result, "name", ScriptValue{*background.name});
     if (background.width) set_field(result, "width", integer(*background.width));
     if (background.shadow) set_field(result, "shadow", ScriptValue{*background.shadow});
+    if (background.small) set_field(result, "small", ScriptValue{*background.small});
     set_pair(result, "zboundary", background.zboundary);
     set_pair(result, "shadow_size", background.shadow_size);
     return ScriptValue{std::move(result)};
