@@ -1025,32 +1025,6 @@ local function grid_has(path)
     if grid_available[path] == nil then grid_available[path] = pcall(engine.read_resource, path) end
     return grid_available[path]
 end
--- The picture of a background in the list. LF2 Darkfiren keeps it where the background's own file says (`small:` of data/bg/*.dat,
--- e.g. UI\bgmaps\maps\hkc.png, which is also how the file is named: hkc.dat -> hkc.png); the older layout keeps it in
--- bg/sys/grid/<name>.bmp. The first of these that exists in the game is used.
-local function background_pictures(state, row, old_folder)
-    local list = {}
-    local function add(path)
-        if type(path) == "string" and path ~= "" then list[#list + 1] = (path:gsub("\\", "/"):lower()) end
-    end
-    if row == constants.background_rows.lee_on_road then
-        add("ui/bgmaps/maps/lor.png")
-    else
-        local entry = state.backgrounds[row + 1]
-        if entry then
-            local ok, data = pcall(background.load, entry.path)
-            if ok and type(data) == "table" then add(data.small) end
-            local stem = tostring(entry.path):match("([^/\\]+)%.dat$")
-            if stem then add("ui/bgmaps/maps/" .. stem .. ".png") end
-        end
-    end
-    add(old_folder)
-    return list
-end
-local function first_existing(list)
-    for _, path in ipairs(list) do if grid_has(path) then return path end end
-    return list[#list]
-end
 local function grid_picture(state, row)
     if row == constants.background_rows.random then return grid_bg.random_pic end
     local folder = "lor"
@@ -1059,7 +1033,7 @@ local function grid_picture(state, row)
         -- bg/sys/<name>/bg.dat has its picture in bg/sys/grid/<name>.bmp; the templates share temp.bmp.
         folder = entry and entry.path:match("bg/sys/([^/]+)/") or "temp"
     end
-    return first_existing(background_pictures(state, row, "bg/sys/grid/" .. folder .. ".bmp"))
+    return "bg/sys/grid/" .. folder .. ".bmp"
 end
 local function grid_cells(state)
     local cells = {constants.background_rows.random, constants.background_rows.lee_on_road}
@@ -1482,17 +1456,8 @@ local function stage_popup(state, previous_menu)
         local info = grid.cells[position]
         if info then
             local x, y = grid_stage.x + column * grid_stage.step_x, grid_stage.y
-            -- The level's `small`, else its `pic`; also looked for under sprite/ where a game keeps its UI there.
-            local picture = ""
-            for _, name in ipairs({info.small or "", info.pic or ""}) do
-                local path = (name:gsub("\\", "/"):lower())
-                if path ~= "" then
-                    for _, candidate in ipairs({path, "sprite/" .. path}) do
-                        if picture == "" and grid_has(candidate) then picture = candidate end
-                    end
-                end
-            end
-            if picture ~= "" then image(state, picture, x, y) end
+            local picture = (info.small or ""):gsub("\\", "/"):lower()
+            if picture ~= "" and grid_has(picture) then image(state, picture, x, y) end
             local gray = info.id == chosen and 255 or (position == grid.cursor and 140 or nil)
             if gray then
                 fill(state, x - 2, y - 2, grid_stage.w + 4, 2, gray)
@@ -1949,7 +1914,7 @@ local function small_background(state)
         picture = "bg/sys/map/lor.bmp"
     else
         local entry = state.backgrounds[row + 1]
-        picture = first_existing(background_pictures(state, row, "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"))
+        picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
     end
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
