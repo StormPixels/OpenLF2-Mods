@@ -1032,6 +1032,20 @@ local function hud_shifts(style)
         local content = radar.pic_x + (wide_menu.picture_width(radar.pic) or radar.width or 0)
         boxes = math.max(0, math.floor((width - content) / 2 + 0.5))
         radar_shift = boxes
+    elseif radar and style.centered ~= false and options.wide_width(options.current().battlefield_layout) then
+        -- A radar that starts inside the row of boxes (frame.dat of a 1016 wide HUD: boxes 0..792, radar from 681) was made to
+        -- stand right of them in a wide picture: the radar is pushed to the end of the row and the two are centred as one block,
+        -- instead of the boxes being centred alone and the radar covering the last one. The classic 794 picture keeps its overlap.
+        local first = style.frame_x or 0
+        local row_end = first + (style.row or 4) * (style.frame_w or 198)
+        local radar_x = radar.pic_x or 0
+        if radar_x > first and radar_x < row_end - 1 then
+            local push = row_end - radar_x
+            local width = options.wide_width(options.current().battlefield_layout)
+            local content = radar_x + push + (wide_menu.picture_width(radar.pic) or radar.width or 0)
+            boxes = math.max(0, math.floor((width - content) / 2 + 0.5))
+            radar_shift = boxes + push
+        end
     end
     return boxes, radar_shift
 end
@@ -1355,13 +1369,20 @@ function screen.draw(state, context, window_bounds)
     else
         background.paint(arena, current.stage, current.view, view.camera, bounds, wide)
     end
-    context.clip(passable_bounds and passable_bounds.left or 0, 128,
-        passable_bounds and passable_bounds.right - passable_bounds.left or constants.screen.width, view_height - 128)
+    -- Objects are clipped to the stage's own width, except where the background paints across the whole window (HK Coliseum):
+    -- there a fighter at the stage's edge would be cut off in front of a picture that goes on (Stage mode keeps its section limit).
+    local object_bounds = passable_bounds
+    if passable_bounds and wide and not (current.stage_bound and current.stage_bound > 0)
+       and background.bleeds(current.stage, wide.right - wide.left) then
+        object_bounds = {left = wide.left, right = wide.right}
+    end
+    context.clip(object_bounds and object_bounds.left or 0, 128,
+        object_bounds and object_bounds.right - object_bounds.left or constants.screen.width, view_height - 128)
     local lighting = options.current()
     minibar_mode = current.random_game and constants.modes.demo or current.mode
     combo_settings = ui_modes.combo_settings(options.current().battlefield_layout)
     for _, entry in ipairs(view.items) do
-        draw_item(arena, current.stage, view, entry, passable_bounds, lighting)
+        draw_item(arena, current.stage, view, entry, object_bounds, lighting)
     end
     context.clip()
     for _, command in ipairs(view.stage or {}) do

@@ -371,6 +371,21 @@ function background.view_height(data)
     return height
 end
 
+-- True when a layer's bitmaps are wider than a stage that is no wider than the window (HK Coliseum: 1020 wide pictures at
+-- x -113 on a 794 wide stage): paint_layers then draws that layer across the whole window, so the objects have to be
+-- drawn across it too, or a fighter standing at the stage's edge is cut off in front of a picture that goes on.
+function background.bleeds(data, window_width)
+    if type(data) ~= "table" or type(data.layers) ~= "table" or type(data.width) ~= "number" then return false end
+    if data.width > window_width then return false end
+    if not data.groups_ready then prepare_groups(data) end
+    for _, layer in ipairs(data.layers) do
+        if layer.group and layer.color == 0 and layer.loop == 0
+           and math.max(layer.width, layer.group.extent) - math.min(0, layer.group.first) > data.width then
+            return true
+        end
+    end
+    return false
+end
 function background.paint(context, data, state, camera_x, bounds, wide)
     paint_layers(context, data, state, camera_x, bounds, wide, false)
 end
