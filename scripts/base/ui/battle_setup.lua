@@ -421,7 +421,6 @@ end
 local difficulties = {[constants.difficulties.easy] = "Easy", [constants.difficulties.normal] = "Normal",
     [constants.difficulties.difficult] = "Difficult", [constants.difficulties.crazy] = "Difficult"}
 local function background_name(characters, row)
-    if row == constants.background_rows.lee_on_road then return "Lee On Road" end
     if row == constants.background_rows.random then return "Random" end
     local entry = characters.backgrounds[row + 1]
     return entry and background.load(entry.path).name or ""
@@ -468,8 +467,7 @@ local function options_keys(state, key, context)
     elseif row == option_rows.background then
         sounds.direct(state, "ok")
         options.random_background = false
-        if options.background == constants.background_rows.random then options.background = constants.background_rows.lee_on_road
-        elseif options.background == constants.background_rows.lee_on_road then options.background = 0
+        if options.background == constants.background_rows.random then options.background = 0
         else
             options.background = options.background + 1
             if options.background == #state.characters.backgrounds then

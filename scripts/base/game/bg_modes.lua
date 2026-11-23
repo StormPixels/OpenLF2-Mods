@@ -145,7 +145,7 @@ function bg_modes.passes(set, value)
 end
 
 -- The filters of a background's first mode, which stands whenever no other mode was chosen (Random, Stage, a
--- background left without choosing). Nothing when the background has no modes or the row has none (Lee On Road).
+-- background left without choosing). Nothing when the background has no modes or the row has none.
 function bg_modes.default_filters(row)
     if type(row) ~= "number" or row < 0 then return nil end
     local ok, text = pcall(engine.read_resource, "game/bg_modes/" .. row)

@@ -68,7 +68,6 @@ end
 local after_advance, create_demo, create_replay, start_recording, replay_viewer, save_recording
 
 local function stage_description(catalog_backgrounds, row)
-    if row == constants.background_rows.lee_on_road then return background.lee_on_road end
     return background.load(catalog_backgrounds[row + 1].path)
 end
 
@@ -96,9 +95,8 @@ function match.create(options)
         -- Stage mode: levels 0, 10 ... 50 use background rows 1 to 6; encounters are pending.
         row = stage.background_row(options.stage_level, math.floor(options.stage_level / 10) + 1)
     elseif row == constants.background_rows.random then
-        -- Random background: the last two rows are excluded and the third-last means row 99.
+        -- Random background: the last two rows are excluded.
         row = engine.random(count - 2)
-        if row == count - 3 then row = constants.background_rows.lee_on_road end
     end
     state.background_row = row
     state.stage_bound, state.camera_limit = 0, 0
@@ -108,7 +106,7 @@ function match.create(options)
     -- LF2 Darkfiren: the chosen background mode's respond (layers) and arest (opoints) pick what the background has;
     -- without a chosen mode the background's first mode stands. state.stage.opoints is what that leaves for the round.
     local filters = state.bg_mode and state.bg_mode.filters
-    if not filters and row ~= constants.background_rows.lee_on_road then filters = bg_modes.default_filters(row) end
+    if not filters then filters = bg_modes.default_filters(row) end
     state.stage = background.filtered(state.stage, filters)
     state.bg_area = filters and filters.area or nil  -- HOOK(AI5): mode area tags (dvy, centery, attacking) for the round
     state.view = background.create_state(state.stage)

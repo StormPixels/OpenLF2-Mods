@@ -354,10 +354,9 @@ return {
         full = 500,
         milk_hp = 200,
     },
-    -- Background rows of the options: 100 picks a random one, 99 is the built-in Lee on the road.
+    -- Background rows of the options: 100 picks a random one; every other row is a background of the game's own data.
     background_rows = {
         random = 100,
-        lee_on_road = 99,
     },
     -- Defense of a battle side in tenths of a percent: 100 is the normal one, up to 300.
     defense = {

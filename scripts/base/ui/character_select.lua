@@ -958,7 +958,6 @@ local difficulties = {[constants.difficulties.easy] = "Easy", [constants.difficu
 local music_names = {[0] = "Random", "Main Theme", "Stage 1", "Stage 2", "Stage 3", "Stage 4",
     "Stage 5", "Boss", "Final Boss"}
 local function background_name(state, row)
-    if row == constants.background_rows.lee_on_road then return "Lee On Road" end
     if row == constants.background_rows.random then return "Random" end
     local entry = state.backgrounds[row + 1]
     return entry and background.load(entry.path).name or ""
@@ -1049,19 +1048,16 @@ end
 local small_background
 local function grid_picture(state, row)
     if row == constants.background_rows.random then return grid_bg.random_pic end
-    local folder = "lor"
-    if row ~= constants.background_rows.lee_on_road then
-        local entry = state.backgrounds[row + 1]
-        -- The background's own `small:` first, as the original list does; the path-derived stock picture is the fallback.
-        local own = background_own_picture(entry)
-        if own then return own end
-        -- bg/sys/<name>/bg.dat has its picture in bg/sys/grid/<name>.bmp; the templates share temp.bmp.
-        folder = entry and entry.path:match("bg/sys/([^/]+)/") or "temp"
-    end
+    local entry = state.backgrounds[row + 1]
+    -- The background's own `small:` first, as the original list does; the path-derived stock picture is the fallback.
+    local own = background_own_picture(entry)
+    if own then return own end
+    -- bg/sys/<name>/bg.dat has its picture in bg/sys/grid/<name>.bmp; the templates share temp.bmp.
+    local folder = entry and entry.path:match("bg/sys/([^/]+)/") or "temp"
     return "bg/sys/grid/" .. folder .. ".bmp"
 end
 local function grid_cells(state)
-    local cells = {constants.background_rows.random, constants.background_rows.lee_on_road}
+    local cells = {constants.background_rows.random}
     for index = 0, #state.backgrounds - 1 do cells[#cells + 1] = index end
     return cells
 end
@@ -1191,8 +1187,8 @@ local function grid_choose(state, row)
     state.options.bg_mode_small = nil
     sounds.direct(state, "ok")
     state.grid = nil
-    -- A background of the catalog may have modes to choose from; Random and Lee On Road have none.
-    if row >= 0 and row < constants.background_rows.lee_on_road then
+    -- A background of the catalog may have modes to choose from; Random has none.
+    if row >= 0 and row < constants.background_rows.random then
         local modes = visible_modes(row)
         if #modes > 1 then open_mode_grid(state, row, modes) end
     end
@@ -1520,8 +1516,7 @@ local function small_menu_wanted(state)
 end
 local function background_has_modes(state)
     local row = state.options.background
-    if state.options.random_background or row == constants.background_rows.random
-       or row == constants.background_rows.lee_on_road then return false end
+    if state.options.random_background or row == constants.background_rows.random then return false end
     return #visible_modes(row) > 1
 end
 local small_forced = {[7] = true, [8] = true}
@@ -1571,8 +1566,7 @@ local function option_action(state, context, row, extras)
             open_grid(state)
         else
             options.random_background = false
-            if options.background == constants.background_rows.random then options.background = constants.background_rows.lee_on_road
-            elseif options.background == constants.background_rows.lee_on_road then options.background = 0
+            if options.background == constants.background_rows.random then options.background = 0
             else
                 options.background = options.background + 1
                 if options.background == #state.backgrounds then
@@ -1942,15 +1936,13 @@ small_background = function(state)
     local picture
     if state.options.random_background or row == constants.background_rows.random then
         picture = "sprite/ui/bg_random.bmp"
-    elseif row == constants.background_rows.lee_on_road then
-        picture = "bg/sys/map/lor.bmp"
     else
         local entry = state.backgrounds[row + 1]
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
     end
     -- The preview is the `small:` of the chosen background mode, else of the background's first mode; without either, the
     -- picture derived from the path above.
-    if not (state.options.random_background or row == constants.background_rows.random) and row >= 0 and row < constants.background_rows.lee_on_road then
+    if not (state.options.random_background or row == constants.background_rows.random) and row >= 0 and row < constants.background_rows.random then
         local wanted = existing_picture(state.options.bg_mode_small)
         if not wanted then
             for _, mode in ipairs(load_modes(row)) do

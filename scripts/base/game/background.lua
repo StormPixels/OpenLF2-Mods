@@ -400,44 +400,9 @@ end
 function background.enable_front(view)
     if type(view) == "table" then view.front_drawn = true end
 end
-background.lee_on_road = {name = "Lee On Road", width = 2400, zboundary = {350, 470},
-    shadow = "pe/shadow1", shadow_size = {37, 9}, layers = {}}
-local function cmod(a, b) return a - (a / b >= 0 and math.floor(a / b) or math.ceil(a / b)) * b end
-local function rgb(context, x, y, width, height, color)
-    context.fill(x, y, width, height, math.floor(color / 65536), math.floor(color / 256) % 256, color % 256)
-end
-function background.paint_lee_on_road(context, camera_x, bounds)
-    local left = bounds and bounds.left or 0
-    local width = bounds and bounds.right - bounds.left or screen_width
-    context.image("pe/back99_2", 250 - math.floor(camera_x / 100), 120, false)
-    for x = 0, 3999, 500 do
-        context.image("pe/back99_3", x - math.floor(camera_x * 7 / 10) + 30, 175, true)
-    end
-    rgb(context, left, 326, width, 20, 0x3f3f3f)
-    rgb(context, left, 345, width, 156, 0x575757)
-    rgb(context, left, 471, width, 30, 0x3f3f3f)
-    rgb(context, left, 328, width, 2, 0x373737)
-    local first, last = cmod(900 - camera_x, 70), 792
-    if bounds then
-        first = first + math.floor((bounds.left - first) / 70) * 70
-        last = bounds.right
-    end
-    for x = first, last, 70 do
-        rgb(context, x, 292, 1, 37, 0x577fa7)
-        rgb(context, x + 1, 292, 1, 37, 0x2f4357)
-    end
-    rgb(context, left, 310, width, 1, 0x577fa7)
-    rgb(context, left, 311, width, 1, 0x2f4357)
-    rgb(context, left, 290, width, 1, 0x577fa7)
-    rgb(context, left, 291, width, 1, 0x2f4357)
-    for x = 0, 3199, 320 do
-        context.image("pe/back99_1", x - camera_x + 10, 390, false)
-    end
-end
 -- LF2 Darkfiren background changing states (st9xx / st9xxyy) and bg mode changing states (st7xx / st7xxyy).
--- The unfiltered description of row `row`, or nil when the game has no such background. Row 99 is Lee on Road.
+-- The unfiltered description of row `row`, or nil when the game has no such background.
 local function description_of(row)
-    if row == constants.background_rows.lee_on_road then return background.lee_on_road end
     local ok, catalog = pcall(require, "base/game/catalog")
     if not ok then return nil end
     local entry = catalog.backgrounds()[row + 1]
@@ -468,11 +433,11 @@ function background.switch(state, row, mode_index)
     if not base then return false end
     local filters
     if mode_index ~= nil then
-        local mode = target ~= constants.background_rows.lee_on_road and mode_of(target, mode_index) or nil
+        local mode = mode_of(target, mode_index)
         if not mode then return false end
         filters = bg_modes.filters(mode, mode_of(target, 0))
     elseif row ~= nil and row ~= state.background_row then
-        filters = target ~= constants.background_rows.lee_on_road and bg_modes.default_filters(target) or nil
+        filters = bg_modes.default_filters(target)
     else
         return false
     end

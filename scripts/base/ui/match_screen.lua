@@ -1364,11 +1364,7 @@ function screen.draw(state, context, window_bounds)
     local camera_z = type(current.camera_z) == "number" and current.camera_z == current.camera_z and math.max(0, math.floor(current.camera_z)) or 0
     local shift_y = quake_y - camera_z
     local arena = (quake_x ~= 0 or shift_y ~= 0) and shifted(context, quake_x, shift_y) or context
-    if current.background_row == constants.background_rows.lee_on_road then
-        background.paint_lee_on_road(arena, view.camera, bounds)
-    else
-        background.paint(arena, current.stage, current.view, view.camera, bounds, wide)
-    end
+    background.paint(arena, current.stage, current.view, view.camera, bounds, wide)
     -- Objects are clipped to the stage's own width, except where the background paints across the whole window (HK Coliseum):
     -- there a fighter at the stage's edge would be cut off in front of a picture that goes on (Stage mode keeps its section limit).
     local object_bounds = passable_bounds
