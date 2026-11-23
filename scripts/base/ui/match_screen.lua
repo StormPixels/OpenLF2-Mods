@@ -601,16 +601,14 @@ draw_blood = function(context, entry, frame, camera, shake)
         if point.x > 0 and entry.hp < blood_hp(entry, point) then
             local offset = right and point.x - frame.center_x or frame.center_x - point.x
             local y = point.y - frame.center_y + entry.z + entry.y
-            local custom = point.w or point.h or point.rect or point.rect32
-            if custom then
-                local width = type(point.w) == "number" and point.w > 0 and point.w or 1
-                local height = type(point.h) == "number" and point.h > 0 and point.h or 3
-                local x = offset + entry.draw_offset + entry.x - camera + shake - (right and 0 or width - 1)
-                local red, green, blue = blood_colour(point)
-                context.fill(x, y, width, height, red, green, blue)
-            else
-                context.sprite("pe/bars", {0, 20, 1, 3}, offset + entry.draw_offset + entry.x - camera + shake, y, false)
-            end
+            -- Plain blood is a 1x3 red rectangle (the colour of blood_colour: red 0xF800 when nothing is written).
+            -- It used to be cut from the bitmap resource pe/bars; when a game has no bars.bmp (LF2 Darkfiren without
+            -- lf2.exe) that read failed and closed the game at the first drop of blood, so it is filled instead.
+            local width = type(point.w) == "number" and point.w > 0 and point.w or 1
+            local height = type(point.h) == "number" and point.h > 0 and point.h or 3
+            local x = offset + entry.draw_offset + entry.x - camera + shake - (right and 0 or width - 1)
+            local red, green, blue = blood_colour(point)
+            context.fill(x, y, width, height, red, green, blue)
         end
     end
 end
