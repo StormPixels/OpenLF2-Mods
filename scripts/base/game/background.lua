@@ -195,6 +195,10 @@ local function bitmap_width(resource)
         if ok and type(bytes) == "string" and #bytes >= 26 and bytes:sub(1, 2) == "BM" then
             local b1, b2, b3, b4 = bytes:byte(19, 22)
             width = b1 + b2 * 256 + b3 * 65536 + b4 * 16777216
+        elseif ok and type(bytes) == "string" and #bytes >= 24 and bytes:sub(1, 8) == "\137PNG\r\n\26\n" then
+            -- A PNG (HK Coliseum's layers): the width is the big-endian number at byte 17 of the IHDR chunk.
+            local b1, b2, b3, b4 = bytes:byte(17, 20)
+            width = b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
         end
         bitmap_widths[resource] = width
     end
@@ -264,8 +268,19 @@ local function paint_layers(context, data, state, camera_x, bounds, wide, front)
                 if wide then
                     if not data.groups_ready then prepare_groups(data) end
                     local x = wide_x(layer, stage_width, wide)
+                    -- A stage narrower than the window is clipped to its own width, but a layer whose bitmaps are wider than
+                    -- the stage (HK Coliseum: 1020 wide pictures at x -113 on a 794 wide stage) is painted across the whole
+                    -- window, as the original does in its wider window: that is how it is drawn, not a decoration to cut.
+                    local bleeds = bounds ~= nil and wide.top ~= nil and stage_width <= wide.right - wide.left
+                        and math.max(layer.width, layer.group.extent) - math.min(0, layer.group.first) > stage_width
+                    if bleeds then
+                        context.clip(wide.left, wide.top, wide.right - wide.left, wide.bottom - wide.top)
+                    end
                     image(context, layer, x)
                     continue_layer(context, layer, x - layer.x, wide)
+                    if bleeds then
+                        context.clip(bounds.left, wide.top, bounds.right - bounds.left, wide.bottom - wide.top)
+                    end
                 else
                     local offset = 0
                     if stage_width > screen_width then offset = parallax(layer, stage_width, camera_x) end

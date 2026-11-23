@@ -5,6 +5,7 @@ local constants = require("base/game/constants")
 local record_kinds = constants.record_kinds
 local match = require("base/game/match")
 local background = require("base/game/background")
+local wide_menu = require("base/ui/wide_menu")
 local object_data = require("base/game/object_data")
 local font = require("base/ui/font")
 local i18n = require("base/i18n/i18n")
@@ -803,7 +804,7 @@ local function draw_bossbar(context, view, current)
 end
 
 local function draw_radar(context, view, current, radar, center, picture_width)
-    local shift = radar.centered and center or 0
+    local shift = center  -- decided by hud_shifts
     context.image(radar.pic, radar.pic_x + shift, radar.pic_y, false)
     local stage = current.stage or {}
     local stage_width = stage.width or constants.screen.width
@@ -1020,11 +1021,29 @@ local function draw_nickname(context, value, own_slot, slot, column, row, block)
     glyphs(context, block.team == 1 and label_font(value.team) or "pe/words0", text, column + block.name_x, row + block.name_y, 9)
 end
 
+-- Where the HUD's boxes and radar go in a wide picture. A style whose radar sits right of the boxes was made for that picture (four
+-- boxes of 198 and a radar: 1018 wide) and is one block: boxes and radar move together, centred as a whole (0 when the picture is
+-- as wide as the block). Any other style keeps the classic placement: boxes centred unless the style says not, the radar by its
+-- own `centered`. Returns the shift of the boxes and the shift of the radar.
+local function hud_shifts(style)
+    local boxes = style.centered == false and 0 or wide_center()
+    local radar = style.radar
+    local radar_shift = radar and radar.centered and wide_center() or 0
+    if radar and style.centered ~= false and (radar.pic_x or 0) >= (style.frame_x or 0) + (style.row or 4) * (style.frame_w or 198) - 1 then
+        local width = options.wide_width(options.current().battlefield_layout) or constants.screen.width
+        local content = radar.pic_x + (wide_menu.picture_width(radar.pic) or radar.width or 0)
+        boxes = math.max(0, math.floor((width - content) / 2 + 0.5))
+        radar_shift = boxes
+    end
+    return boxes, radar_shift
+end
+
 local function draw_status(context, state, style)
     style = style or fallback_hud
+    local boxes_shift = hud_shifts(style)
     for slot = 0, (style.slots or 8) - 1 do
         local row = math.floor(slot / style.row) * style.frame_h + style.frame_y
-        local column = style.frame_x + (slot % style.row) * style.frame_w + (style.centered == false and 0 or wide_center())
+        local column = style.frame_x + (slot % style.row) * style.frame_w + boxes_shift
         context.image(style.frame_pic, column, row, false)
         local value = state.items[slot] or state.items[slot + 10]
         if value then
@@ -1222,6 +1241,39 @@ local function draw_pause_checkboxes(context, state, view, current)
     if settings and settings.checkbox then draw_checkbox(context, "kill", not state.kill_hidden, "Kill list") end
 end
 
+-- LF2 Darkfiren team HP bars: the `frame:` blocks of the background (bg.dat, kept by the mode's `wait:`; `current.stage.team_frames`).
+-- A frame of type 0 is a picture, type 1 a bar for the team's hp and type 2 one for its dark hp (the red part that can still be
+-- healed), cut from the picture at (dx, dy) and `w` wide when the team is whole (background.team_bar_rect). They sit on the screen at
+-- x, y: x from the left edge of the classic 794 wide block, y from the top of the window. A team is shown while it has a fighter
+-- (slots 0..19 of the HUD). [BELUM PASTI] how the readme adds a team up (here: hp over the fighters' maximum, dead ones as 0).
+local function draw_team_bars(context, current, origin_x)
+    local frames = current.stage and current.stage.team_frames
+    if type(frames) ~= "table" or #frames == 0 then return end
+    local totals = {}
+    for slot = 0, 19 do
+        local value = current.items[slot]
+        if value and value.team and value.team >= 1 and value.team <= 4 and value.record
+           and value.record.kind == constants.record_kinds.character then
+            local total = totals[value.team] or {hp = 0, dark = 0, maximum = 0}
+            local hp = math.max(0, value.hp or 0)
+            total.hp = total.hp + hp
+            total.dark = total.dark + math.max(hp, value.dark_hp or 0)
+            total.maximum = total.maximum + (value.max_hp or constants.points.full)
+            totals[value.team] = total
+        end
+    end
+    for _, frame in ipairs(frames) do
+        local total = totals[frame.team]
+        if total and total.maximum > 0 and background.team_frame_visible(frame, current.elapsed) and type(frame.path) == "string" then
+            local amount = frame.type == 2 and total.dark or total.hp
+            local rect = background.team_bar_rect(frame, amount, total.maximum)
+            if rect then
+                context.sprite(frame.path:gsub("\\", "/"):lower(), {rect.sx, rect.sy, rect.sw, rect.sh}, rect.x + origin_x, rect.y, false)
+            end
+        end
+    end
+end
+
 function screen.draw(state, context, window_bounds)
     local view_width = constants.screen.width
     -- A background taller than the classic 550 is shown whole: the viewport takes its height and the platform scales it.
@@ -1275,7 +1327,8 @@ function screen.draw(state, context, window_bounds)
             camera = math.max(0, math.min(stage_width - window_width, camera))
             state.wide_camera = camera
         end
-        wide = {left = window_bounds.left, right = window_bounds.right, camera = camera}
+        wide = {left = window_bounds.left, right = window_bounds.right, camera = camera,
+            top = window_bounds.top, bottom = window_bounds.bottom}
         -- World x is drawn at x - shift in viewport coordinates.
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
@@ -1335,11 +1388,15 @@ function screen.draw(state, context, window_bounds)
             end
         end
     end
+    draw_team_bars(context, current, wide and wide.left + math.floor((wide.right - wide.left - constants.screen.width) / 2) or 0)
     do
         local layout = options.current().battlefield_layout
         local style = ui_hud.current(layout, options.wide_width(layout), options.current().hud_style)
         draw_status(context, current, style)
-        if style and style.radar then draw_radar(context, view, current, style.radar, wide_center(), options.wide_width(layout) or constants.screen.width) end
+        if style and style.radar then
+            local _, radar_shift = hud_shifts(style)
+            draw_radar(context, view, current, style.radar, radar_shift, options.wide_width(layout) or constants.screen.width)
+        end
     end
     if not state.kill_hidden then draw_kill_board(context, view, current) end
     draw_pause_checkboxes(context, state, view, current)
