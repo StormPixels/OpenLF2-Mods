@@ -940,7 +940,7 @@ local function count_value(value, kind)
     for name, number in pairs(status_names) do if number == kind then return status_timer(value, name) end end
     return nil
 end
-local function draw_stats_count(context, state, value, column, row, counts)
+local function draw_stats_count(context, state, value, column, row, counts, hp_bar, mp_bar)
     if type(counts) ~= "table" then return end
     for index = 1, math.min(#counts, 10) do
         local count = counts[index]
@@ -965,7 +965,14 @@ local function draw_stats_count(context, state, value, column, row, counts)
                 end
                 -- `loop` is the distance between two letters (8 or 9; ignored by the types 14, 18 and 19, which use 9).
                 local advance = count.type ~= 14 and count.type ~= 18 and count.type ~= 19 and type(count.loop) == "number" and count.loop >= 1 and count.loop or 9
-                glyphs(context, sheet, text, column + count.x - (right and #text * advance or 0), row + count.y, advance)
+                local left = column + count.x - (right and #text * advance or 0)
+                -- OpenLF2 change: the "now/total" numbers (types 18 and 19) are centred in their own bar (hp_bar / mp_bar of the
+                -- fighter or the style) whatever their length; the x of the count is ignored, y still comes from the data.
+                local bar = count.type == 18 and hp_bar or count.type == 19 and mp_bar or nil
+                if bar and type(bar.x) == "number" and type(bar.w) == "number" then
+                    left = column + bar.x + math.floor((bar.w - #text * advance) / 2)
+                end
+                glyphs(context, sheet, text, left, row + count.y, advance)
             end
         end
     end
@@ -1061,8 +1068,8 @@ local function draw_status(context, state, style)
         if value then
             local small = framebox_face(value)
             if small then context.image(small:gsub("\\", "/"):lower(), column + style.small_x, row + style.small_y, false) end
+            local hp_bar, mp_bar = bar_of(value, "hp_bar", style), bar_of(value, "mp_bar", style)
             if value.hp > 0 then
-                local hp_bar, mp_bar = bar_of(value, "hp_bar", style), bar_of(value, "mp_bar", style)
                 local function bar(source_y, width, geometry)
                     if width > 0 then context.sprite(style.bars_pic, {0, source_y, width, geometry.h}, column + geometry.x, row + geometry.y, false) end
                 end
@@ -1082,7 +1089,7 @@ local function draw_status(context, state, style)
             glyphs(context, label_font(value.team), string.char(254), column + flag.x, row + flag.y, 8)
             -- A character's own blocks replace the style's (the HUD style file: ui_hud.parse).
             local own = type(value.record.display) == "table" and value.record.display or {}
-            draw_stats_count(context, state, value, column, row, own.stats_count or style.stats_count)
+            draw_stats_count(context, state, value, column, row, own.stats_count or style.stats_count, hp_bar, mp_bar)
             draw_effects(context, value, column, row, state.elapsed, own.effect and own.effect.layers or style.effect)
             draw_nickname(context, value, state.items[slot] ~= nil, slot, column, row, own.name or style.name)
         end
