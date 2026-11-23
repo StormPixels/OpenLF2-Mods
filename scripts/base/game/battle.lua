@@ -37,7 +37,7 @@ set_troop_ids(nil)
 -- What a game gives (the module keeps it for the battle that follows); the file is read for the wide layout only.
 local function load_troops()
     local layout = options.current().battlefield_layout
-    local wide = layout == options.wide_layout or (options.wide_width and options.wide_width(layout)) ~= nil
+    local wide = (options.wide_width and options.wide_width(layout)) ~= nil
     local text = wide and ui_modes.layout_text(layout) or nil
     if wide and not text then
         -- Older hosts and test stubs only have the mode4.dat resource.

@@ -278,3 +278,10 @@ Tag lain di `<menu_control>` yang BELUM dibaca (tetap di tempat bawaan dalam kod
 - **`bound` dan `mode:`**: `bound: 0` = karakter yang sama tidak boleh dipilih dua slot pada mode yang tertulis di baris `mode:` (semua mode bila tidak ada baris); `bound: 1` atau tanpa tag = boleh. Langkah pilih karakter (kanan dan kiri) melompati karakter yang dipegang slot lain; Random selalu bebas. Daftar `mode:` berulang dibaca `ui_modes.repeated`.
 - **Belum**: `cost_x/y` dan `team_cmb_x/y`, `team1_cmb` sampai `team5_cmb` (penanda mode biaya per slot: menu biaya per slot belum ada), `transform`, `hidden` pada `<menu_control>`, `respond` (penyesuaian bila ukuran jendela berubah; rumusnya tidak dijelaskan), `facing: 10`, `caughtact`.
 - Tes: `tests/menu_control_test.lua`.
+
+## Opsi Battlefield layout dan HUD style dari mode.dat / frame.dat
+
+- **Battlefield layout**: hanya `classic` dan `expand` yang tertanam di kode. Semua entri `data/mode.dat` ikut muncul di dropdown (urutan berkas, nama dari `name`); nilai tersimpan `mode:<berkas>` (mis. `mode:data/mode/mode4.dat`). Lebar gambar = `respond` entri itu (794 = tanpa gambar lebar), `mode3.dat` = 10 pemain (tetap tersembunyi sampai `unlock.allows(hidden)` dan berkasnya terbaca). Nama lama `wide 1333`, `wide 1018`, `wide 1018 10P` dipetakan ke entri yang sesuai saat dimuat.
+- **Pertama kali main** (belum ada pilihan tersimpan, atau pilihan tersimpan sudah tidak ada di game): layout = entri paling atas `mode.dat` yang boleh dipilih. Tanpa `mode.dat`: hanya `classic` dan `expand`, bawaan `classic`.
+- **HUD style**: hanya `Default` bawaan yang tertanam. Semua gaya `data/frame.dat` muncul (gaya `hidden` menunggu `unlock.allows`); bawaan pertama kali = gaya pertama `frame.dat`. Tanpa `frame.dat`: hanya `Default` bawaan dan barisnya tidak tampil. Gaya yang berkas gayanya tidak terbaca, atau yang `respond`/`facing`-nya tidak cocok dengan layout aktif, memakai HUD bawaan (tidak crash).
+- Kode: `ui_modes.entries/resolve/layout_choices/default_layout/layout_label`, `ui_hud.entries/known/default_name/names`, `options.battlefield_layouts()` (kini fungsi), `options.layout_label`.

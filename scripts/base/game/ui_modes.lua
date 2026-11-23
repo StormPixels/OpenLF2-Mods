@@ -51,12 +51,84 @@ function ui_modes.parse(text)
     return list
 end
 
--- The picture width a battlefield layout draws the menus on; nil for a layout this module does not know.
+-- The modes of the game's data/mode.dat in file order, cached ({} when the game has none). Each entry also gets `key` (the
+-- value the "battlefield_layout" option stores: "mode:<file>", with "#2", "#3" ... for a file listed again) and `label`
+-- (what the options page shows: its `name`, else the file's name).
+local layout_prefix = "mode:"
+local entries_cache
+function ui_modes.entries()
+    if entries_cache then return entries_cache end
+    local listing = data_text.read(list_path)
+    local list = listing and ui_modes.parse(listing) or {}
+    local seen = {}
+    for _, entry in ipairs(list) do
+        local count = (seen[entry.file] or 0) + 1
+        seen[entry.file] = count
+        entry.key = layout_prefix .. entry.file .. (count > 1 and ("#" .. count) or "")
+        entry.label = entry.name or entry.file:match("([^/]+)%.dat$") or entry.file
+    end
+    entries_cache = list
+    return list
+end
+
+local function is_mode3(entry)
+    return entry ~= nil and entry.file ~= nil and entry.file:match("mode3%.dat$") ~= nil
+end
+
+-- The key of a layout as it is now: "classic" and "expand" (built into the code), an entry's key of mode.dat, or nil when
+-- the game has no such entry. The names older versions saved ("wide 1333", "wide 1018", "wide 1018 10P") are mapped to the
+-- entry that is made for that picture.
+function ui_modes.resolve(layout)
+    if layout == "classic" or layout == "expand" then return layout end
+    if type(layout) ~= "string" then return nil end
+    local list = ui_modes.entries()
+    for _, entry in ipairs(list) do
+        if entry.key == layout then return entry.key end
+    end
+    local width = (layout == "wide 1333" and constants.screen.wide_width) or (layout == "wide 1018" and wide_1018_width) or nil
+    if width then
+        for _, entry in ipairs(list) do
+            if entry.respond == width and not is_mode3(entry) then return entry.key end
+        end
+    elseif layout == "wide 1018 10P" then
+        for _, entry in ipairs(list) do
+            if is_mode3(entry) then return entry.key end
+        end
+    end
+    return nil
+end
+
+-- The mode.dat entry of a layout; nil for classic, expand and a layout the game does not have.
+local function entry_of(layout)
+    local key = ui_modes.resolve(layout)
+    if not key or key == "classic" or key == "expand" then return nil end
+    for _, entry in ipairs(ui_modes.entries()) do
+        if entry.key == key then return entry end
+    end
+    return nil
+end
+ui_modes.entry_of = entry_of
+
+-- The mode file the menus, combo and kill display of a layout are read from: its own entry, and for classic and expand
+-- (or a layout that is gone) the first mode made for the classic width (mode1.dat).
+local function entry_for_layout(layout)
+    return entry_of(layout) or ui_modes.for_width(ui_modes.entries(), classic_width)
+end
+
+-- The picture width a battlefield layout draws the menus on; nil for a layout this module does not know (and expand).
 function ui_modes.layout_width(layout)
     if layout == "classic" then return classic_width end
-    if layout == "wide 1333" then return constants.screen.wide_width end
-    if layout == "wide 1018" or layout == "wide 1018 10P" then return wide_1018_width end
-    return nil
+    local entry = entry_of(layout)
+    return entry and entry.respond or nil
+end
+
+-- Does the layout have ten player slots? (the mode of mode3.dat)
+function ui_modes.is_ten(layout)
+    return is_mode3(entry_of(layout))
+end
+-- How many player slots a layout has: 10 in the 10 player layout, 8 otherwise.
+function ui_modes.slot_count(layout)
+    return ui_modes.is_ten(layout) and 10 or 8
 end
 
 -- The first mode of the list made for `width`. `hidden` is left aside: the player chose the layout.
@@ -80,10 +152,9 @@ function ui_modes.text(entry)
     return nil
 end
 
--- A wide layout's mode file when mode.dat does not name one that fits (or cannot be read).
-local default_files = {[constants.screen.wide_width] = "data/mode/mode4.dat", [wide_1018_width] = "data/mode/mode2.dat"}
+-- A wide layout's mode file when its own cannot be read.
+local default_files = {[constants.screen.wide_width] = "data/mode/mode4.dat"}
 
-local ten_player_layout = "wide 1018 10P"
 -- May a `hidden:` value be used? 0 always; others by game/unlock.allows (nothing when the game lacks it).
 local function permitted(hidden)
     hidden = hidden or 0
@@ -91,33 +162,23 @@ local function permitted(hidden)
     local ok, unlock = pcall(require, "base/game/unlock")
     return ok and type(unlock) == "table" and type(unlock.allows) == "function" and unlock.allows(hidden) == true
 end
--- The mode of a layout in mode.dat's list: the one made for its width, but the 10 player layout takes mode3.dat.
-local function entry_for(layout, list, width)
-    if layout == ten_player_layout then
-        for _, entry in ipairs(list or {}) do
-            if entry.file and entry.file:match("mode3%.dat$") then return entry end
-        end
-        return nil
-    end
-    return ui_modes.for_width(list, width)
-end
 local sources = {}
 local combo_cache = {}   -- ui_modes.combo_settings, per layout
 local kill_cache = {}    -- ui_modes.kill_settings, per layout
 -- The mode file text of a battlefield layout and where it came from: "host" or "file" (the game's own file) or
--- "builtin" (the layout blocks that are part of OpenLF2, used when the game's file cannot be read; only for the 1018
+-- "builtin" (the layout blocks that are part of OpenLF2, used when the game's file cannot be read; only for a 1018 wide
 -- layout). nil in the classic layouts (the built-in menu stands) and when there is nothing to read.
 function ui_modes.layout_text(layout)
     local width = ui_modes.layout_width(layout)
     if not width or width == classic_width then return nil end
-    local listing = data_text.read(list_path)
-    local entry = entry_for(layout, listing and ui_modes.parse(listing) or nil, width)
-    if layout == ten_player_layout and (not entry or not permitted(entry.hidden)) then sources[layout] = false return nil end
+    local entry = entry_of(layout)
+    local ten = is_mode3(entry)
+    if ten and not permitted(entry.hidden) then sources[layout] = false return nil end
     local text, source = ui_modes.text(entry)
-    if not text and default_files[width] and layout ~= ten_player_layout then text, source = ui_modes.text({file = default_files[width]}) end
+    if not text and default_files[width] and not ten then text, source = ui_modes.text({file = default_files[width]}) end
     -- A file that is not a mode file (a wrong decode that still looks like text) is not used.
     if text and source == "file" and not text:find("<menu_control>", 1, true) then text = nil end
-    if not text and width == wide_1018_width and layout ~= ten_player_layout then text, source = require("base/game/mode2_builtin"), "builtin" end
+    if not text and width == wide_1018_width and not ten then text, source = require("base/game/mode2_builtin"), "builtin" end
     sources[layout] = source or false
     return text, source
 end
@@ -128,26 +189,50 @@ end
 function ui_modes.layout_size(layout)
     local width = ui_modes.layout_width(layout)
     if not width then return nil, nil end
-    local listing = data_text.read(list_path)
-    if not listing then return nil, nil end
-    local entry = entry_for(layout, ui_modes.parse(listing), width)
+    local entry = entry_for_layout(layout)
     if not entry then return nil, nil end
     return entry.width, entry.height
 end
 
--- Is the layout offered to the player? Every layout is, except the 10 player one while its mode is locked or the game
--- has no mode3.dat.
-local allowed_cache = {}   -- layout -> the mode entry whose file can be read, or false
+-- Is the layout offered to the player? classic and expand always; a mode of mode.dat too, except the 10 player one while
+-- its mode is locked or its file cannot be read.
+local allowed_cache = {}   -- layout -> true or false
 function ui_modes.layout_allowed(layout)
-    if layout ~= ten_player_layout then return true end
-    local entry = allowed_cache[layout]
-    if entry == nil then
-        local listing = data_text.read(list_path)
-        local found = entry_for(layout, listing and ui_modes.parse(listing) or nil, wide_1018_width)
-        entry = found and ui_modes.text(found) and found or false
-        allowed_cache[layout] = entry
+    local entry = entry_of(layout)
+    if not entry then return layout == "classic" or layout == "expand" end
+    if not is_mode3(entry) then return true end
+    local allowed = allowed_cache[layout]
+    if allowed == nil then
+        allowed = ui_modes.text(entry) ~= nil
+        allowed_cache[layout] = allowed
     end
-    return entry ~= false and permitted(entry.hidden)
+    return allowed and permitted(entry.hidden)
+end
+
+-- What the "Battlefield layout" row offers: classic and expand (built into the code, so the game never has to have
+-- a mode.dat), then every mode of the game's data/mode.dat in file order.
+function ui_modes.layout_choices()
+    local list = {"classic", "expand"}
+    for _, entry in ipairs(ui_modes.entries()) do
+        if ui_modes.layout_allowed(entry.key) then list[#list + 1] = entry.key end
+    end
+    return list
+end
+
+-- The text the options page shows for a layout: the name mode.dat gives the mode; nil for classic and expand (the caller
+-- translates those).
+function ui_modes.layout_label(layout)
+    local entry = entry_of(layout)
+    return entry and entry.label or nil
+end
+
+-- The layout a game starts with when nothing is saved yet: the first mode of mode.dat that may be chosen; classic when
+-- the game has no mode.dat.
+function ui_modes.default_layout()
+    for _, entry in ipairs(ui_modes.entries()) do
+        if ui_modes.layout_allowed(entry.key) then return entry.key end
+    end
+    return "classic"
 end
 
 -- "host", "file", "builtin" or nil: where the layout's mode text comes from (remembered by layout_text; read once for a
@@ -163,6 +248,7 @@ function ui_modes.reset()
     combo_cache = {}
     kill_cache = {}
     allowed_cache = {}
+    entries_cache = nil
     data_text.reset()
 end
 
@@ -218,9 +304,7 @@ end
 function ui_modes.combo_settings(layout)
     local key = tostring(layout)
     if combo_cache[key] ~= nil then return combo_cache[key] or nil end
-    local width = ui_modes.layout_width(layout) or classic_width
-    local listing = data_text.read(list_path)
-    local entry = entry_for(layout, listing and ui_modes.parse(listing) or nil, width)
+    local entry = entry_for_layout(layout)
     local text = entry and ui_modes.text(entry) or nil
     local block = text and ui_modes.combo(text) or nil
     local settings = false
@@ -274,9 +358,7 @@ end
 function ui_modes.kill_settings(layout)
     local key = tostring(layout)
     if kill_cache[key] ~= nil then return kill_cache[key] or nil end
-    local width = ui_modes.layout_width(layout) or classic_width
-    local listing = data_text.read(list_path)
-    local entry = entry_for(layout, listing and ui_modes.parse(listing) or nil, width)
+    local entry = entry_for_layout(layout)
     local text = entry and ui_modes.text(entry) or nil
     local block = text and ui_modes.kill_board(text) or nil
     local settings = false

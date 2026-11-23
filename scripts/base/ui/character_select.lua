@@ -1015,8 +1015,11 @@ end
 -- Background row in the wide menu; Stage mode still cycles its stage there.
 -- The 8P widescreen (mode2.dat) gives <grid_bg> as a strip instead: `centerx` above 0 lays the pictures in one row (three to a
 -- page, the panel 790 x 185 like the stage list's), `centery` then being 0; step_x stays 0 for the vertical list above.
+-- A file that gives `centerx` and `centery` both above 0 (with `row` pictures to a line) lays the list out in lines of pictures
+-- instead, as many lines as the panel picture holds (the wide menus' 3 x 4 list), the lines scrolling with the cursor;
+-- line_y is that centery (0 = not given), the names are centred on their picture.
 local grid_bg = {panel_x = 180, panel_y = 3, panel_w = 500, panel_h = 542, x = 220, y = 15, w = 212, h = 109,
-    step = 135, step_x = 0, rows = 4, columns = 3, strip_w = 790, strip_h = 185, name_x = 250, name_y = 40,
+    step = 135, step_x = 0, line_y = 0, rows = 4, columns = 3, strip_w = 790, strip_h = 185, name_x = 250, name_y = 40,
     panel_pic = "sprite/ui/grid/box_bg.bmp", random_pic = "sprite/ui/grid/bg_grid_random.bmp"}
 layout_targets.grid_bg = grid_bg
 local grid_available = {}
@@ -1031,6 +1034,44 @@ local function existing_picture(path)
     if grid_has(plain) then return plain end
     if grid_has(plain:lower()) then return plain:lower() end
     return nil
+end
+-- The size of a BMP or PNG picture from its header (cached by path), nil when it cannot be read.
+local picture_size_cache = {}
+local function picture_size(path)
+    local resource = existing_picture(path)
+    if not resource then return nil, nil end
+    if picture_size_cache[resource] == nil then
+        local width, height = false, false
+        local ok, data = pcall(engine.read_resource, resource)
+        if ok and type(data) == "string" then
+            if #data >= 24 and data:sub(2, 4) == "PNG" then
+                local a, b, c, d, e, f, g, h = data:byte(17, 24)
+                width = ((a * 256 + b) * 256 + c) * 256 + d
+                height = ((e * 256 + f) * 256 + g) * 256 + h
+            elseif #data >= 26 and data:sub(1, 2) == "BM" then
+                local a, b, c, d, e, f, g, h = data:byte(19, 26)
+                width = ((d * 256 + c) * 256 + b) * 256 + a
+                height = ((h * 256 + g) * 256 + f) * 256 + e
+                if height >= 2147483648 then height = 4294967296 - height end
+            end
+        end
+        if width and height and width >= 1 and width < 8192 and height >= 1 and height < 8192 then
+            picture_size_cache[resource] = {width, height}
+        else
+            picture_size_cache[resource] = false
+        end
+    end
+    local size = picture_size_cache[resource]
+    if size then return size[1], size[2] end
+    return nil, nil
+end
+-- How many lines of cells (every `step_y` pixels from target.y) a grid panel's picture holds: the last line must end inside the
+-- panel (a few pixels of its border may be passed); the screen's height stands in for a missing picture.
+local function fitting_lines(target, step_y)
+    local _, height = picture_size(target.panel_pic)
+    local extent = math.max(target.h, target.name_y + 16)
+    local room = target.panel_y + (height or constants.screen.height) - target.y - extent + 8
+    return math.max(1, math.floor(room / step_y) + 1)
 end
 -- The picture a background's own .dat names with `small:` before its layers (bg/sys/grid/hkc.bmp for HK Coliseum), or nil.
 local own_picture_cache = {}
@@ -1061,8 +1102,17 @@ local function grid_cells(state)
     for index = 0, #state.backgrounds - 1 do cells[#cells + 1] = index end
     return cells
 end
+local function grid_lines() return fitting_lines(grid_bg, grid_bg.line_y) end
 local function grid_follow(grid)
-    if grid_bg.step_x >= 1 then return end   -- the strip takes its page from the cursor
+    if grid_bg.step_x >= 1 then   -- the strip takes its page from the cursor, the lines follow it
+        if grid_bg.line_y >= 1 then
+            local lines = grid_lines()
+            local line = math.floor((grid.cursor - 1) / grid_bg.columns)
+            if line < grid.top then grid.top = line
+            elseif line >= grid.top + lines then grid.top = line - lines + 1 end
+        end
+        return
+    end
     if grid.cursor - 1 < grid.top then grid.top = grid.cursor - 1
     elseif grid.cursor - 1 >= grid.top + grid_bg.rows then grid.top = grid.cursor - grid_bg.rows end
 end
@@ -1256,7 +1306,78 @@ local function grid_strip_popup(state, previous_menu)
     end
 end
 
+-- The background list as lines of pictures (grid_bg.step_x and line_y above 0): `row` pictures to a line, as many lines as the
+-- panel picture holds, the lines scrolling with the cursor. Left and right move a picture, up and down a line, attack chooses,
+-- jump leaves, a tap chooses a picture or, outside the panel, closes the list. The names are centred on their picture.
+local function grid_lines_popup(state, previous_menu)
+    local grid, held = state.grid, state.held
+    local columns, lines = grid_bg.columns, grid_lines()
+    local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
+    if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
+        local px, py = held.pointer_x - (state.dx or 0), held.pointer_y
+        for line = 0, lines - 1 do
+            for column = 0, columns - 1 do
+                local row = grid.cells[(grid.top + line) * columns + column + 1]
+                local x, y = grid_bg.x + column * grid_bg.step_x, grid_bg.y + line * grid_bg.line_y
+                if row and inside(px, py, x, y, grid_bg.w, grid_bg.h) then
+                    grid_choose(state, row)
+                    return
+                end
+            end
+        end
+        local panel_w, panel_h = picture_size(grid_bg.panel_pic)
+        if not inside(px, py, grid_bg.panel_x, grid_bg.panel_y, panel_w or grid_bg.strip_w, panel_h or constants.screen.height) then
+            state.grid = nil
+            return
+        end
+    end
+    local keys = {}
+    local accept = previous_menu == menus.options
+    for index = 0, (state.slot_count or 8) - 1 do
+        local slot = state.slots[index]
+        if slot.ready then
+            local keys_held = state.held[index] or ""
+            local key
+            for _, candidate in ipairs({"u", "d", "l", "r", "c", "b"}) do
+                if pressed(keys_held, candidate) then key = candidate; break end
+            end
+            if key then keys[key] = trigger(slot, accept) or keys[key]
+            else slot.latched = false end
+        end
+    end
+    local count = #grid.cells
+    if keys.u then grid.cursor = math.max(1, grid.cursor - columns) end
+    if keys.d then grid.cursor = math.min(count, grid.cursor + columns) end
+    if keys.l then grid.cursor = math.max(1, grid.cursor - 1) end
+    if keys.r then grid.cursor = math.min(count, grid.cursor + 1) end
+    grid_follow(grid)
+    if keys.b then state.grid = nil; return end
+    if keys.c then grid_choose(state, grid.cells[grid.cursor]); return end
+    image(state, grid_bg.panel_pic, grid_bg.panel_x, grid_bg.panel_y)
+    local chosen = state.options.random_background and constants.background_rows.random or state.options.background
+    for line = 0, lines - 1 do
+        for column = 0, columns - 1 do
+            local position = (grid.top + line) * columns + column + 1
+            local row = grid.cells[position]
+            if row then
+                local x, y = grid_bg.x + column * grid_bg.step_x, grid_bg.y + line * grid_bg.line_y
+                local picture = grid_picture(state, row)
+                if grid_has(picture) then image(state, picture, x, y) end
+                local gray = row == chosen and 255 or (position == grid.cursor and 140 or nil)
+                if gray then
+                    fill(state, x - 2, y - 2, grid_bg.w + 4, 2, gray)
+                    fill(state, x - 2, y + grid_bg.h, grid_bg.w + 4, 2, gray)
+                    fill(state, x - 2, y - 2, 2, grid_bg.h + 4, gray)
+                    fill(state, x + grid_bg.w, y - 2, 2, grid_bg.h + 4, gray)
+                end
+                text(state, background_name(state, row), x + math.floor(grid_bg.w / 2), y + grid_bg.name_y, white, nil, "center")
+            end
+        end
+    end
+end
+
 local function grid_popup(state, previous_menu)
+    if grid_bg.step_x >= 1 and grid_bg.line_y >= 1 then return grid_lines_popup(state, previous_menu) end
     if grid_bg.step_x >= 1 then return grid_strip_popup(state, previous_menu) end
     local grid, held = state.grid, state.held
     local last_top = math.max(0, #grid.cells - grid_bg.rows)
@@ -1409,38 +1530,16 @@ end
 local grid_stage = {panel_x = 1, panel_y = 140, panel_w = 790, panel_h = 185, x = 25, y = 180, w = 212, h = 109,
     step_x = 260, step_y = 0, columns = 3, name_x = 25, name_y = 110, panel_pic = "sprite/ui/grid/box_stage.bmp"}
 layout_targets.grid_stage = grid_stage
--- The height of a BMP or PNG picture from its header, nil when it cannot be read (cached by path).
-local picture_height_cache = {}
-local function picture_height(path)
-    local resource = existing_picture(path)
-    if not resource then return nil end
-    if picture_height_cache[resource] == nil then
-        local height = false
-        local ok, data = pcall(engine.read_resource, resource)
-        if ok and type(data) == "string" then
-            if #data >= 24 and data:sub(2, 4) == "PNG" then
-                local a, b, c, d = data:byte(21, 24)
-                height = ((a * 256 + b) * 256 + c) * 256 + d
-            elseif #data >= 26 and data:sub(1, 2) == "BM" then
-                local a, b, c, d = data:byte(23, 26)
-                height = ((d * 256 + c) * 256 + b) * 256 + a
-                if height >= 2147483648 then height = 4294967296 - height end
-            end
-        end
-        picture_height_cache[resource] = (height and height >= 1 and height < 8192) and height or false
-    end
-    return picture_height_cache[resource] or nil
-end
 -- Lines of levels the popup draws and the height of its panel (the click area): one line of 185 pixels unless the file asks
 -- for lines with `centery`; then the panel picture's height (the screen's when the picture is missing).
 local function stage_panel_height()
     if grid_stage.step_y < 1 then return grid_stage.panel_h end
-    return picture_height(grid_stage.panel_pic) or constants.screen.height
+    local _, height = picture_size(grid_stage.panel_pic)
+    return height or constants.screen.height
 end
 local function stage_lines()
     if grid_stage.step_y < 1 then return 1 end
-    local room = grid_stage.panel_y + stage_panel_height() - grid_stage.y - (grid_stage.name_y + 16)
-    return math.max(1, math.floor(room / grid_stage.step_y) + 1)
+    return fitting_lines(grid_stage, grid_stage.step_y)
 end
 local function stage_follow(grid)
     local lines = stage_lines()

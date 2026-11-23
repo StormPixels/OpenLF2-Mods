@@ -223,16 +223,11 @@ local option_rows = {
         available = function(_, values) return values.language ~= "default" end},
     {key = "unlock_characters", label = "Unlock hidden characters"},
     {key = "upscaling_filter", label = "Upscaling filter", choices = options.available_filters},
-    {key = "battlefield_layout", label = "Battlefield layout", choices = function()
-        local list = {}
-        for _, layout in ipairs(options.battlefield_layouts) do
-            if ui_modes.layout_allowed(layout) then list[#list + 1] = layout end
-        end
-        return list
-    end},
-    -- The HUD styles of the game (data/frame.dat); the row is only there when the game has more than the built-in one.
+    -- classic and expand are built in; every other layout is a mode of the game's data/mode.dat (named as it names it).
+    {key = "battlefield_layout", label = "Battlefield layout", choices = options.battlefield_layouts, display = options.layout_label},
+    -- The HUD styles of the game (data/frame.dat); the row is only there when the game has a frame.dat.
     {key = "hud_style", label = "HUD style", choices = ui_hud.names, display = function(value) return value end,
-        available = function() return #ui_hud.names() > 1 end},
+        available = function() return #ui_hud.entries() > 0 end},
     {key = "fullscreen", label = "Fullscreen", available = function(features) return features.window end},
     {key = "show_fps", label = "Show FPS"},
     {key = "rumble", label = "Rumble"},

@@ -8,6 +8,7 @@
 local mode_layout = require("base/game/mode_layout")
 local data_text = require("base/game/data_text")
 local constants = require("base/game/constants")
+local ui_modes = require("base/game/ui_modes")
 local ui_hud = {}
 
 local list_path = "data/frame.dat"
@@ -205,18 +206,49 @@ local function readable(path)
 end
 
 local names_cache
--- The style names of the game's data/frame.dat the player may choose from (not hidden, for 8 players), "Default" first.
--- {"Default"} alone when the game has no frame.dat.
+local entries_cache
+-- Every style of the game's data/frame.dat in file order, cached ({} when the game has no frame.dat). An entry without a
+-- `name` is called after its file.
+function ui_hud.entries()
+    if entries_cache then return entries_cache end
+    local listing = data_text.read(list_path)
+    local list = listing and ui_hud.list(listing) or {}
+    for _, entry in ipairs(list) do
+        entry.name = entry.name or entry.file:match("([^/]+)%.dat$") or entry.file
+    end
+    entries_cache = list
+    return list
+end
+-- Does the game have a style of this name? Without a frame.dat only the built-in "Default" exists. Hidden styles count
+-- (a saved choice stays valid while its unlock is not loaded yet).
+function ui_hud.known(name)
+    local list = ui_hud.entries()
+    if #list == 0 then return name == "Default" end
+    for _, entry in ipairs(list) do
+        if entry.name == name then return true end
+    end
+    return false
+end
+-- The style a game nobody has played yet starts with: the first of frame.dat that may be chosen; the built-in "Default"
+-- when the game has no frame.dat.
+function ui_hud.default_name()
+    for _, entry in ipairs(ui_hud.entries()) do
+        if permitted(entry.hidden) then return entry.name end
+    end
+    return "Default"
+end
+-- The style names the player may choose from: every style of the game's data/frame.dat (in file order, a name once) that
+-- is not locked (`hidden`); the built-in "Default" alone when the game has no frame.dat, so the game never needs one.
 function ui_hud.names()
     if names_cache then return names_cache end
-    local names, seen = {"Default"}, {Default = true}
-    local listing = data_text.read(list_path)
-    for _, entry in ipairs(listing and ui_hud.list(listing) or {}) do
-        if permitted(entry.hidden) and (entry.facing or 8) == 8 and entry.name and not seen[entry.name] then
+    local names, seen = {}, {}
+    for _, entry in ipairs(ui_hud.entries()) do
+        if permitted(entry.hidden) and not seen[entry.name] then
             seen[entry.name] = true
             names[#names + 1] = entry.name
         end
     end
+    if #names == 0 then names = {"Default"} end
     names_cache = names
     return names
 end
@@ -228,7 +260,7 @@ end
 function ui_hud.current(layout, width, name)
     local key = tostring(layout) .. ":" .. tostring(width) .. ":" .. tostring(name)
     if cache[key] then return cache[key] end
-    local ten = layout == "wide 1018 10P"
+    local ten = ui_modes.is_ten(layout)
     local facing = ten and 10 or 8
     local style
     -- A style read from its file, with the pictures the game has; centred unless it is made for this exact width.
@@ -256,12 +288,13 @@ function ui_hud.current(layout, width, name)
         end
         return loaded
     end
-    if ten or (name and name ~= "Default") then
-        local listing = data_text.read(list_path)
-        local list = listing and ui_hud.list(listing) or {}
+    local list = ui_hud.entries()
+    if ten or (name and #list > 0) then
         local picture_width = width or classic_width
         local chosen
-        if name and name ~= "Default" then
+        -- A style of frame.dat (a "Default" among them too: it is the game's own file then); one that is hidden, for
+        -- another picture width or for another number of players keeps the built-in HUD.
+        if name then
             for _, entry in ipairs(list) do
                 if entry.name == name and permitted(entry.hidden) and (entry.facing or 8) == facing
                    and (entry.respond == nil or entry.respond == picture_width) then
@@ -280,6 +313,6 @@ function ui_hud.current(layout, width, name)
 end
 
 -- Forgets the styles read so far (a host that reloads its game data, tests).
-function ui_hud.reset() cache = {}; names_cache = nil end
+function ui_hud.reset() cache = {}; names_cache = nil; entries_cache = nil end
 
 return ui_hud

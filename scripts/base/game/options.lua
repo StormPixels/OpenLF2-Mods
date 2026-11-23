@@ -6,31 +6,36 @@
 local unlock = require("base/game/unlock")
 local onscreen = require("base/game/onscreen")
 local i18n = require("base/i18n/i18n")
+local ui_modes = require("base/game/ui_modes")
+local ui_hud = require("base/game/ui_hud")
+local constants = require("base/game/constants")
 local options = {}
 
--- "wide 1333" is the expanded battlefield on a fixed 1333 wide picture (LF2 Darkfiren's 8P super widescreen),
--- where "expand" takes the window's own shape.
-options.wide_layout = "wide 1333"
--- "wide 1018" is LF2 Darkfiren's 8P widescreen (mode2.dat) on a fixed 1018 wide picture.
-options.wide_layout_1018 = "wide 1018"
--- LF2 Darkfiren's 10 player widescreen (mode3.dat, hidden until its unlock code is in): 1018 wide with ten player slots.
-options.wide_layout_10p = "wide 1018 10P"
-options.battlefield_layouts = {"classic", "expand", options.wide_layout, options.wide_layout_1018, options.wide_layout_10p}
--- The width of the fixed picture a wide layout draws on; nil for classic and expand.
+-- The battlefield layouts: "classic" and "expand" are built into the code (so the game runs without a data/mode.dat);
+-- every other one is a mode of the game's data/mode.dat (see game/ui_modes), stored as "mode:<file>". The widths and
+-- player slots of those come from the mode.dat entry (`respond`; mode3.dat has ten player slots).
+-- What the "Battlefield layout" row offers, in the dropdown's order.
+function options.battlefield_layouts() return ui_modes.layout_choices() end
+-- The text the dropdown shows for a layout.
+function options.layout_label(layout)
+    return ui_modes.layout_label(layout) or i18n.tr(layout)
+end
+-- The width of the fixed picture a mode.dat layout draws on; nil for classic, expand and the 794 wide modes.
 function options.wide_width(layout)
-    if layout == options.wide_layout then return require("base/game/constants").screen.wide_width end
-    if layout == options.wide_layout_1018 or layout == options.wide_layout_10p then return 1018 end
+    local width = ui_modes.layout_width(layout)
+    if width and width ~= constants.screen.width then return width end
     return nil
 end
 -- How many player slots a layout has: 10 in the 10 player layout, 8 otherwise.
 function options.slot_count(layout)
-    return layout == options.wide_layout_10p and 10 or 8
+    return ui_modes.slot_count(layout)
 end
 local function valid_layout(value)
-    for _, layout in ipairs(options.battlefield_layouts) do
-        if value == layout then return true end
-    end
-    return false
+    return ui_modes.resolve(value) ~= nil
+end
+-- The layout of a game nobody has played yet: the first mode of mode.dat, classic when the game has none.
+local function default_layout()
+    return ui_modes.default_layout()
 end
 
 -- Every valid value, in the dropdown's order. "xbrz" is a shader: the host offers it only on
@@ -115,10 +120,10 @@ end
 local function valid_game(value)
     return type(value) == "string" and #value <= 64 and not value:find("%c")
 end
-local defaults = {game = "", battlefield_layout = "classic", gamepad = gamepad_defaults, onscreen = onscreen.defaults(), unlock_characters = false, upscaling_filter = "linear", fullscreen = false, digipad = true, show_fps = false,
+local defaults = {game = "", gamepad = gamepad_defaults, onscreen = onscreen.defaults(), unlock_characters = false, upscaling_filter = "linear", fullscreen = false, digipad = true, show_fps = false,
     rumble = false, show_gamepad = false, language = "default", font_antialiasing = true,
     character_shading = false, projected_shadows = false,
-    light_azimuth = -50, light_elevation = 70, shadow_blur = 2, shadow_opacity = 0.275, hud_style = "Default"}
+    light_azimuth = -50, light_elevation = 70, shadow_blur = 2, shadow_opacity = 0.275}
 local current
 
 local function valid_filter(value)
@@ -145,13 +150,13 @@ local function angle(value, default, low, high)
     if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge then return default end
     return math.max(low, math.min(high, value))
 end
--- The name of a HUD style of data/frame.dat ("Default" is the built-in HUD); whether the game has it is checked where it is used.
+-- The name of a HUD style of data/frame.dat ("Default" is the built-in HUD, only for a game without a frame.dat).
 local function valid_hud_style(value)
-    return type(value) == "string" and #value >= 1 and #value <= 40 and value:find("^[%w_%-]+$") ~= nil
+    return type(value) == "string" and #value >= 1 and #value <= 40 and value:find("^[%w_%-]+$") ~= nil and ui_hud.known(value)
 end
 local function copy(values)
     return {game = valid_game(values.game) and values.game or defaults.game,
-        battlefield_layout = valid_layout(values.battlefield_layout) and values.battlefield_layout or defaults.battlefield_layout,
+        battlefield_layout = ui_modes.resolve(values.battlefield_layout) or default_layout(),
         gamepad = copy_gamepad(values.gamepad), onscreen = onscreen.normalize(values.onscreen), unlock_characters = values.unlock_characters,
         upscaling_filter = valid_filter(values.upscaling_filter) and values.upscaling_filter or defaults.upscaling_filter,
         fullscreen = values.fullscreen, digipad = values.digipad, show_fps = values.show_fps, rumble = values.rumble,
@@ -163,7 +168,7 @@ local function copy(values)
         shadow_blur = math.floor(angle(values.shadow_blur, defaults.shadow_blur, 0, 8)),
         shadow_opacity = angle(values.shadow_opacity, defaults.shadow_opacity, 0, 1),
         language = i18n.is_language(values.language) and values.language or defaults.language,
-        hud_style = valid_hud_style(values.hud_style) and values.hud_style or defaults.hud_style}
+        hud_style = valid_hud_style(values.hud_style) and values.hud_style or ui_hud.default_name()}
 end
 
 -- The saved options, or the defaults for anything missing or invalid.
@@ -209,7 +214,7 @@ function options.load()
     if type(saved) == "table" then values.gamepad = copy_gamepad(saved.gamepad) end
     if type(saved) == "table" then values.onscreen = onscreen.normalize(saved.onscreen) end
     if type(saved) == "table" and valid_layout(saved.battlefield_layout) then
-        values.battlefield_layout = saved.battlefield_layout
+        values.battlefield_layout = ui_modes.resolve(saved.battlefield_layout)
     end
     if type(saved) == "table" and valid_hud_style(saved.hud_style) then values.hud_style = saved.hud_style end
     if type(saved) == "table" and valid_game(saved.game) then values.game = saved.game end
