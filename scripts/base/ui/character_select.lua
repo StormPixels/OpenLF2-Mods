@@ -1153,6 +1153,8 @@ local function mode_choose(state, mode)
     if not mode.supported then return false end
     state.options.bg_mode = mode.effects
     state.options.bg_mode_title = mode.title
+    -- The mode's own `small:` picture (the map preview in the frame next to the music line); nil keeps the background's map picture.
+    state.options.bg_mode_small = type(mode.small) == "string" and mode.small:match("%S") and (mode.small:gsub("\\", "/")) or nil
     sounds.direct(state, "ok")
     state.mode_grid = nil
     return true
@@ -1162,6 +1164,7 @@ local function grid_choose(state, row)
     state.options.background = row
     state.options.bg_mode = nil
     state.options.bg_mode_title = nil
+    state.options.bg_mode_small = nil
     sounds.direct(state, "ok")
     state.grid = nil
     -- A background of the catalog may have modes to choose from; Random and Lee On Road have none.
@@ -1915,6 +1918,12 @@ local function small_background(state)
     else
         local entry = state.backgrounds[row + 1]
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
+    end
+    -- A chosen background mode with its own `small:` picture replaces the map picture (when the game has that picture).
+    local mode_small = state.options.bg_mode_small
+    if mode_small and not state.options.random_background then
+        if grid_has(mode_small) then picture = mode_small
+        elseif grid_has(mode_small:lower()) then picture = mode_small:lower() end
     end
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
