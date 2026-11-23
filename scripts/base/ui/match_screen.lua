@@ -444,7 +444,11 @@ local function minibar_for(layer, code)
     elseif type(layer.respond) == "number" and layer.respond ~= minibar_mode then return false end
     return true
 end
-local function draw_minibar(context, entry, camera, shake, tick)
+local function draw_minibar(context, entry, frame, camera, shake, tick)
+    -- OpenLF2 change: `y` counts upwards from the top of the current sprite (z - center_y + y), so a layer with y 16 sits above the
+    -- head as in the LF2 Darkfiren screenshot; before it counted downwards from the ground line (under the feet).
+    -- [BELUM PASTI] the anchor: top of the sprite, taken from one screenshot of the original (bar about 85-95 px over the feet).
+    local top = entry.z + (entry.y or 0) - ((frame and frame.center_y) or 0)
     local display = display_of(entry.record)
     local block = type(display) == "table" and display.minibar or nil
     local layers = block and block.layers
@@ -455,7 +459,7 @@ local function draw_minibar(context, entry, camera, shake, tick)
            and minibar_for(layer, code) and layer_shown(layer, tick) and effect_ok(layer, entry.hp, entry.max_hp) then
             -- OpenLF2 change: a picture layer (no type) without w and h is the whole picture (the frame), as in the original.
             local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0) + (layer.centerx or 0)
-            context.image(layer.pic:gsub("\\", "/"):lower(), x, entry.z + (layer.y or 0), layer.transparency == 1)
+            context.image(layer.pic:gsub("\\", "/"):lower(), x, top - (layer.y or 0), layer.transparency == 1)
         elseif type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1
            and minibar_for(layer, code) and layer_shown(layer, tick) and effect_ok(layer, entry.hp, entry.max_hp) then
             local width = layer.w
@@ -474,7 +478,7 @@ local function draw_minibar(context, entry, camera, shake, tick)
                 if layer.facing == 1 and width < layer.w then
                     x, dx = x + layer.w - width, dx + layer.w - width
                 end
-                context.sprite(layer.pic:gsub("\\", "/"):lower(), {dx, layer.dy or 0, width, layer.h}, x, entry.z + (layer.y or 0), layer.transparency == 1)
+                context.sprite(layer.pic:gsub("\\", "/"):lower(), {dx, layer.dy or 0, width, layer.h}, x, top - (layer.y or 0), layer.transparency == 1)
             end
         end
     end
@@ -725,7 +729,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         glyphs(context, sheet, label, x, entry.z + 3, 9)
     end
     if entry.blink > -25 and not entry.invisible then
-        draw_minibar(context, entry, camera, shake, view.kill_clock)
+        draw_minibar(context, entry, frame, camera, shake, view.kill_clock)
         draw_combo(context, entry, frame, camera, shake)
     end
     for _, spark in ipairs(entry.sparks) do
