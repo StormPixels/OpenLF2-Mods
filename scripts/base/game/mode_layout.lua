@@ -75,7 +75,7 @@ local maps = {
         small_x = "small_x", small_y = "small_y", show_small = "background_small", frame_pic = "pic",
         music_title = "hexf", music_hint = "hexb"},
     grid_stage = {tag = "grid_stage", panel_pic = "pic", panel_x = "pic_x", panel_y = "pic_y", x = "start_x", y = "start_y",
-        w = "w", h = "h", step_x = "centerx", name_x = "name_x", name_y = "name_y"},
+        w = "w", h = "h", columns = "row", step_x = "centerx", step_y = "centery", name_x = "name_x", name_y = "name_y"},
     grid_mode = {tag = "grid_bg_mode", panel_pic = "pic", panel_x = "pic_x", panel_y = "pic_y",
         x = "start_x", y = "start_y", w = "w", h = "h", step_x = "centerx", step_y = "centery", columns = "row",
         name_x = "name_x", name_y = "name_y"},

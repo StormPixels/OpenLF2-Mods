@@ -1403,9 +1403,51 @@ end
 -- LF2 Darkfiren's stage list (data/stage.dat) and <grid_stage> (mode4.dat): a panel at (1, 140) with the levels in one
 -- row, three at a time, from (25, 180) every 260 pixels, each a 212x109 picture (the level's `small`) with its name below.
 -- A tap on a level chooses it; left and right move, attack chooses, jump leaves. Hidden levels follow the cheat code.
+-- A file whose <grid_stage> gives `centery` above 0 (the wide menus: `row: 3`, `centery: 135`, the panel BOX_BGMODE at (1, 1))
+-- lays the levels in lines instead, as many as the panel picture holds (four for 547 pixels), like the mode list: up and down
+-- move a line, the lines scroll with the cursor. step_y stays 0 for the built-in single row.
 local grid_stage = {panel_x = 1, panel_y = 140, panel_w = 790, panel_h = 185, x = 25, y = 180, w = 212, h = 109,
-    step_x = 260, columns = 3, name_x = 25, name_y = 110, panel_pic = "sprite/ui/grid/box_stage.bmp"}
+    step_x = 260, step_y = 0, columns = 3, name_x = 25, name_y = 110, panel_pic = "sprite/ui/grid/box_stage.bmp"}
 layout_targets.grid_stage = grid_stage
+-- The height of a BMP or PNG picture from its header, nil when it cannot be read (cached by path).
+local picture_height_cache = {}
+local function picture_height(path)
+    local resource = existing_picture(path)
+    if not resource then return nil end
+    if picture_height_cache[resource] == nil then
+        local height = false
+        local ok, data = pcall(engine.read_resource, resource)
+        if ok and type(data) == "string" then
+            if #data >= 24 and data:sub(2, 4) == "PNG" then
+                local a, b, c, d = data:byte(21, 24)
+                height = ((a * 256 + b) * 256 + c) * 256 + d
+            elseif #data >= 26 and data:sub(1, 2) == "BM" then
+                local a, b, c, d = data:byte(23, 26)
+                height = ((d * 256 + c) * 256 + b) * 256 + a
+                if height >= 2147483648 then height = 4294967296 - height end
+            end
+        end
+        picture_height_cache[resource] = (height and height >= 1 and height < 8192) and height or false
+    end
+    return picture_height_cache[resource] or nil
+end
+-- Lines of levels the popup draws and the height of its panel (the click area): one line of 185 pixels unless the file asks
+-- for lines with `centery`; then the panel picture's height (the screen's when the picture is missing).
+local function stage_panel_height()
+    if grid_stage.step_y < 1 then return grid_stage.panel_h end
+    return picture_height(grid_stage.panel_pic) or constants.screen.height
+end
+local function stage_lines()
+    if grid_stage.step_y < 1 then return 1 end
+    local room = grid_stage.panel_y + stage_panel_height() - grid_stage.y - (grid_stage.name_y + 16)
+    return math.max(1, math.floor(room / grid_stage.step_y) + 1)
+end
+local function stage_follow(grid)
+    local lines = stage_lines()
+    local line = math.floor((grid.cursor - 1) / grid_stage.columns)
+    if lines == 1 or line < grid.top then grid.top = line
+    elseif line >= grid.top + lines then grid.top = line - lines + 1 end
+end
 local stage_data_cache
 local function stage_data()
     if stage_data_cache == nil then
@@ -1428,7 +1470,8 @@ local function open_stage_grid(state)
         if info.id == math.floor(state.options.stage_level / 10) then cursor = position end
     end
     if #cells == 0 then return end
-    state.stage_grid = {cells = cells, cursor = cursor}
+    state.stage_grid = {cells = cells, cursor = cursor, top = 0}
+    stage_follow(state.stage_grid)
 end
 local function stage_choose(state, info)
     state.options.stage_level = info.id * 10
@@ -1438,18 +1481,20 @@ end
 local function stage_popup(state, previous_menu)
     local grid, held = state.stage_grid, state.held
     local function inside(x, y, left, top, width, height) return x >= left and x < left + width and y >= top and y < top + height end
-    local first = math.floor((grid.cursor - 1) / grid_stage.columns) * grid_stage.columns
+    local lines, columns = stage_lines(), grid_stage.columns
     if held.click and held.pointer_x and held.pointer_x >= 0 and held.pointer_y and held.pointer_y >= 0 then
         local px, py = held.pointer_x - (state.dx or 0), held.pointer_y
-        for column = 0, grid_stage.columns - 1 do
-            local info = grid.cells[first + column + 1]
-            local x = grid_stage.x + column * grid_stage.step_x
-            if info and inside(px, py, x, grid_stage.y, grid_stage.w, grid_stage.name_y + 16) then
-                stage_choose(state, info)
-                return
+        for line = 0, lines - 1 do
+            for column = 0, columns - 1 do
+                local info = grid.cells[(grid.top + line) * columns + column + 1]
+                local x, y = grid_stage.x + column * grid_stage.step_x, grid_stage.y + line * grid_stage.step_y
+                if info and inside(px, py, x, y, grid_stage.w, grid_stage.name_y + 16) then
+                    stage_choose(state, info)
+                    return
+                end
             end
         end
-        if not inside(px, py, grid_stage.panel_x, grid_stage.panel_y, grid_stage.panel_w, grid_stage.panel_h) then
+        if not inside(px, py, grid_stage.panel_x, grid_stage.panel_y, grid_stage.panel_w, stage_panel_height()) then
             state.stage_grid = nil
             return
         end
@@ -1461,35 +1506,42 @@ local function stage_popup(state, previous_menu)
         if slot.ready then
             local keys_held = state.held[index] or ""
             local key
-            for _, candidate in ipairs({"l", "r", "c", "b"}) do
+            for _, candidate in ipairs({"u", "d", "l", "r", "c", "b"}) do
                 if pressed(keys_held, candidate) then key = candidate; break end
             end
             if key then keys[key] = trigger(slot, accept) or keys[key]
             else slot.latched = false end
         end
     end
+    local count = #grid.cells
+    if lines > 1 then   -- the single row has nothing above or below
+        if keys.u then grid.cursor = math.max(1, grid.cursor - columns) end
+        if keys.d then grid.cursor = math.min(count, grid.cursor + columns) end
+    end
     if keys.l then grid.cursor = math.max(1, grid.cursor - 1) end
-    if keys.r then grid.cursor = math.min(#grid.cells, grid.cursor + 1) end
-    first = math.floor((grid.cursor - 1) / grid_stage.columns) * grid_stage.columns
+    if keys.r then grid.cursor = math.min(count, grid.cursor + 1) end
+    stage_follow(grid)
     if keys.b then state.stage_grid = nil; return end
     if keys.c then stage_choose(state, grid.cells[grid.cursor]); return end
     image(state, grid_stage.panel_pic, grid_stage.panel_x, grid_stage.panel_y)
     local chosen = math.floor(state.options.stage_level / 10)
-    for column = 0, grid_stage.columns - 1 do
-        local position = first + column + 1
-        local info = grid.cells[position]
-        if info then
-            local x, y = grid_stage.x + column * grid_stage.step_x, grid_stage.y
-            local picture = (info.small or ""):gsub("\\", "/"):lower()
-            if picture ~= "" and grid_has(picture) then image(state, picture, x, y) end
-            local gray = info.id == chosen and 255 or (position == grid.cursor and 140 or nil)
-            if gray then
-                fill(state, x - 2, y - 2, grid_stage.w + 4, 2, gray)
-                fill(state, x - 2, y + grid_stage.h, grid_stage.w + 4, 2, gray)
-                fill(state, x - 2, y - 2, 2, grid_stage.h + 4, gray)
-                fill(state, x + grid_stage.w, y - 2, 2, grid_stage.h + 4, gray)
+    for line = 0, lines - 1 do
+        for column = 0, columns - 1 do
+            local position = (grid.top + line) * columns + column + 1
+            local info = grid.cells[position]
+            if info then
+                local x, y = grid_stage.x + column * grid_stage.step_x, grid_stage.y + line * grid_stage.step_y
+                local picture = (info.small or ""):gsub("\\", "/"):lower()
+                if picture ~= "" and grid_has(picture) then image(state, picture, x, y) end
+                local gray = info.id == chosen and 255 or (position == grid.cursor and 140 or nil)
+                if gray then
+                    fill(state, x - 2, y - 2, grid_stage.w + 4, 2, gray)
+                    fill(state, x - 2, y + grid_stage.h, grid_stage.w + 4, 2, gray)
+                    fill(state, x - 2, y - 2, 2, grid_stage.h + 4, gray)
+                    fill(state, x + grid_stage.w, y - 2, 2, grid_stage.h + 4, gray)
+                end
+                text(state, info.name, x + grid_stage.name_x, y + grid_stage.name_y, info.boss == 1 and computer_red or white)
             end
-            text(state, info.name, x + grid_stage.name_x, y + grid_stage.name_y, info.boss == 1 and computer_red or white)
         end
     end
 end
