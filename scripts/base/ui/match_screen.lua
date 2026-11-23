@@ -442,7 +442,12 @@ local function draw_minibar(context, entry, camera, shake, tick)
     if type(layers) ~= "table" then return end
     local code = minibar_code(entry)
     for _, layer in ipairs(layers) do
-        if type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1
+        if type(layer.pic) == "string" and layer.type == nil and not (type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1)
+           and minibar_for(layer, code) and layer_shown(layer, tick) and effect_ok(layer, entry.hp, entry.max_hp) then
+            -- OpenLF2 change: a picture layer (no type) without w and h is the whole picture (the frame), as in the original.
+            local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0) + (layer.centerx or 0)
+            context.image(layer.pic:gsub("\\", "/"):lower(), x, entry.z + (layer.y or 0), layer.transparency == 1)
+        elseif type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1
            and minibar_for(layer, code) and layer_shown(layer, tick) and effect_ok(layer, entry.hp, entry.max_hp) then
             local width = layer.w
             local kind = layer.type
@@ -788,6 +793,10 @@ local function draw_bossbar(context, view, current)
     context = wide_center() ~= 0 and shifted(context, wide_center(), 0) or context
     for _, layer in ipairs(layers) do
         if layer_shown(layer, view.kill_clock) and effect_ok(layer, boss.hp, boss.max_hp) and type(layer.pic) == "string"
+           and layer.type == nil and not (type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1) then
+            -- OpenLF2 change: a picture layer (no type) without w and h is the whole picture (the frame).
+            context.image(layer.pic:gsub("\\", "/"):lower(), (layer.x or 0) + (layer.centerx or 0), layer.y or 0, layer.transparency == 1)
+        elseif layer_shown(layer, view.kill_clock) and effect_ok(layer, boss.hp, boss.max_hp) and type(layer.pic) == "string"
            and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
             local width, kind = layer.w, layer.type
             if kind == 1 or kind == 2 or kind == 3 then
