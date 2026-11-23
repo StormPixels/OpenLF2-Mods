@@ -1025,8 +1025,23 @@ local function grid_has(path)
     if grid_available[path] == nil then grid_available[path] = pcall(engine.read_resource, path) end
     return grid_available[path]
 end
+-- A picture path from a mode file (`UI\\bgmaps\\maps\\hkc.png`): the first spelling the game has (slashes forward, as written, then lower case).
+local function existing_picture(path)
+    if type(path) ~= "string" or not path:match("%S") then return nil end
+    local plain = (path:gsub("^%s+", ""):gsub("%s+$", ""):gsub("\\", "/"))
+    if grid_has(plain) then return plain end
+    if grid_has(plain:lower()) then return plain:lower() end
+    return nil
+end
+-- Set below, after load_modes: the picture the first <mode> block of a background gives with `small:`, or nil.
+local background_small_picture
+-- Forward declaration: the chosen background's small picture is drawn behind the lists too (see options_menu).
+local small_background
 local function grid_picture(state, row)
     if row == constants.background_rows.random then return grid_bg.random_pic end
+    -- The background's own `small:` (first <mode> block of its data file) is its picture in the list; without it the stock one.
+    local own = background_small_picture and row >= 0 and row < constants.background_rows.lee_on_road and background_small_picture(row)
+    if own then return own end
     local folder = "lor"
     if row ~= constants.background_rows.lee_on_road then
         local entry = state.backgrounds[row + 1]
@@ -1126,6 +1141,13 @@ local function load_modes(row)
     mode_cache[row] = modes
     return modes
 end
+background_small_picture = function(row)
+    for _, mode in ipairs(load_modes(row)) do
+        local picture = existing_picture(mode.small)
+        if picture then return picture end
+    end
+    return nil
+end
 -- May a `hidden:` value be used? game/unlock.allows (cheat codes and the saved keys); a host without it keeps the old rule.
 local function allows(hidden)
     if unlock.allows then return unlock.allows(hidden) end
@@ -1153,8 +1175,6 @@ local function mode_choose(state, mode)
     if not mode.supported then return false end
     state.options.bg_mode = mode.effects
     state.options.bg_mode_title = mode.title
-    -- The mode's own `small:` picture (the map preview in the frame next to the music line); nil keeps the background's map picture.
-    state.options.bg_mode_small = type(mode.small) == "string" and mode.small:match("%S") and (mode.small:gsub("\\", "/")) or nil
     sounds.direct(state, "ok")
     state.mode_grid = nil
     return true
@@ -1164,7 +1184,6 @@ local function grid_choose(state, row)
     state.options.background = row
     state.options.bg_mode = nil
     state.options.bg_mode_title = nil
-    state.options.bg_mode_small = nil
     sounds.direct(state, "ok")
     state.grid = nil
     -- A background of the catalog may have modes to choose from; Random and Lee On Road have none.
@@ -1357,8 +1376,8 @@ local function mode_popup(state, previous_menu)
             local mode = grid.cells[position]
             if mode then
                 local x, y = grid_mode.x + column * grid_mode.step_x, grid_mode.y + line * grid_mode.step_y
-                local picture = (mode.smallb or ""):gsub("\\", "/")
-                if grid_has(picture) then image(state, picture, x, y) end
+                local picture = existing_picture(mode.smallb)
+                if picture then image(state, picture, x, y) end
                 local gray = ((chosen == mode.effects and (chosen ~= nil or position == 1)) and 255)
                     or (position == grid.cursor and 140 or nil)
                 if gray then
@@ -1632,6 +1651,8 @@ local function small_menu(state, previous_menu, context)
             text(state, options.tu1 and "1tu" or "2tu", layer.dx or 271, layer.fy or 17, option_blue)
         end
     end
+    -- The preview frame sits behind the background and mode lists (the original draws the list over it).
+    if state.wide and (state.grid or state.mode_grid) then small_background(state) end
     if state.grid then return grid_popup(state, previous_menu) end
     if state.mode_grid then return mode_popup(state, previous_menu) end
     if state.stage_grid then return stage_popup(state, previous_menu) end
@@ -1759,6 +1780,8 @@ local function options_menu(state, previous_menu, context)
         text(state, background_name(state, options.background), 174, 91, option_blue)
     end
     text(state, difficulties[options.difficulty] or "", 174, 115, option_blue)
+    -- The preview frame sits behind the background and mode lists (the original draws the list over it).
+    if state.wide and (state.grid or state.mode_grid) then small_background(state) end
     if state.grid then return grid_popup(state, previous_menu) end
     if state.mode_grid then return mode_popup(state, previous_menu) end
     if state.stage_grid then return stage_popup(state, previous_menu) end
@@ -1907,7 +1930,7 @@ end
 
 -- <misc> `background_small`: the chosen background's small map picture (bg/sys/map/<name>.bmp) in a frame next to the
 -- music line; Random shows sprite/ui/bg_random.bmp. Stage mode has no single background to show.
-local function small_background(state)
+small_background = function(state)
     if misc.show_small ~= 1 or state.mode == constants.modes.stage then return end
     local row = state.options.background
     local picture
@@ -1918,12 +1941,6 @@ local function small_background(state)
     else
         local entry = state.backgrounds[row + 1]
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
-    end
-    -- A chosen background mode with its own `small:` picture replaces the map picture (when the game has that picture).
-    local mode_small = state.options.bg_mode_small
-    if mode_small and not state.options.random_background then
-        if grid_has(mode_small) then picture = mode_small
-        elseif grid_has(mode_small:lower()) then picture = mode_small:lower() end
     end
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
@@ -1969,7 +1986,7 @@ function selection.update(state, held, context)
     if state.menu == menus.options and state.mode ~= constants.modes.battle then
         options_menu(state, previous_menu, context)
         -- With the menu panel and the music line, not before: the chosen background's small picture.
-        if state.wide then small_background(state) end
+        if state.wide and not (state.grid or state.mode_grid) then small_background(state) end
     elseif state.menu == menus.options and previous_menu ~= menus.options then
         context.action("battle_setup")
     end
