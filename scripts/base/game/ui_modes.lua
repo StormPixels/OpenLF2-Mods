@@ -71,8 +71,16 @@ function ui_modes.entries()
     return list
 end
 
-local function is_mode3(entry)
-    return entry ~= nil and entry.file ~= nil and entry.file:match("mode3%.dat$") ~= nil
+-- Is the mode a 10 player one? The mode file says so itself: `facing: 10` in its <menu_control> block (whichever file
+-- name the game gives it: mode2.dat in one game, mode3.dat in another). Read once per entry.
+local function is_ten_entry(entry)
+    if entry == nil or entry.file == nil then return false end
+    if entry.ten == nil then
+        local text = ui_modes.text(entry)
+        local block = text and text:match("<menu_control>(.-)<menu_control_end>")
+        entry.ten = block ~= nil and tonumber(block:match("facing%s*:%s*(%d+)")) == 10
+    end
+    return entry.ten
 end
 
 -- The key of a layout as it is now: "classic" and "expand" (built into the code), an entry's key of mode.dat, or nil when
@@ -88,11 +96,11 @@ function ui_modes.resolve(layout)
     local width = (layout == "wide 1333" and constants.screen.wide_width) or (layout == "wide 1018" and wide_1018_width) or nil
     if width then
         for _, entry in ipairs(list) do
-            if entry.respond == width and not is_mode3(entry) then return entry.key end
+            if entry.respond == width and not is_ten_entry(entry) then return entry.key end
         end
     elseif layout == "wide 1018 10P" then
         for _, entry in ipairs(list) do
-            if is_mode3(entry) then return entry.key end
+            if is_ten_entry(entry) then return entry.key end
         end
     end
     return nil
@@ -122,9 +130,9 @@ function ui_modes.layout_width(layout)
     return entry and entry.respond or nil
 end
 
--- Does the layout have ten player slots? (the mode of mode3.dat)
+-- Does the layout have ten player slots? (its mode file has `facing: 10` in <menu_control>)
 function ui_modes.is_ten(layout)
-    return is_mode3(entry_of(layout))
+    return is_ten_entry(entry_of(layout))
 end
 -- How many player slots a layout has: 10 in the 10 player layout, 8 otherwise.
 function ui_modes.slot_count(layout)
@@ -172,7 +180,7 @@ function ui_modes.layout_text(layout)
     local width = ui_modes.layout_width(layout)
     if not width or width == classic_width then return nil end
     local entry = entry_of(layout)
-    local ten = is_mode3(entry)
+    local ten = is_ten_entry(entry)
     if ten and not permitted(entry.hidden) then sources[layout] = false return nil end
     local text, source = ui_modes.text(entry)
     if not text and default_files[width] and not ten then text, source = ui_modes.text({file = default_files[width]}) end
@@ -200,7 +208,7 @@ local allowed_cache = {}   -- layout -> true or false
 function ui_modes.layout_allowed(layout)
     local entry = entry_of(layout)
     if not entry then return layout == "classic" or layout == "expand" end
-    if not is_mode3(entry) then return true end
+    if not is_ten_entry(entry) then return true end
     local allowed = allowed_cache[layout]
     if allowed == nil then
         allowed = ui_modes.text(entry) ~= nil
