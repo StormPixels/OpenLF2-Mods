@@ -43,7 +43,7 @@ local layout_targets = {}
 local small_layers = {}
 -- <misc> of mode4.dat: the music line (position, colours) and the small picture of the chosen background in its frame
 -- (position, frame picture, on or off). 1142 is where the classic menu's music line lands in the wide picture.
-local misc = {music_x = 1142, music_y = 3, music_title = 0x5a77d8, music_hint = 0x223fa0, frame_x = 531, frame_y = 4,
+local misc = {music_x = 603, music_y = 3, music_title = 0x5a77d8, music_hint = 0x223fa0, frame_x = 531, frame_y = 4,
     small_x = 538, small_y = 11, show_small = 0, frame_pic = "sprite/ui/menu_clip2b.bmp"}
 layout_targets.misc = misc
 -- LF2 Darkfiren <time> of mode4.dat: the time limits (seconds) the wide options menu offers, and who wins.
@@ -240,7 +240,7 @@ function selection.create(options)
 end
 
 local function pick_fighter(state)
-    local function candidates_for(pool)
+    local function candidates_for(pool, repeats)
         local list = {}
         for index, fighter in ipairs(state.fighters) do
             local allowed
@@ -248,8 +248,9 @@ local function pick_fighter(state)
             else allowed = fighter.id < constants.record_id_ranges.random_fighter_end_exclusive end
             if fighter.record >= 1 and allowed then
                 local taken = false
+                -- `repeats`: the same fighter may be picked twice (fewer fighters than slots, e.g. 10 players).
                 for slot = 0, (state.slot_count or 8) - 1 do
-                    if state.slots[slot].fighter == index then taken = true end
+                    if not repeats and state.slots[slot].fighter == index then taken = true end
                 end
                 if not taken then list[#list + 1] = index end
             end
@@ -258,6 +259,9 @@ local function pick_fighter(state)
     end
     local candidates = state.random_pool and candidates_for(state.random_pool) or {}
     if #candidates == 0 then candidates = candidates_for(nil) end
+    -- OpenLF2 change: with fewer fighters than slots (10 players) allow repeats instead of crashing.
+    if #candidates == 0 and state.random_pool then candidates = candidates_for(state.random_pool, true) end
+    if #candidates == 0 then candidates = candidates_for(nil, true) end
     -- The original would read an uninitialized candidate here.
     assert(#candidates > 0, "no fighter left for a random pick")
     return candidates[engine.random(#candidates) + 1]
@@ -1005,7 +1009,8 @@ local function music_option(state, left, right)
         music.enabled = true
     end
     -- Top right corner: in the wide menu it follows the right edge of the wider picture.
-    local music_x = state.wide and misc.music_x + popup_gap(state) or 603
+    -- OpenLF2 change: the mode file's music_x is used as written (no shift to the right edge of a wide picture).
+    local music_x = state.wide and misc.music_x or 603
     local music_y = state.wide and misc.music_y or 3
     text(state, i18n.tr("Music: %s", i18n.tr(label)), music_x, music_y, state.wide and misc.music_title or music_title)
     text(state, i18n.tr("(Press Left/Right to change)"), music_x, music_y + 17, state.wide and misc.music_hint or music_hint)
@@ -2109,7 +2114,8 @@ small_background = function(state)
     end
     if not grid_has(picture) then return end
     -- The mode files give the classic top right corner (x 531 of 794); in a wider picture it follows the right edge.
-    local gap = popup_gap(state)
+    -- OpenLF2 change: frame_x/small_x are used as the mode file writes them (LF2 Darkfiren does not move them to the right edge).
+    local gap = 0
     -- BG_FRAME (260 x 144 in the game) is the frame of the preview and the background's picture (BG_RANDOM: 246 x 127) sits 7 pixels in.
     -- The mode's `pic` (MENU_CLIP2b, 704 x 353) is a sheet of menu pictures, not a frame: it is not drawn here. The resource is
     -- looked for as a file and, as the original keeps it, in the game's resources (resource.dat).

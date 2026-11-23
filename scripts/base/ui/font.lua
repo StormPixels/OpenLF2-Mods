@@ -155,4 +155,30 @@ function font.gdi(context, text, x, y, color, background, align, size)
         end
     end
 end
+-- OpenLF2 change: the first and last ink row (0..15 of the 16 high cell) shared by the digits 0-9 of WORDS0, so the HUD can
+-- centre "now/total" numbers on a bar vertically. nil when the sheet cannot be read.
+local digit_rows
+function font.digit_rows()
+    if digit_rows == nil then
+        digit_rows = false
+        local ok, ink = pcall(function() return ink_reader(engine.read_resource("pe/words0")) end)
+        if ok and ink then
+            local top, bottom
+            for code = 48, 57 do
+                local cell_x, cell_y = (code % 16) * 16, math.floor(code / 16) * 16 + 1
+                for row = 0, 15 do
+                    for column = 0, 7 do
+                        if ink(cell_x + column, cell_y + row) then
+                            top = math.min(top or row, row)
+                            bottom = math.max(bottom or row, row)
+                        end
+                    end
+                end
+            end
+            if top then digit_rows = {top, bottom} end
+        end
+    end
+    return digit_rows or nil
+end
+
 return font

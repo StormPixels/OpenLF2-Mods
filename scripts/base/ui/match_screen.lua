@@ -34,6 +34,11 @@ local function layer_shown(layer, tick)
     local phase = math.floor(tick or 0) % period
     return phase >= (layer.c1 or 0) and phase <= (layer.c2 or 0)
 end
+-- `effect: N` of a minibar or bossbar layer (LF2 Darkfiren): the layer is only drawn while the hp is below N percent of the maximum.
+local function effect_ok(layer, hp, max_hp)
+    if type(layer.effect) ~= "number" then return true end
+    return (hp or 0) * 100 < layer.effect * math.max(1, max_hp or 1)
+end
 -- `respond` of a layer: 0 both, 1 human only, 2 computer only (readme/dat file/menu face.txt).
 local function layer_for(layer, human)
     if layer.respond == 1 then return human == true elseif layer.respond == 2 then return human ~= true end
@@ -403,8 +408,7 @@ end
 -- order. A layer without a type is a picture (the frame), type 1 is the hp bar, 2 the dark hp, 3 the mp (a bar `max`
 -- wide in value, 500 by default); `facing: 1` fills from the right. `team:` lists and `respond` choose who and which mode
 -- it is for (team table of readme/dat file/minibar.txt: 1-4 teams, 5 stage enemies, 10-13 player independent, 20-27
--- computer independent; respond: the modes, see minibar_for). Not done: types 4 and 5 (fusion time), `effect`, `cc`/`c1`/`c2`,
--- `bound`/`centerx`. [BELUM PASTI] the anchor: x from the character's centre, y from the ground line (z).
+-- computer independent; respond: the modes, see minibar_for). Not done: types 4 and 5 (fusion time), `bound`. OpenLF2 change: `cc`/`c1`/`c2` blink, `effect` (hp below N percent) and `centerx` (x offset) are done. [BELUM PASTI] the anchor: x from the character's centre, y from the ground line (z).
 local minibar_mode = 0
 local function minibar_code(entry)
     if entry.team == constants.teams.enemies then return 5 end
@@ -431,7 +435,7 @@ local function minibar_for(layer, code)
     elseif type(layer.respond) == "number" and layer.respond ~= minibar_mode then return false end
     return true
 end
-local function draw_minibar(context, entry, camera, shake)
+local function draw_minibar(context, entry, camera, shake, tick)
     local display = entry.record.display
     local block = type(display) == "table" and display.minibar or nil
     local layers = block and block.layers
@@ -439,7 +443,7 @@ local function draw_minibar(context, entry, camera, shake)
     local code = minibar_code(entry)
     for _, layer in ipairs(layers) do
         if type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1
-           and minibar_for(layer, code) then
+           and minibar_for(layer, code) and layer_shown(layer, tick) and effect_ok(layer, entry.hp, entry.max_hp) then
             local width = layer.w
             local kind = layer.type
             if kind == 1 or kind == 2 or kind == 3 then
@@ -451,7 +455,8 @@ local function draw_minibar(context, entry, camera, shake)
             end
             if width > 0 then
                 local dx = layer.dx or 0
-                local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0)
+                -- centerx: extra x offset (LF2 Darkfiren example: frame x -41 w 81, bars x -41 w 77 centerx 2 = centred in the frame).
+                local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0) + (layer.centerx or 0)
                 if layer.facing == 1 and width < layer.w then
                     x, dx = x + layer.w - width, dx + layer.w - width
                 end
@@ -706,7 +711,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         glyphs(context, sheet, label, x, entry.z + 3, 9)
     end
     if entry.blink > -25 and not entry.invisible then
-        draw_minibar(context, entry, camera, shake)
+        draw_minibar(context, entry, camera, shake, view.kill_clock)
         draw_combo(context, entry, frame, camera, shake)
     end
     for _, spark in ipairs(entry.sparks) do
@@ -782,8 +787,8 @@ local function draw_bossbar(context, view, current)
     if type(layers) ~= "table" then return end
     context = wide_center() ~= 0 and shifted(context, wide_center(), 0) or context
     for _, layer in ipairs(layers) do
-        if layer_shown(layer, view.kill_clock) and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1
-           and type(layer.h) == "number" and layer.h >= 1 then
+        if layer_shown(layer, view.kill_clock) and effect_ok(layer, boss.hp, boss.max_hp) and type(layer.pic) == "string"
+           and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
             local width, kind = layer.w, layer.type
             if kind == 1 or kind == 2 or kind == 3 then
                 local value = kind == 1 and boss.hp or kind == 2 and boss.dark_hp or boss.mp
@@ -793,7 +798,7 @@ local function draw_bossbar(context, view, current)
                 width = 0
             end
             if width > 0 then
-                local x, dx = layer.x or 0, layer.dx or 0
+                local x, dx = (layer.x or 0) + (layer.centerx or 0), layer.dx or 0
                 if layer.facing == 1 and width < layer.w then x, dx = x + layer.w - width, dx + layer.w - width end
                 context.sprite(layer.pic:gsub("\\", "/"):lower(), {dx, layer.dy or 0, width, layer.h}, x, layer.y or 0, layer.transparency == 1)
             end
@@ -967,12 +972,16 @@ local function draw_stats_count(context, state, value, column, row, counts, hp_b
                 local advance = count.type ~= 14 and count.type ~= 18 and count.type ~= 19 and type(count.loop) == "number" and count.loop >= 1 and count.loop or 9
                 local left = column + count.x - (right and #text * advance or 0)
                 -- OpenLF2 change: the "now/total" numbers (types 18 and 19) are centred in their own bar (hp_bar / mp_bar of the
-                -- fighter or the style) whatever their length; the x of the count is ignored, y still comes from the data.
+                -- fighter or the style) whatever their length; x and y of the count are ignored.
                 local bar = count.type == 18 and hp_bar or count.type == 19 and mp_bar or nil
+                local top = row + count.y
                 if bar and type(bar.x) == "number" and type(bar.w) == "number" then
                     left = column + bar.x + math.floor((bar.w - #text * advance) / 2)
+                    -- Vertically too: the ink of the digits (not the 16 high cell) is centred on the bar.
+                    local rows = type(bar.y) == "number" and type(bar.h) == "number" and font.digit_rows() or nil
+                    if rows then top = row + bar.y + math.floor((bar.h - (rows[2] - rows[1] + 1)) / 2) - rows[1] end
                 end
-                glyphs(context, sheet, text, left, row + count.y, advance)
+                glyphs(context, sheet, text, left, top, advance)
             end
         end
     end
