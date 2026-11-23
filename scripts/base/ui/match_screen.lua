@@ -27,6 +27,15 @@ local function wide_gap()
     return 0
 end
 local function wide_center() return math.floor(wide_gap() / 2 + 0.5) end
+-- The display blocks (<hp_bar>, <minibar>, <bossbar>, <team_flag>, ...) of a fighter: the host puts them in the object data
+-- (record.data.display); the record itself carries only id, kind, data, movement and frames.
+local function display_of(record)
+    if type(record) ~= "table" then return nil end
+    if type(record.display) == "table" then return record.display end
+    local data = record.data
+    if type(data) == "table" and type(data.display) == "table" then return data.display end
+    return nil
+end
 -- Blinking of a layer (cc, c1, c2 as in a background layer): hidden outside c1..c2 of every cc ticks; shown always without cc.
 local function layer_shown(layer, tick)
     local period = type(layer.cc) == "number" and math.floor(layer.cc) or 0
@@ -436,7 +445,7 @@ local function minibar_for(layer, code)
     return true
 end
 local function draw_minibar(context, entry, camera, shake, tick)
-    local display = entry.record.display
+    local display = display_of(entry.record)
     local block = type(display) == "table" and display.minibar or nil
     local layers = block and block.layers
     if type(layers) ~= "table" then return end
@@ -733,7 +742,7 @@ local fallback_hud = {frame_pic = "pe/frame", bars_pic = "pe/bars", frame_x = 0,
 
 -- A bar of the fighter's own <hp_bar>/<mp_bar> (record.display) when it gives a position and a width, else the style's.
 local function bar_of(value, name, style)
-    local display = value.record.display
+    local display = display_of(value.record)
     local own = type(display) == "table" and display[name] or nil
     -- Only the plain horizontal bar (type 1, or none given) is drawn from it; other types are [BELUM PASTI] and keep the style's.
     if type(own) == "table" and (own.type == nil or own.type == 1) and type(own.x) == "number"
@@ -786,7 +795,7 @@ local function draw_bossbar(context, view, current)
     if current.mode ~= constants.modes.stage or type(slot) ~= "number" then return end
     local boss
     for _, entry in ipairs(view.items) do if entry.index == slot then boss = entry break end end
-    local display = boss and boss.record.display
+    local display = boss and display_of(boss.record)
     local block = type(display) == "table" and display.bossbar or nil
     local layers = block and block.layers
     if type(layers) ~= "table" then return end
@@ -1102,11 +1111,12 @@ local function draw_status(context, state, style)
                 bar(style.col_dmp, mp_bar.w, mp_bar)
                 bar(style.col_mp, filled(math.min(value.mp, constants.points.full), mp_bar), mp_bar)
             end
-            local own_flag = type(value.record.display) == "table" and value.record.display.team_flag or nil
+            local own_display = display_of(value.record)
+            local own_flag = own_display and own_display.team_flag or nil
             local flag = type(own_flag) == "table" and type(own_flag.x) == "number" and type(own_flag.y) == "number" and own_flag or style.team_flag
             glyphs(context, label_font(value.team), string.char(254), column + flag.x, row + flag.y, 8)
             -- A character's own blocks replace the style's (the HUD style file: ui_hud.parse).
-            local own = type(value.record.display) == "table" and value.record.display or {}
+            local own = own_display or {}
             draw_stats_count(context, state, value, column, row, own.stats_count or style.stats_count, hp_bar, mp_bar)
             draw_effects(context, value, column, row, state.elapsed, own.effect and own.effect.layers or style.effect)
             draw_nickname(context, value, state.items[slot] ~= nil, slot, column, row, own.name or style.name)
