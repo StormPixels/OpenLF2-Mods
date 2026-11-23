@@ -225,6 +225,8 @@ function selection.create(options)
     -- A championship has eight entrants whatever the layout: it keeps the eight slots in the 10 player layout.
     local championship = mode == constants.modes.championship or mode == constants.modes.team_championship
     state.slot_count = not championship and state.wide and user_options.slot_count and user_options.slot_count(layout_name) or 8
+    -- The 10 player mode (mode3.dat) has no <grid_char>: no roster of faces, panel or taps (championship included).
+    state.no_roster = state.wide and ui_modes.is_ten(layout_name) or nil
     if mode == constants.modes.battle and state.slot_count == 10 then
         for slot = 0, 9 do slots[slot].team = math.floor(slot / 5) + 1 end   -- two sides of five
     end
@@ -2031,7 +2033,9 @@ local function roster_fighters(state)
     return cells
 end
 local function roster_panel(state)
-    image(state, roster.panel_pic, roster.panel_x, roster.panel_y)
+    -- A game whose mode file has no <grid_char> (and no sprite/ui/grid/box_char2.bmp) has no roster panel: a missing
+    -- picture is skipped, not asked of the host (which stops the app on it).
+    if grid_has(roster.panel_pic) then image(state, roster.panel_pic, roster.panel_x, roster.panel_y) end
 end
 local function roster_pass(state, held)
     local cells = roster_fighters(state)
@@ -2066,7 +2070,7 @@ local function roster_pass(state, held)
         local x, y = roster_cell(position - 1)
         local fighter = state.fighters[fighter_index]
         local face = fighter and fighter.small or roster.small_pic
-        image(state, face, x, y)
+        if fighter or grid_has(face) then image(state, face, x, y) end
         local owner = owners[fighter_index]
         if owner then
             fill(state, x - 1, y - 1, roster.width + 2, 1, owner.gray)
@@ -2125,13 +2129,13 @@ function selection.update(state, held, context)
     use_layout(state)
     fill(state, 0, 0, state.wide and (state.width or constants.screen.wide_width) or constants.screen.width, state.height or constants.screen.height, 0)
     if state.wide then
-        roster_panel(state)
+        if not state.no_roster then roster_panel(state) end
         image(state, menu.pic, menu.x, menu.y)
     else
         image(state, "pe/charmenu", 40, 33)
     end
     slots_pass(state, held)
-    if state.wide then roster_pass(state, held) end
+    if state.wide and not state.no_roster then roster_pass(state, held) end
     if state.layout_note then text(state, state.layout_note, 6, (state.height or constants.screen.height) - 14, 0xffd34c) end
     if state.title then
         -- hexf is the text colour, hexb the shadow colour (0xRRGGBB).
