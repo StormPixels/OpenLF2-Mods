@@ -44,6 +44,37 @@ function menu_small.parse(text)
     return layers
 end
 
+-- {[layer number] = {name = text, hex = Windows colour or nil}} for the first <mode> block that has layers (LF2 Darkfiren's
+-- difficulty names: layers 1 to 5 easy, normal, difficult, crazy, dummy; 6 to 10 the hitlag modes -1 to -5; 11 and 12 1tu, 2tu).
+-- A line reads `name: Easy   hex: 16751515` (the name runs up to `hex:`; a name may hold spaces). mode3.dat has a second
+-- <mode> block (game modes): only the first one with layers is used.
+function menu_small.parse_modes(text)
+    local names, inside, found = {}, false, false
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        line = line:gsub("#.*", "")
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag == "mode" and not found then inside = true
+        elseif tag == "mode_end" then
+            if inside and found then break end
+            inside = false
+        elseif inside then
+            local number = line:match("^%s*layer%s*:%s*(%d+)")
+            if number then
+                names.current = tonumber(number)
+            elseif names.current then
+                local name, hex = line:match("name%s*:%s*(.-)%s*hex%s*:%s*(%d+)")
+                if not name then name = line:match("name%s*:%s*(.-)%s*$") end
+                if name and name ~= "" then
+                    names[names.current] = {name = name, hex = tonumber(hex)}
+                    found = true
+                end
+            end
+        end
+    end
+    names.current = nil
+    return names
+end
+
 -- May a `hidden:` value be used? `cheat` is a boolean (the cheat code is in: 1 to 3 show) or a function(hidden) -> boolean
 -- such as game/unlock.allows (which also knows the saved lock keys, 10 and up).
 local function permitted(hidden, cheat)
@@ -55,11 +86,13 @@ end
 -- Is the layer shown? hidden 4 and the lock values (10 and up) never; 1 to 3 once the cheat code is in. A layer
 -- that lists game modes is shown in those only. `game_mode`: 0 versus, 1 stage, 2 and 3 championships, 4 battle, 5 demo.
 -- A `kind: 1` layer belongs to the extra settings (TU mode, Exit): shown only while `extra_open` is set.
-function menu_small.shown(layer, game_mode, cheat, extra_open)
+function menu_small.shown(layer, game_mode, cheat, extra_open, number)
     if not layer or not (layer.small or layer.head) then return false end
     local hidden = layer.hidden or 0
     if not permitted(hidden, cheat) then return false end
     if layer.kind == 1 and not extra_open then return false end   -- the extra settings, closed
+    -- readme (mode dat, <menu_small>): "if mode not specified for layer 6~11, the layer will not appear in any mode".
+    if number and number >= 6 and number <= 11 and not layer.modes then return false end
     if layer.modes and not layer.modes[game_mode] then return false end
     return true
 end
@@ -74,10 +107,11 @@ function menu_small.rows(layers, game_mode, cheat, forced, skip, extra_open)
     local rows, y = {}, nil
     for _, number in ipairs(numbers) do
         local layer = layers[number]
-        local show = menu_small.shown(layer, game_mode, cheat, extra_open)
+        local show = menu_small.shown(layer, game_mode, cheat, extra_open, number)
         -- A `kind: 1` layer stays out while the extra settings are closed, forced or not.
         local closed = layer and layer.kind == 1 and not extra_open
-        if not show and not closed and forced and forced[number] and layer.small then
+        -- Forced rows are those whose `mode:` list leaves this game mode out; a layer 6 to 11 with no list is in no mode at all.
+        if not show and not closed and forced and forced[number] and layer.small and layer.modes then
             local hidden = layer.hidden or 0
             show = permitted(hidden, cheat)
         end

@@ -94,3 +94,13 @@ Layer `state:` (1 saat ronde mulai, 2 saat selesai): `set_phase(view, fase)`; `t
 - Pembantu (`global_dat_text`): `data_path_from_system_dat`, `control_path_from_system_dat` (berkas apa saja di bawah data/; tag di blok setelahnya tidak dihitung; di luar data/ atau mengandung `..` = bawaan).
 - `temp:`: tidak ada pemakai `temporary.txt` di OpenLF2, jadi tidak ada yang perlu diikuti.
 - **[BELUM PASTI]** `temporary.txt` pada Darkfiren asli (fungsinya tidak dijelaskan readme selain "dapat dimatikan dengan menghapus tag").
+
+## R24 (AI5): "extra setting" u17 pada panel `<menu_small>` (menu karakter)
+Berkas yang disentuh (milik AI4/AI2, dikirim sebagai diff terpisah `HOOK_extra_settings_AI5.diff`): `game/menu_small.lua`, `ui/character_select.lua`, `ui/flow.lua`, `game/match.lua`.
+- Layer 6 (tombol Open/Close Extra Settings): `small`/`head` dipakai saat ON (terbuka), `smallb`/`smallc` saat OFF, sesuai readme. **[BELUM PASTI]** arah ini (contoh readme memakai gambar yang sama); balik dengan `extra_on_uses_small = false` di `character_select.lua`. Kotak centang `smalld` digambar di (`dx`, `y + dy` atau `fy`) saat terbuka (data mode2 memberi `dx: 999`, jadi di luar layar).
+- Layer 6 sampai 11 tanpa `mode:` tidak tampil di mode mana pun (`menu_small.shown(..., number)`); baris "dipaksa" (7, 8) hanya untuk layer yang punya daftar `mode:`.
+- `fy` (y tetap, mengalahkan `dy`) dipakai di layer 5, 7, 8, 9 (teks), 10 dan 6 (kotak centang).
+- `caughtact: 1` layer 11: kotak 1tu/2tu selalu tampil walau baris tertutup (selama layer boleh tampil di mode itu). `caughtact: 1` layer 9: syarat tombol J untuk respawn acak (data mode2 tidak memberinya, jadi J tidak berlaku di sana).
+- Layer 5: nama dan warna kesulitan dari blok `<mode>` (`menu_small.parse_modes`, blok pertama yang punya layer; bawaan lama bila tidak ada). Mode hitlag: tombol Defend (`f`) di baris kesulitan memutar 0, -1 ... -5; namanya (layer 6 sampai 10) digambar di (`dvx`, `dvy`). Pilihan dibawa ke `options.hitlag` dan `state.hitlag`, dan dimatikan di jaringan dan rekaman. **[BELUM TERHUBUNG]** nilai hitlag belum dibaca combat (bagian AI3: attacker 3, victim -3, hitBlock 3, blockstun -5 dikurangi per mode, lihat readme `hitlag mode.txt`).
+- Blok "extra settings" readme (`pickedact`, `centerx`, `centery`, `pic:`): baris terpilih dengan `pickedact: 1` menggambar `pic` di (`x + centerx`, `y baris + centery`); `pickedact: 2` di (`centerx`, `centery`). `transparency: 0` tanpa hitam transparan. Tanpa `pickedact`, `pic` tidak digambar.
+- Belum diuji di game; hanya sintaks dan `parse_modes`/`rows` yang dicoba dengan Lua 5.3.

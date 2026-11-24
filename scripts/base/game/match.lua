@@ -85,6 +85,7 @@ function match.create(options)
     -- The menu's More options (LF2 Darkfiren): item drops, transform to LouisEX, respawn shuffle.
     state.no_item_drops, state.no_transform = options.no_item_drops, options.no_transform
     state.tu1 = options.tu1
+    state.hitlag = options.hitlag   -- 0 / nil normal, -1 ... -5: the menu's hitlag mode (not read by combat yet)
     -- LF2 Darkfiren's time limit (seconds, 30 ticks each): when it runs out the round ends and the fighters lose
     -- control; time_type says who wins (1 highest hp, 2 highest dhp, 3 most damage, 4 most kills).
     state.time_limit = options.time_limit and options.time_limit > 0 and options.time_limit or nil

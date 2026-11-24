@@ -41,6 +41,7 @@ end
 local layout_targets = {}
 -- The options panel as LF2 Darkfiren draws it: the <menu_small> layers of mode4.dat (game/menu_small.lua).
 local small_layers = {}
+local small_modes = {}   -- <mode> of the mode file: {[layer] = {name, hex}} (difficulty, hitlag and TU names)
 -- <misc> of mode4.dat: the music line (position, colours) and the small picture of the chosen background in its frame
 -- (position, frame picture, on or off). 1142 is where the classic menu's music line lands in the wide picture.
 local misc = {music_x = 1142, music_y = 3, music_title = 0x5a77d8, music_hint = 0x223fa0, frame_x = 531, frame_y = 4,
@@ -192,7 +193,7 @@ function selection.create(options)
     tco.from, tco.to, tco.done = 0x1946ff, 0xafdcff, white
     time_list, time_type = {}, 1
     cost_settings = {kind = 100, pools = {}, groups = {}}
-    small_layers = {}
+    small_layers, small_modes = {}, {}
     local mode_text, mode_source
     local layout_name = user_options.current().battlefield_layout
     local width = user_options.wide_width(layout_name)
@@ -203,6 +204,7 @@ function selection.create(options)
             time_type, time_list = mode_layout.time_limits(mode_text)
             cost_settings = mode_layout.cost_settings(mode_text)
             small_layers = menu_small.parse(mode_text)
+            small_modes = menu_small.parse_modes(mode_text)
             local from, to, done = mode_layout.text_colors(mode_text)
             tco.from, tco.to, tco.done = from or tco.from, to or tco.to, done or tco.done
         end
@@ -961,6 +963,8 @@ local option_highlights = {
 }
 local difficulties = {[constants.difficulties.easy] = "Easy", [constants.difficulties.normal] = "Normal",
     [constants.difficulties.difficult] = "Difficult", [constants.difficulties.crazy] = "CRAZY!"}
+local difficulty_layers = {[constants.difficulties.easy] = 1, [constants.difficulties.normal] = 2,
+    [constants.difficulties.difficult] = 3, [constants.difficulties.crazy] = 4}
 local music_names = {[0] = "Random", "Main Theme", "Stage 1", "Stage 2", "Stage 3", "Stage 4",
     "Stage 5", "Boss", "Final Boss"}
 local function background_name(state, row)
@@ -1680,6 +1684,11 @@ end
 -- (`head` and `smallc` the lit ones). The layers marked `kind: 1` (7 to 12: background mode, time, cost, drops, TU mode, Exit)
 -- are shown only while it is open. mode4.dat has no `kind` and a layer 6 that is never shown, so its rows are always there.
 local extra_toggle = 6
+-- readme (mode dat, layer 6): `small`/`head` are the pictures while the extra settings are ON (open), `smallb`/`smallc` while
+-- they are OFF. [BELUM PASTI] whether the original's pictures read that way round (the readme's own example gives the same
+-- file for both); set this to false to swap the two again.
+local extra_on_uses_small = true
+local hitlag_steps = 5   -- hitlag modes 0 (normal) and -1 to -5 (readme/hitlag mode.txt); `D` (defend) on the difficulty row cycles them
 local small_forced = {[7] = true, [8] = true}
 local function small_rows(state)
     local stage_mode = state.mode == constants.modes.stage
@@ -1773,9 +1782,13 @@ local function small_menu(state, previous_menu, context)
         elseif number == 7 and not has_modes then base, light = layer.smallb or base, nil
         elseif number == 8 and stage_mode then base, light = layer.smallb or base, nil
         elseif number == 10 then base, light = (cost_on and layer.head) or layer.smalld or layer.head, nil
-        elseif number == extra_toggle and options.extra_open then base, light = layer.smallb or base, layer.smallc or light end
+        elseif number == extra_toggle and (options.extra_open == true) ~= extra_on_uses_small then base, light = layer.smallb or base, layer.smallc or light end
         if base then keyed_image(state, base, x, y) end
         if selected and light then keyed_image(state, light, x, y) end
+        -- Layer 6's check box (`smalld` at `dx`, `y + dy`, or at `fy`), drawn while the extra settings are on.
+        if number == extra_toggle and options.extra_open and layer.smalld and layer.dx then
+            keyed_image(state, layer.smalld, layer.dx, layer.fy or (y + (layer.dy or 0)))
+        end
         if number == 3 and options.hide_random and layer.smallb then keyed_image(state, layer.smallb, layer.dx or 0, layer.dy or 0)
         elseif number == 4 then
             if stage_mode then
@@ -1786,23 +1799,33 @@ local function small_menu(state, previous_menu, context)
                 text(state, background_name(state, options.background), layer.dx or 174, layer.dy or 91, color)
             end
         elseif number == 5 then
-            text(state, difficulties[options.difficulty] or "", layer.dx or 174, y + (layer.dy or 4), option_blue)
+            -- The name and colour come from the mode file's <mode> (layers 1 to 4: easy, normal, difficult, crazy); the
+            -- built-in names stay for a file without it. `fy` is a fixed y that wins over `dy`.
+            local entry = small_modes[difficulty_layers[options.difficulty]]
+            text(state, entry and entry.name or difficulties[options.difficulty] or "", layer.dx or 174,
+                layer.fy or (y + (layer.dy or 4)), entry and menu_small.colour(entry.hex) or option_blue)
+            -- The hitlag mode (<mode> layers 6 to 10 for -1 to -5) at (`dvx`, `dvy`), not moved by the row loop.
+            local hitlag = options.hitlag or 0
+            local hitlag_entry = hitlag < 0 and small_modes[5 - hitlag]
+            if hitlag_entry then
+                text(state, hitlag_entry.name, layer.dvx or 271, layer.dvy or 37, menu_small.colour(hitlag_entry.hex) or option_blue)
+            end
         elseif number == 7 and not small_disabled(7, stage_mode, has_modes) then
             local modes = visible_modes(options.background)
-            text(state, options.bg_mode_title or (modes[1] and modes[1].title) or "", layer.dx or 174, y + (layer.dy or 5), color)
+            text(state, options.bg_mode_title or (modes[1] and modes[1].title) or "", layer.dx or 174, layer.fy or (y + (layer.dy or 5)), color)
         elseif number == 8 and not stage_mode then
             local limit = time_list[options.time_index]
-            text(state, limit and string.format("%d:%02d", math.floor(limit / 60), limit % 60) or "Off", layer.dx or 174, y + (layer.dy or 5), color)
+            text(state, limit and string.format("%d:%02d", math.floor(limit / 60), limit % 60) or "Off", layer.dx or 174, layer.fy or (y + (layer.dy or 5)), color)
         elseif number == 9 then
             if cost_on then
                 if layer.smallb then keyed_image(state, layer.smallb, layer.dvx or 108, y + (layer.dvy or 8)) end
-                text(state, tostring(cost_settings.pools[options.cost_index]), layer.dx or 188, y + (layer.dy or 8), color)
+                text(state, tostring(cost_settings.pools[options.cost_index]), layer.dx or 188, layer.fy or (y + (layer.dy or 8)), color)
                 if options.shuffle and layer.smallb then keyed_image(state, layer.smallb, layer.next or 276, y + (layer.dvy or 8)) end
             end
         elseif number == 10 then
             local mark = layer.smallp
             if mark then
-                local top = y + (layer.dy or 8)
+                local top = layer.fy or (y + (layer.dy or 8))
                 if options.item_drops ~= false then keyed_image(state, mark, layer.dx or 65, top) end
                 if options.allow_transform ~= false then keyed_image(state, mark, layer.dvx or 151, top) end
                 if cost_on and options.shuffle then keyed_image(state, mark, layer.next or 276, top) end
@@ -1813,10 +1836,25 @@ local function small_menu(state, previous_menu, context)
             end
         end
     end
-    -- The TU mode's state sits in a black box at the Fight! row (layer 11's `dx`, `fy`), while layer 11's own row is shown.
+    -- The "extra settings" of the readme (mode dat, <menu_small>): the picked row (the selected one) shows its `pic` when it
+    -- has `pickedact`. 1: at (`x` + `centerx`, the row's y + `centery`); 2: at (`centerx`, `centery`) whatever the row loop gave.
+    -- `transparency: 0` leaves black as black.
+    for _, row in ipairs(rows) do
+        local layer = small_layers[row.layer]
+        if row.layer == options.small_row and layer.pic and (layer.pickedact == 1 or layer.pickedact == 2) then
+            local px, py = layer.centerx or 0, layer.centery or 0
+            if layer.pickedact == 1 then px, py = (layer.x or 3) + px, row.y + py end
+            if layer.transparency == 0 then image(state, layer.pic, px, py) else keyed_image(state, layer.pic, px, py) end
+        end
+    end
+    -- The TU mode's state sits in a black box at the Fight! row (layer 11's `dx`, `fy`), while layer 11's own row is shown;
+    -- with `caughtact: 1` it is always there (the extra settings closed too), as long as the layer may show in this mode.
     local tu = small_layers[11]
     local tu_shown = false
     for _, row in ipairs(rows) do if row.layer == 11 then tu_shown = true end end
+    if tu and not tu_shown and tu.caughtact == 1 then
+        tu_shown = menu_small.shown(tu, state.mode, allows, true, 11)
+    end
     if tu and tu_shown then
         local box_x, box_y = (tu.dx or 271), (tu.fy or 17)
         fill(state, box_x - 3, box_y - 2, 29, 15, 0)
@@ -1835,7 +1873,7 @@ local function small_menu(state, previous_menu, context)
         if slot.ready then
             local held = state.held[index] or ""
             local key
-            for _, candidate in ipairs({"u", "d", "r", "l", "c", "b"}) do
+            for _, candidate in ipairs({"u", "d", "r", "l", "c", "b", "f"}) do
                 if pressed(held, candidate) then key = candidate; break end
             end
             if key then keys[key] = trigger(slot, accept) or keys[key]
@@ -1856,10 +1894,17 @@ local function small_menu(state, previous_menu, context)
     if keys.d then move(1) end
     music_option(state, keys.l, keys.r)
     local number = options.small_row
+    local layer9_j = small_layers[9] and small_layers[9].caughtact == 1
     if keys.b then
         if number == 3 then options.hide_random = not options.hide_random; sounds.direct(state, "ok")
-        elseif number == 9 and cost_on then options.shuffle = not options.shuffle; sounds.direct(state, "ok")
+        -- Layer 9's `caughtact: 1` allows J for the random respawn.
+        elseif number == 9 and cost_on and layer9_j then options.shuffle = not options.shuffle; sounds.direct(state, "ok")
         elseif number == 10 then options.sub_row = options.sub_row % sub_count + 1; sounds.direct(state, "ok") end
+    end
+    -- `D` (defend) on the difficulty row: the hitlag mode 0, -1 ... -5 (readme/hitlag mode.txt).
+    if keys.f and number == 5 then
+        options.hitlag = -(((-(options.hitlag or 0)) + 1) % (hitlag_steps + 1))
+        sounds.direct(state, "ok")
     end
     if not keys.c then return end
     if number == 1 then option_action(state, context, option_rows.start, {})
@@ -2031,6 +2076,8 @@ function selection.match_options(state)
         respawn_shuffle = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0
             and state.options.shuffle or nil,
         tu1 = state.wide and state.options.tu1 == true or nil,
+        -- [BELUM TERHUBUNG] the hitlag mode (0, -1 ... -5) is chosen and carried to the match; combat does not read it yet.
+        hitlag = state.wide and (state.options.hitlag or 0) ~= 0 and state.options.hitlag or nil,
         bg_mode = state.mode ~= constants.modes.stage and not state.options.random_background and state.options.bg_mode or nil,
         fighters = state.fighters, backgrounds = state.backgrounds, slots = slots}
 end
