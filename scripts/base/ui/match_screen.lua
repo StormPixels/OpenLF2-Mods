@@ -1342,24 +1342,22 @@ local function pad_possible(view, current)
     return view.paused and not current.random_game and not current.replay and ui_modes.misc_control(options.current().battlefield_layout)
 end
 local function pause_layout(view, current)
+    current = current or {}
     local layout = options.current().battlefield_layout
-    local which = {}
-    if summary_possible(view, current) then which[#which + 1] = "summary" end
+    -- The exe (routine 0x459370 draws, 0x4592A0 collects) stacks the boxes that pass their condition from the top: the first at
+    -- y 133, 28 pixels more for each next one, no gap for a box that is left out; a box is 20 x 20. Conditions: Summary always;
+    -- change controls `<misc> bound: 1` (not in a demo or a replay); hit counter `<combo> bound: 1`; radar `<radar> bound: 1` and
+    -- `action: 1`; death counter `<bmp_begin> bound: 1` and the current mode listed by its `mode:` lines.
+    local which = {"summary"}
     if pad_possible(view, current) then which[#which + 1] = "controls" end
     local combo = ui_modes.combo_settings(layout)
     if combo and combo.checkbox then which[#which + 1] = "combo" end
     local style = ui_hud.current(layout, options.wide_width(layout), options.current().hud_style)
-    -- exe (collector near 0x4592A0): the radar box needs `bound: 1` (parse_radar) and `action: 1` of <radar>.
     if style and style.radar and style.radar.action == 1 then which[#which + 1] = "radar" end
-    -- exe: the kill board box shows only when the current mode is in the `mode:` lines of <bmp_begin> (config lookup 0x45BFE0 gives
-    -- -1 otherwise). Without `mode:` lines every mode is accepted here. [BELUM PASTI] the exe's treatment of an empty list.
     local kill = ui_modes.kill_settings(layout)
-    if kill and kill.checkbox and (not kill.modes or kill.modes[(current or {}).mode]) then which[#which + 1] = "kill" end
-    -- exe (draw routine 0x459370): a box is 20x20, stacked from y 133 down with a pitch of 28 per box that passes its condition.
-    -- [BELUM PASTI] x: the right margin of 6 is measured on the Darkfiren videos, not read from the exe.
-    local size = 20
-    local rows, x = {}, constants.screen.width + wide_gap() - 6 - size
-    for index, name in ipairs(which) do rows[index] = {which = name, x = x, y = 133 + 28 * (index - 1), size = size} end
+    if kill and kill.checkbox and not (kill.modes and not kill.modes[current.mode]) then which[#which + 1] = "kill" end
+    local rows, x = {}, constants.screen.width + wide_gap() - 27
+    for index, name in ipairs(which) do rows[index] = {which = name, x = x, y = 133 + 28 * (index - 1), size = 20} end
     return rows
 end
 -- `Change controls` (the original opens its controls window): until that window exists here it opens a list of the four key sets
@@ -1367,7 +1365,7 @@ end
 -- change is kept for this run only (nothing is saved). [BELUM PASTI] how Darkfiren treats the name and the keys.
 local function control_rows(rows)
     local last = rows[#rows]
-    local top = last and (last.y + 28) or 104
+    local top = last and (last.y + 32) or 133
     local result = {}
     for set = 1, 4 do result[set] = {set = set, x = (last and last.x or 0) - 110, y = top + 18 * (set - 1), w = 130, h = 16} end
     return result
