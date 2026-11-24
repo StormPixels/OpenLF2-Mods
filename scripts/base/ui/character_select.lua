@@ -203,6 +203,13 @@ function selection.create(options)
             mode_layout.apply(mode_text, layout_targets)
             time_type, time_list = mode_layout.time_limits(mode_text)
             cost_settings = mode_layout.cost_settings(mode_text)
+            -- `bound: 1` of <cost> (readme/mode dat.txt): the cost mode is on by default, with the first pool, in the modes the block names
+            -- (`mode:` lines; all of them when it names none), until the player changes it. A menu that comes back keeps its choice.
+            if not previous.options and cost_settings.bound == 1 and #cost_settings.pools > 0 then
+                local listed = #cost_settings.modes == 0
+                for _, listed_mode in ipairs(cost_settings.modes) do if listed_mode == mode then listed = true end end
+                if listed then options.cost_index = 1 end
+            end
             small_layers = menu_small.parse(mode_text)
             small_modes = menu_small.parse_modes(mode_text)
             local from, to, done = mode_layout.text_colors(mode_text)
@@ -223,6 +230,14 @@ function selection.create(options)
         if state.wide and file_width then state.width = file_width end
     end
     state.menu_modes = state.wide and mode_text and ui_modes.repeated(mode_text, "menu_control", "mode") or nil
+    -- <background> of the mode file (readme/mode dat.txt, "NEW image display at charmenu with d key"): D (defend) shows the picture `pic`
+    -- at (x, y) for `bound` ticks (100 without it) while a player has not yet pressed A or J; another player pressing D shows it
+    -- again. `transparency: 1` makes black clear. [BELUM PASTI] `respond` and `effect` (kept, not drawn differently).
+    local hint = state.wide and mode_text and mode_layout.blocks(mode_text).background or nil
+    if type(hint) == "table" and type(hint.pic) == "string" and hint.pic ~= "" then
+        state.hint = {pic = hint.pic, x = type(hint.x) == "number" and hint.x or 0, y = type(hint.y) == "number" and hint.y or 0,
+            ticks = type(hint.bound) == "number" and hint.bound > 0 and hint.bound or 100, transparency = hint.transparency == 1}
+    end
     -- Ten player slots only in the 10 player layout, and only when it really drew (a layout that fell back is the classic menu).
     -- A championship has eight entrants whatever the layout: it keeps the eight slots in the 10 player layout.
     local championship = mode == constants.modes.championship or mode == constants.modes.team_championship
@@ -370,16 +385,20 @@ local function menu_face_of(fighter)
     end
     return cached or nil
 end
+-- `bound: N` of a layer (update log 21 December 2024, "to match the layer animation with the skin number selected"): the layer is
+-- shown only while skin N is worn (the fighter's own look is skin 1); 0 or no tag: every skin. [BELUM PASTI] this reading.
 local function draw_menu_face(state, slot, fighter, x0, y0)
     local layers = menu_face_of(fighter)
     if not layers then return end
     local human = slot.phase < computer_phase
+    local skin_number = chosen_skin(slot) or 1
     for index = 1, math.min(#layers, 30) do
         local layer = layers[index]
         local wanted = layer.respond == 1 and human or layer.respond == 2 and not human or (layer.respond ~= 1 and layer.respond ~= 2)
         local period = type(layer.cc) == "number" and math.floor(layer.cc) or 0
         local shown = period <= 0 or ((state.frames or 0) % period >= (layer.c1 or 0) and (state.frames or 0) % period <= (layer.c2 or 0))
-        if wanted and shown and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
+        local skin_ok = type(layer.bound) ~= "number" or layer.bound <= 0 or layer.bound == skin_number
+        if wanted and shown and skin_ok and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
             local picture = layer.pic:gsub("\\", "/"):lower()
             local copies = type(layer.amount) == "number" and layer.amount >= 1 and math.floor(layer.amount) or 1
             local spacing = type(layer.loop) == "number" and layer.loop or layer.w
@@ -629,6 +648,8 @@ end
 
 local function fighter_slot(state, slot, keys, col, row)
     if slot.phase_grid then phase_grid_slot(state, slot, keys) return end
+    if state.hint_until and (pressed(keys, "c") or pressed(keys, "b")) then state.hint_until = nil end   -- A or J closes the picture
+    if state.hint and pressed(keys, "f") then state.hint_until = (state.frames or 0) + state.hint.ticks end
     if pressed(keys, "r") then
         if trigger(slot) then next_fighter(state, slot) end
     elseif pressed(keys, "l") then
@@ -2206,6 +2227,10 @@ function selection.update(state, held, context)
     slots_pass(state, held)
     if state.wide and not state.no_roster then roster_pass(state, held) end
     if state.layout_note then text(state, state.layout_note, 6, (state.height or constants.screen.height) - 14, 0xffd34c) end
+    if state.hint and state.hint_until and (state.frames or 0) < state.hint_until then
+        local draw = state.hint.transparency and keyed_image or image
+        draw(state, state.hint.pic, state.hint.x, state.hint.y)
+    end
     state.last_menu = state.menu
     if state.menu == menus.computer_count then computer_count_menu(state, previous_menu) end
     if state.menu == menus.computer_slots or state.menu == menus.options then computer_menu(state, previous_menu) end

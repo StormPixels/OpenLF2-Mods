@@ -31,6 +31,13 @@ function st_stats.recmp(value, cost)
     return cost
 end
 
+-- stats.bound: 1 (readme "dat file/stats.txt", "Allow object to regenerate mp when hiding"): the object keeps its mp recovery
+-- while hidden or invincible (blink below 0), which the engine otherwise stops.
+function st_stats.regen_mp_hidden(value)
+    local stats = st_stats.of(value)
+    return stats ~= nil and stats.bound == 1
+end
+
 -- Hit points a regeneration step gives (0 = none): stats.regen_hp -1 none, X adds X to the default +1.
 function st_stats.hp_step(value)
     local stats = st_stats.of(value)

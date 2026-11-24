@@ -149,7 +149,7 @@ end
 -- a choice of pool for the menu (up to 100), `cost: N` followed by `id:` lines the price N of those fighters (the
 -- `random:` ... `random_end:` blocks are lists of ids a fighter may respawn as). Returns {kind, pools, groups, randoms}.
 function mode_layout.cost_settings(text)
-    local settings = {kind = 100, pools = {}, groups = {}, randoms = {}}
+    local settings = {kind = 100, pools = {}, groups = {}, randoms = {}, modes = {}}
     local words = {}
     for word in (text or ""):gmatch("%S+") do words[#words + 1] = word end
     local inside, group, skipping = false, nil, false
@@ -161,6 +161,8 @@ function mode_layout.cost_settings(text)
             if word == "random:" then skipping = true; settings.randoms[#settings.randoms + 1] = {}
             elseif word == "random_end:" then skipping = false
             elseif word == "kind:" and number and number > 0 then settings.kind = number
+            elseif word == "bound:" and number and not group and not skipping then settings.bound = number   -- 1: on by default in the options menu
+            elseif word == "mode:" and number and not group and not skipping and #settings.modes < 20 then settings.modes[#settings.modes + 1] = number
             elseif word == "respond:" and number and number > 0 and #settings.pools < 100 then settings.pools[#settings.pools + 1] = number
             elseif word == "cost:" and number and number > 0 then group = number
             elseif word == "id:" and number and skipping then

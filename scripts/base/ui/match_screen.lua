@@ -16,6 +16,7 @@ local options = require("base/game/options")
 local user_options = options   -- screen.create() has a parameter named options
 local ui_hud = require("base/game/ui_hud")
 local ui_modes = require("base/game/ui_modes")
+local system_data = require("base/game/system_data")
 -- The HUD, pause picture and mode line are laid out for the classic 794 wide picture. In LF2 Darkfiren's super
 -- widescreen layout the picture is 1333 wide: wide_gap() is the extra width (for things at the right corner) and
 -- wide_center() half of it (for things in the middle). Both are 0 in the classic layout.
@@ -224,6 +225,16 @@ function screen.snapshot(state, snapshot)
             entry.blink, entry.hit_lag, entry.draw_offset = value.blink, value.hit_lag, value.draw_offset
             entry.pic_offset, entry.weapon, entry.team = value.pic_offset, value.weapon, value.team
             entry.hp, entry.max_hp, entry.human = value.hp, value.max_hp, value.human
+            -- <bmp_begin> `bound` (readme "new in bmp part"): 1 no name text for this object, 2 its clones show its name, not "Com".
+            local function header_bound(thing)
+                local data = thing and thing.record and thing.record.data
+                local header = type(data) == "table" and data.header or nil
+                return type(header) == "table" and header.bound or 0
+            end
+            local owner = type(value.owner) == "number" and value.owner ~= index and state.items[value.owner] or nil
+            entry.name_bound = header_bound(value)
+            entry.owner_index = owner and value.owner or nil
+            entry.owner_name_bound = header_bound(owner)
             entry.dark_hp, entry.mp = value.dark_hp, value.mp   -- minibar bars
             entry.floor_y = type(value.floor_y) == "number" and value.floor_y or 0   -- the platform plane under it (shadow)
             -- Combo counter (value.fx.combo hits in a row, value.fx.combo_age ticks since the last one; AI 3).
@@ -417,7 +428,7 @@ end
 -- order. A layer without a type is a picture (the frame), type 1 is the hp bar, 2 the dark hp, 3 the mp (a bar `max`
 -- wide in value, 500 by default); `facing: 1` fills from the right. `team:` lists and `respond` choose who and which mode
 -- it is for (team table of readme/dat file/minibar.txt: 1-4 teams, 5 stage enemies, 10-13 player independent, 20-27
--- computer independent; respond: the modes, see minibar_for). Not done: types 4 and 5 (fusion time), `bound`. OpenLF2 change: `cc`/`c1`/`c2` blink, `effect` (hp below N percent) and `centerx` (x offset) are done. [BELUM PASTI] the anchor: x from the character's centre, y from the ground line (z).
+-- computer independent; respond: the modes, see minibar_for). Not done: types 4 and 5 (fusion time). `bound: 1` keeps the layer inside the visible area, `centerx` then being the margin to its edges (minibar_x). OpenLF2 change: `cc`/`c1`/`c2` blink, `effect` (hp below N percent) and, without `bound`, `centerx` (x offset) are done. [BELUM PASTI] the anchor: x from the character's centre, y from the ground line (z).
 local minibar_mode = 0
 local function minibar_code(entry)
     if entry.team == constants.teams.enemies then return 5 end
@@ -444,7 +455,22 @@ local function minibar_for(layer, code)
     elseif type(layer.respond) == "number" and layer.respond ~= minibar_mode then return false end
     return true
 end
-local function draw_minibar(context, entry, frame, camera, shake, tick)
+-- The x of a layer. `bound: 1` (readme "dat file/minibar.txt"): the image is shown in the visible area, like the etc messages, and
+-- `centerx` is the gap kept to the edges of the background (the window in a wide layout); without `bound`, `centerx` is a plain
+-- x offset (OpenLF2 change, see above). `width` is the layer's w, 0 for a whole picture of unknown size.
+local function minibar_x(entry, layer, camera, shake, bounds, width)
+    local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0)
+    if layer.bound == 1 then
+        local margin = layer.centerx or 0
+        local left = (bounds and bounds.left or 0) + margin
+        local right = (bounds and bounds.right or constants.screen.width) - margin - (width or 0)
+        if x > right then x = right end
+        if x < left then x = left end
+        return x
+    end
+    return x + (layer.centerx or 0)
+end
+local function draw_minibar(context, entry, frame, camera, shake, tick, bounds)
     -- OpenLF2 change: `y` counts upwards from the top of the current sprite (z - center_y + y), so a layer with y 16 sits above the
     -- head as in the LF2 Darkfiren screenshot; before it counted downwards from the ground line (under the feet).
     -- [BELUM PASTI] the anchor: top of the sprite, taken from one screenshot of the original (bar about 85-95 px over the feet).
@@ -458,7 +484,7 @@ local function draw_minibar(context, entry, frame, camera, shake, tick)
         if type(layer.pic) == "string" and layer.type == nil and not (type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1)
            and minibar_for(layer, code) and layer_shown(layer, tick) and effect_ok(layer, entry.hp, entry.max_hp) then
             -- OpenLF2 change: a picture layer (no type) without w and h is the whole picture (the frame), as in the original.
-            local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0) + (layer.centerx or 0)
+            local x = minibar_x(entry, layer, camera, shake, bounds, 0)
             context.image(layer.pic:gsub("\\", "/"):lower(), x, top - (layer.y or 0), layer.transparency == 1)
         elseif type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1
            and minibar_for(layer, code) and layer_shown(layer, tick) and effect_ok(layer, entry.hp, entry.max_hp) then
@@ -474,7 +500,7 @@ local function draw_minibar(context, entry, frame, camera, shake, tick)
             if width > 0 then
                 local dx = layer.dx or 0
                 -- centerx: extra x offset (LF2 Darkfiren example: frame x -41 w 81, bars x -41 w 77 centerx 2 = centred in the frame).
-                local x = entry.draw_offset + entry.x - camera + shake + (layer.x or 0) + (layer.centerx or 0)
+                local x = minibar_x(entry, layer, camera, shake, bounds, layer.w)
                 if layer.facing == 1 and width < layer.w then
                     x, dx = x + layer.w - width, dx + layer.w - width
                 end
@@ -636,6 +662,43 @@ draw_blood = function(context, entry, frame, camera, shake)
     end
 end
 
+-- The itr and bdy boxes of an object (system.dat `<frame> bound: 1`, system_data.hitboxes): thin rectangles in the colour of the
+-- part, only for the objects whose team, kind, id and frame state the part lists (a list it lacks allows all).
+local hitbox_settings
+local function hitbox_allows(part, kind, entry, frame)
+    if not part then return false end
+    if next(part.kind) ~= nil and not part.kind[kind] then return false end
+    if next(part.team) ~= nil and not part.team[entry.team] then return false end
+    if next(part.type) ~= nil and not part.type[entry.record.kind] then return false end
+    if next(part.id) ~= nil and not part.id[entry.record.id] then return false end
+    if next(part.state) ~= nil and not part.state[frame.state] then return false end
+    return true
+end
+local function draw_hitbox_list(context, part, list, entry, frame, camera, shake)
+    if type(list) ~= "table" then return end
+    local red, green, blue = math.floor(part.color / 65536) % 256, math.floor(part.color / 256) % 256, part.color % 256
+    for _, area in ipairs(list) do
+        if type(area.x) == "number" and type(area.width) == "number" and area.width > 0 and area.height > 0
+           and hitbox_allows(part, area.kind, entry, frame) then
+            local x
+            if entry.facing == constants.facings.right then x = area.x + entry.x - frame.center_x
+            else x = frame.center_x + entry.x - area.width - area.x end
+            x = x + entry.draw_offset - camera + shake
+            local y = area.y + entry.z + entry.y - frame.center_y
+            context.fill(x, y, area.width, 1, red, green, blue)
+            context.fill(x, y + area.height - 1, area.width, 1, red, green, blue)
+            context.fill(x, y, 1, area.height, red, green, blue)
+            context.fill(x + area.width - 1, y, 1, area.height, red, green, blue)
+        end
+    end
+end
+local function draw_hitboxes(context, entry, frame, camera, shake)
+    local settings = hitbox_settings
+    if not settings then return end
+    draw_hitbox_list(context, settings.itr, frame.interactions, entry, frame, camera, shake)
+    draw_hitbox_list(context, settings.bdy, frame.bodies, entry, frame, camera, shake)
+end
+
 local function draw_item(context, stage, view, entry, bounds, lighting)
     local frame = entry.record.frame(entry.frame)
     local blink = math.abs(entry.blink)
@@ -692,6 +755,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         end
     end
     if visible and not on_screen then draw_blood(context, entry, frame, camera, shake) end
+    if hitbox_settings and not on_screen then draw_hitboxes(context, entry, frame, camera, shake) end
     if entry.lives > 1 and not (view.names_kind and view.names_kind >= 3) then
         -- Remaining lives ("x2"; two digits at most) above the head, in the default font, unclamped.
         local text = entry.lives < 10 and ("x" .. entry.lives)
@@ -711,6 +775,13 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         -- Bosses and other enemy characters in slots 20+ (WORDS5 sheet).
         label, sheet = "Com", "pe/words5"
     end
+    -- Clones of an object whose <bmp_begin> has `bound: 2` carry the name of the owner (its player name, "Com" for a computer).
+    if is_character and entry.owner_name_bound == 2 and entry.owner_index and entry.name_bound ~= 1 then
+        label = entry.owner_index < constants.player_slots and controls.name(entry.owner_index) or "Com"
+        sheet = sheet or label_font(entry.team)
+    end
+    -- <bmp_begin> `bound: 1`: this object never shows a name, human or computer.
+    if entry.name_bound == 1 then label = nil end
     -- The mode's `kind` (LF2 Darkfiren): 1 and 3 hide the names of computers that were not picked in the menu, 2 and 4 the names of
     -- the players too (the computers of the menu keep theirs); 3 and 4 hide the reserve ("x2") above the head as well.
     if label and view.names_kind then
@@ -729,7 +800,7 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         glyphs(context, sheet, label, x, entry.z + 3, 9)
     end
     if entry.blink > -25 and not entry.invisible then
-        draw_minibar(context, entry, frame, camera, shake, view.kill_clock)
+        draw_minibar(context, entry, frame, camera, shake, view.kill_clock, bounds)
         draw_combo(context, entry, frame, camera, shake)
     end
     for _, spark in ipairs(entry.sparks) do
@@ -1260,19 +1331,41 @@ end
 -- right corner"): "Summary" turns the summary box (the score table so far) on and off; "Kill list" (only with `bound: 1` in the
 -- kill display's block) the who-killed-whom display. [BELUM PASTI] the content of Darkfiren's summary box (the readme gives none: here
 -- the table of the end of a round), the places, the size and the texts.
-local function checkbox_place(which) return constants.screen.width + wide_gap() - 22, which == "summary" and 6 or 26, 14 end
-local function summary_possible(view, current) return view.paused and not current.random_game end
+local pause_rows = {summary = 6, kill = 26, combo = 46, pad1 = 70, pad2 = 88, pad3 = 106, pad4 = 124}
+local function checkbox_place(which) return constants.screen.width + wide_gap() - 22, pause_rows[which] or 6, 14 end
+local function summary_possible(view, current) return view.paused and not (current or {}).random_game end
+-- `bound: 1` of <misc>: while paused each of the four key sets shows its input device and a click moves it to the next one
+-- (keyboard, controller 1 to 4), as the controls page does. Not in a demo or a replay; the change is kept for this run
+-- only (nothing is saved to config.json). [BELUM PASTI] how Darkfiren shows it; here one row per key set under the boxes.
+local device_names = {[0] = "Keyboard", "Pad 1", "Pad 2", "Pad 3", "Pad 4"}
+local function pad_possible(view, current)
+    current = current or {}
+    return view.paused and not current.random_game and not current.replay and ui_modes.misc_control(options.current().battlefield_layout)
+end
+local function pause_rows_shown(view, current)
+    local layout = options.current().battlefield_layout
+    local rows = {"summary"}
+    local kill = ui_modes.kill_settings(layout)
+    if kill and kill.checkbox then rows[#rows + 1] = "kill" end
+    local combo = ui_modes.combo_settings(layout)
+    if combo and combo.checkbox then rows[#rows + 1] = "combo" end
+    if pad_possible(view, current) then for set = 1, 4 do rows[#rows + 1] = "pad" .. set end end
+    return rows
+end
 function screen.pause_toggle(state, held)
     local view = state.view
     if not (view and view.paused and type(held) == "table" and held.click and type(held.pointer_x) == "number" and type(held.pointer_y) == "number") then return false end
-    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
-    for _, which in ipairs({"summary", "kill"}) do
-        if which == "summary" or (settings and settings.checkbox) then
-            local x, y, size = checkbox_place(which)
-            if held.pointer_x >= x - 2 and held.pointer_x <= x + size + 2 and held.pointer_y >= y - 2 and held.pointer_y <= y + size + 2 then
-                if which == "summary" then state.summary_hidden = not state.summary_hidden else state.kill_hidden = not state.kill_hidden end
-                return which
+    for _, which in ipairs(pause_rows_shown(view, state.match)) do
+        local x, y, size = checkbox_place(which)
+        if held.pointer_x >= x - 2 and held.pointer_x <= x + size + 2 and held.pointer_y >= y - 2 and held.pointer_y <= y + size + 2 then
+            if which == "summary" then state.summary_hidden = not state.summary_hidden
+            elseif which == "kill" then state.kill_hidden = not state.kill_hidden
+            elseif which == "combo" then state.combo_hidden = not state.combo_hidden
+            else
+                local set = controls.current().sets[tonumber(which:sub(4))]
+                if set then set.device = (set.device + 1) % (constants.input_devices.controller_four + 1) end
             end
+            return which
         end
     end
     return false
@@ -1283,13 +1376,21 @@ local function draw_checkbox(context, which, on, label)
     context.fill(x, y, size, size, 200, 200, 200)
     context.fill(x + 1, y + 1, size - 2, size - 2, 40, 40, 40)
     if on then context.fill(x + 3, y + 3, size - 6, size - 6, 255, 255, 255) end
-    font.gdi(context, i18n.tr(label), x - 62, y - 1, colorref(0xffffff))
+    local text = i18n.tr(label)
+    font.gdi(context, text, x - math.max(62, font.gdi_width(text) + 6), y - 1, colorref(0xffffff))
 end
 local function draw_pause_checkboxes(context, state, view, current)
     if not view.paused then return end
-    if summary_possible(view, current) then draw_checkbox(context, "summary", not state.summary_hidden, "Summary") end
-    local settings = ui_modes.kill_settings(options.current().battlefield_layout)
-    if settings and settings.checkbox then draw_checkbox(context, "kill", not state.kill_hidden, "Kill list") end
+    for _, which in ipairs(pause_rows_shown(view, current)) do
+        if which == "summary" then
+            if summary_possible(view, current) then draw_checkbox(context, "summary", not state.summary_hidden, "Summary") end
+        elseif which == "kill" then draw_checkbox(context, "kill", not state.kill_hidden, "Kill list")
+        elseif which == "combo" then draw_checkbox(context, "combo", not state.combo_hidden, "Combo")
+        else
+            local set = controls.current().sets[tonumber(which:sub(4))]
+            if set then draw_checkbox(context, which, true, string.format("P%s: %s", which:sub(4), device_names[set.device] or "?")) end
+        end
+    end
 end
 
 -- LF2 Darkfiren team HP bars: the `frame:` blocks of the background (bg.dat, kept by the mode's `wait:`; `current.stage.team_frames`).
@@ -1415,7 +1516,8 @@ function screen.draw(state, context, window_bounds)
         object_bounds and object_bounds.right - object_bounds.left or constants.screen.width, view_height - 128)
     local lighting = options.current()
     minibar_mode = current.random_game and constants.modes.demo or current.mode
-    combo_settings = ui_modes.combo_settings(options.current().battlefield_layout)
+    hitbox_settings = system_data.hitboxes()
+    combo_settings = not state.combo_hidden and ui_modes.combo_settings(options.current().battlefield_layout) or nil
     for _, entry in ipairs(view.items) do
         draw_item(arena, current.stage, view, entry, object_bounds, lighting)
     end

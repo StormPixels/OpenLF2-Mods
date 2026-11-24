@@ -543,7 +543,7 @@ local function regenerate(state, value)
         if value.dark_hp < 0 then value.dark_hp = 0 end
         value.hp_spent = value.hp_spent + base
     end
-    if state.counter_3 ~= 0 or value.blink <= -1 or (mode and mode.regen_mp == 1) then return end
+    if state.counter_3 ~= 0 or (value.blink <= -1 and not st_stats.regen_mp_hidden(value)) or (mode and mode.regen_mp == 1) then return end
     local hp = math.min(value.hp, points_full)
     if value.record.id == constants.fighter_ids.firzen or value.record.id == constants.fighter_ids.julian then hp = cdiv(hp, 2) end
     local default = math.floor((points_full - hp) / 100) + 1 + (value.st and value.st.mp_regen or 0)

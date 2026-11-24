@@ -346,10 +346,23 @@ function ui_modes.combo_settings(layout)
     local settings = false
     if block and block.bound ~= 0 and block.pic and block.pic ~= "" then
         settings = {pic = block.pic, w = block.w or 15, h = block.h or 15, offset_x = block.offset_x or 0, offset_y = block.offset_y or 0,
-            times = block.times or 30, name = (block.name and block.name ~= "") and block.name or "%d_hit", facing = block.facing or 1}
+            times = block.times or 30, name = (block.name and block.name ~= "") and block.name or "%d_hit", facing = block.facing or 1, checkbox = block.bound == 1}
     end
     combo_cache[key] = settings
     return settings or nil
+end
+
+-- `bound: 1` of <misc> (readme/mode dat.txt): the pause screen lets the players change their control (input device) in the
+-- middle of a game. false without the block, without the tag or with another value.
+local misc_cache = {}
+function ui_modes.misc_control(layout)
+    local key = tostring(layout)
+    if misc_cache[key] ~= nil then return misc_cache[key] end
+    local entry = entry_for_layout(layout)
+    local text = entry and ui_modes.text(entry) or nil
+    local block = text and mode_layout.blocks(text).misc or nil
+    misc_cache[key] = (block and block.bound == 1) and true or false
+    return misc_cache[key]
 end
 
 -- The kill display (readme/mode dat.txt, "CUSTOM NAME DISPLAY OF WHO KILLED WHOM"): the first <bmp_begin> block of a mode file.

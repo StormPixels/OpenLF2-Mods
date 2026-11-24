@@ -16,6 +16,7 @@ function system_data.parse(text)
     local scan = sd_text.scan(text)
     local result = {scalars = scan.scalars, lists = {}}
     for _, block in ipairs(scan.blocks) do
+        if block.name == "frame" and not result.frame_lines then result.frame_lines = block.lines end   -- hitbox display, see system_data.hitboxes
         local list = result.lists[block.name]
         if not list then
             list = {ids = {}, states = {}, count = 0}
@@ -154,6 +155,39 @@ end
 function system_data.states(listname)
     local list = data().lists[listname]
     return list and list.states or {}
+end
+
+-- The hitbox display of system.dat (exe notes "show itr hitbox and bdys"): a <frame> block with `bound: 1` draws the itr and bdy
+-- boxes of the objects in a match. Each of the `itr:` ... `itr_end:` and `bdy:` ... `bdy_end:` parts says what to draw: `kind`
+-- (the itr or bdy kind), `rect32` (the colour, 0xRRGGBB as a number, -1 white) and the lists `team`, `type` (the object's
+-- kind: 0 character, 1 light weapon ...), `id` and `state` (of the frame) that an object must be in; a list the part does not
+-- give lets everything through. [BELUM PASTI] the exe notes hold only the layout and one example, no description.
+-- Returns nil (bound is not 1 or no block) or {itr = {color, kind = set, team = set, type = set, id = set, state = set}, bdy = {...}},
+-- a part without lines being absent (not drawn).
+function system_data.hitboxes()
+    local lines = data().frame_lines
+    if not lines then return nil end
+    local settings, section, bound = {}, nil, 0
+    for _, line in ipairs(lines) do
+        local name = line:match("^(%a+)%s*:%s*$")
+        if name == "itr" or name == "bdy" then
+            section = name
+            settings[name] = {color = 0xffffff, kind = {}, team = {}, type = {}, id = {}, state = {}}
+        elseif line:match("^%a+_end%s*:?%s*$") then section = nil
+        else
+            for _, pair in ipairs(sd_text.pairs_of_line(line)) do
+                local number = sd_text.int(pair[2])
+                if number then
+                    if not section then
+                        if pair[1] == "bound" then bound = number end
+                    elseif pair[1] == "rect32" then settings[section].color = number % 16777216
+                    elseif settings[section][pair[1]] and pair[1] ~= "color" then settings[section][pair[1]][number] = true end
+                end
+            end
+        end
+    end
+    if bound ~= 1 or not (settings.itr or settings.bdy) then return nil end
+    return settings
 end
 
 -- True once system.dat has been read (or found missing); false while the game data is not attached yet, so a
