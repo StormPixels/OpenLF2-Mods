@@ -1684,10 +1684,10 @@ end
 -- (`head` and `smallc` the lit ones). The layers marked `kind: 1` (7 to 12: background mode, time, cost, drops, TU mode, Exit)
 -- are shown only while it is open. mode4.dat has no `kind` and a layer 6 that is never shown, so its rows are always there.
 local extra_toggle = 6
--- readme (mode dat, layer 6): `small`/`head` are the pictures while the extra settings are ON (open), `smallb`/`smallc` while
--- they are OFF. [BELUM PASTI] whether the original's pictures read that way round (the readme's own example gives the same
--- file for both); set this to false to swap the two again.
-local extra_on_uses_small = true
+-- The original game (checked on its screenshot): while the extra settings are OPEN the row reads "Close Extra Settings", which
+-- is `smallb` (`smallc` lit); while they are closed it reads "Open Extra Settings", which is `small` (`head` lit). The readme's
+-- "small ... if settings is on" does not mean that. true would swap the two (it showed "Open" while open in OpenLF2).
+local extra_on_uses_small = false
 local hitlag_steps = 5   -- hitlag modes 0 (normal) and -1 to -5 (readme/hitlag mode.txt); `D` (defend) on the difficulty row cycles them
 local small_forced = {[7] = true, [8] = true}
 local function small_rows(state)

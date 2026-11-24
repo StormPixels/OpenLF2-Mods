@@ -97,7 +97,7 @@ Layer `state:` (1 saat ronde mulai, 2 saat selesai): `set_phase(view, fase)`; `t
 
 ## R24 (AI5): "extra setting" u17 pada panel `<menu_small>` (menu karakter)
 Berkas yang disentuh (milik AI4/AI2, dikirim sebagai diff terpisah `HOOK_extra_settings_AI5.diff`): `game/menu_small.lua`, `ui/character_select.lua`, `ui/flow.lua`, `game/match.lua`.
-- Layer 6 (tombol Open/Close Extra Settings): `small`/`head` dipakai saat ON (terbuka), `smallb`/`smallc` saat OFF, sesuai readme. **[BELUM PASTI]** arah ini (contoh readme memakai gambar yang sama); balik dengan `extra_on_uses_small = false` di `character_select.lua`. Kotak centang `smalld` digambar di (`dx`, `y + dy` atau `fy`) saat terbuka (data mode2 memberi `dx: 999`, jadi di luar layar).
+- Layer 6 (tombol Open/Close Extra Settings): `smallb`/`smallc` ("Close Extra Settings") dipakai saat terbuka, `small`/`head` ("Open Extra Settings") saat tertutup; dicocokkan dengan screenshot game asli (terbuka = label "Close"). Arti "small ... if settings is on" di readme tidak dipakai; `extra_on_uses_small = false` di `character_select.lua`. Kotak centang `smalld` digambar di (`dx`, `y + dy` atau `fy`) saat terbuka (data mode2 memberi `dx: 999`, jadi di luar layar).
 - Layer 6 sampai 11 tanpa `mode:` tidak tampil di mode mana pun (`menu_small.shown(..., number)`); baris "dipaksa" (7, 8) hanya untuk layer yang punya daftar `mode:`.
 - `fy` (y tetap, mengalahkan `dy`) dipakai di layer 5, 7, 8, 9 (teks), 10 dan 6 (kotak centang).
 - `caughtact: 1` layer 11: kotak 1tu/2tu selalu tampil walau baris tertutup (selama layer boleh tampil di mode itu). `caughtact: 1` layer 9: syarat tombol J untuk respawn acak (data mode2 tidak memberinya, jadi J tidak berlaku di sana).
