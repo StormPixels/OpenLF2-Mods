@@ -1349,13 +1349,17 @@ local function pause_layout(view, current)
     local combo = ui_modes.combo_settings(layout)
     if combo and combo.checkbox then which[#which + 1] = "combo" end
     local style = ui_hud.current(layout, options.wide_width(layout), options.current().hud_style)
-    if style and style.radar then which[#which + 1] = "radar" end
+    -- exe (collector near 0x4592A0): the radar box needs `bound: 1` (parse_radar) and `action: 1` of <radar>.
+    if style and style.radar and style.radar.action == 1 then which[#which + 1] = "radar" end
+    -- exe: the kill board box shows only when the current mode is in the `mode:` lines of <bmp_begin> (config lookup 0x45BFE0 gives
+    -- -1 otherwise). Without `mode:` lines every mode is accepted here. [BELUM PASTI] the exe's treatment of an empty list.
     local kill = ui_modes.kill_settings(layout)
-    if kill and kill.checkbox then which[#which + 1] = "kill" end
-    -- Measured on the Darkfiren videos (classic 794 wide picture): a box is 15 pixels, the pitch 24, the right margin 6 and the first
-    -- box starts where the stage begins (y 104). [BELUM PASTI] the exe's own values.
-    local rows, x = {}, constants.screen.width + wide_gap() - 21
-    for index, name in ipairs(which) do rows[index] = {which = name, x = x, y = 104 + 24 * (index - 1), size = 15} end
+    if kill and kill.checkbox and (not kill.modes or kill.modes[(current or {}).mode]) then which[#which + 1] = "kill" end
+    -- exe (draw routine 0x459370): a box is 20x20, stacked from y 133 down with a pitch of 28 per box that passes its condition.
+    -- [BELUM PASTI] x: the right margin of 6 is measured on the Darkfiren videos, not read from the exe.
+    local size = 20
+    local rows, x = {}, constants.screen.width + wide_gap() - 6 - size
+    for index, name in ipairs(which) do rows[index] = {which = name, x = x, y = 133 + 28 * (index - 1), size = size} end
     return rows
 end
 -- `Change controls` (the original opens its controls window): until that window exists here it opens a list of the four key sets
@@ -1400,8 +1404,8 @@ local function draw_checkbox(context, row, on, hovered)
     context.fill(x, y, size, size, 150, 100, 210)
     context.fill(x + 1, y + 1, size - 2, size - 2, 42, 10, 76)
     if on then
-        for i = 0, 3 do context.fill(x + 3 + i, y + 7 + i, 2, 2, 255, 255, 255) end
-        for i = 0, 6 do context.fill(x + 6 + i, y + 10 - i, 2, 2, 255, 255, 255) end
+        for i = 0, 4 do context.fill(x + 4 + i, y + 9 + i, 2, 2, 255, 255, 255) end
+        for i = 0, 8 do context.fill(x + 8 + i, y + 13 - i, 2, 2, 255, 255, 255) end
     end
     if hovered then font.gdi(context, i18n.tr(pause_labels[row.which]), x - 92, y, colorref(0xffffff)) end
 end
