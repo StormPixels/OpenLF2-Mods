@@ -12,6 +12,7 @@ local i18n = require("base/i18n/i18n")
 local sounds = require("base/game/sounds")
 local rumble = require("base/game/rumble")
 local controls = require("base/ui/controls")
+local navigation = require("base/ui/navigation")
 local options = require("base/game/options")
 local user_options = options   -- screen.create() has a parameter named options
 local ui_hud = require("base/game/ui_hud")
@@ -1395,7 +1396,7 @@ local function control_picture(layout)
 end
 local function window_origin() return math.floor((constants.screen.width + wide_gap() - 704) / 2), 108 end
 local function open_control_window(state)
-    state.control_window = {editing = controls.copy(controls.current()), capture = nil, name_player = 0, previous_keys = {}, keyboard = false}
+    state.control_window = {editing = controls.copy(controls.current()), capture = nil, name_player = 0, previous_keys = {}, keyboard = false, nav = navigation.create()}
 end
 local function typed_character(input, code)
     if code >= virtual_keys.left and code <= virtual_keys.down then return nil end
@@ -1417,6 +1418,8 @@ local function type_name(win, input)
 end
 function control_window_update(state, input, context)
     local win = state.control_window
+    -- The match's input has no `nav` (fresh ok / cancel presses): the launch screens get it from the navigation module, as here.
+    input = navigation.apply(win.nav, input, {page = "match_controls", targets = {}, locked = win.capture ~= nil or win.name_player > 0})
     local editing = win.editing
     local wx, wy = window_origin()
     local used_cancel = false
