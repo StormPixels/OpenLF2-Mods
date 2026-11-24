@@ -67,6 +67,15 @@ function sd_menu_back.view(index, seed)
             if width and layer.x + width > reach then view.sky, reach = index, layer.x + width end
         end
     end
+    -- The foot: the opaque layer reaching lowest; the wide menu stretches it down to the viewport's bottom edge when the scene
+    -- ends above it (so no bare viewport colour is left below).
+    local lowest = -1
+    for index, layer in ipairs(view.layers) do
+        if not layer.keyed then
+            local height = wide_menu.picture_height(layer.resource)
+            if height and layer.y + height > lowest then view.foot, lowest = index, layer.y + height end
+        end
+    end
     return view
 end
 
@@ -85,7 +94,7 @@ function sd_menu_back.commands(view, tick, y_offset)
     for index, layer in ipairs(view.layers) do
         if visible(layer, tick) then
             commands[#commands + 1] = {"backdrop", layer.resource, layer.x, layer.y + (y_offset or 0), layer.keyed,
-                layer.loop or 0, view.left, view.right, index == view.sky, view.height}
+                layer.loop or 0, view.left, view.right, index == view.sky, view.height, index == view.foot}
         end
     end
     return commands
@@ -95,7 +104,7 @@ end
 -- wider than 794; a plain 794 context repeats it every loop pixels to the right edge (at most 20 times).
 function sd_menu_back.draw_command(context, command)
     local resource, x, y, keyed, loop = command[2], command[3], command[4], command[5], command[6] or 0
-    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8], command[9], command[10]) end
+    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8], command[9], command[10], command[11]) end
     local copies = 1
     if loop > 0 then copies = math.min(repeat_limit, math.floor(794 / loop) + 1) end
     for copy = 0, copies - 1 do context.image(resource, x + copy * loop, y, keyed) end

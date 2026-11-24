@@ -105,26 +105,54 @@ function wide_menu.wrap(context, width, height)
     -- A menu_back layer of system.dat (sd_menu_back): the scene spans left..right in its own coordinates. Like a stage at camera
     -- 0 it starts at the viewport's left edge (what is wider is cut off on the right); a scene narrower than the viewport is
     -- centred. A `loop` picture is repeated across the whole viewport, to its left edge too.
-    function wrapped.backdrop(resource, x, y, keyed, loop, left, right, sky, scene_height)
+    function wrapped.backdrop(resource, x, y, keyed, loop, left, right, sky, scene_height, foot)
         left, right = left or 0, right or base_width
-        local shift = math.max(0, math.floor((width - (right - left)) / 2)) - left
+        local scene_width = math.max(1, right - left)
+        local shift = math.max(0, math.floor((width - scene_width) / 2)) - left
         -- A scene taller than 550 sets the viewport's height (it starts at the top); otherwise the 550 high layout's place.
         local top = scene_height and scene_height > base_height and math.floor((height - scene_height) / 2) or dy
-        if not loop or loop <= 0 then
-            if sky then
-                -- The sky picture ends short of the viewport's right edge: it is stretched to reach it.
-                local picture_width, picture_height = picture_size(resource)
-                local edge = width - shift
-                if picture_width and picture_height and x + picture_width < edge then
-                    return context.icon(resource, x + shift, y + top, edge - x, picture_height)
-                end
-            end
-            return context.image(resource, x + shift, y + top, keyed)
+        local picture_width, picture_height = picture_size(resource)
+        -- OpenLF2 change (no bare viewport colour): the lowest opaque layer (`foot`) is stretched down to the viewport's bottom
+        -- edge where the scene ends above it, and a scene narrower than the viewport is repeated to the left and to the right.
+        -- [BELUM DIUJI] written without a way to run the game: the stretch uses `icon` like the sky does.
+        local drop = 0
+        if foot and not keyed and picture_height then
+            drop = math.max(0, height - (y + top + picture_height))
         end
-        local at, copies = (x + shift) % loop - loop, 0
-        while at < width and copies < 200 do
-            context.image(resource, at, y + top, keyed)
-            at, copies = at + loop, copies + 1
+        local function put(at, stretch_width)
+            local w = stretch_width or picture_width
+            if (drop > 0 or stretch_width) and w and picture_height then
+                return context.icon(resource, at, y + top, w, picture_height + drop)
+            end
+            return context.image(resource, at, y + top, keyed)
+        end
+        if loop and loop > 0 then
+            local at, copies = (x + shift) % loop - loop, 0
+            while at < width and copies < 200 do
+                put(at)
+                at, copies = at + loop, copies + 1
+            end
+            return
+        end
+        local at = x + shift
+        if sky and picture_width and at + picture_width < width then
+            put(at, width - at)   -- the sky picture ends short of the viewport's right edge: it is stretched to reach it
+        else
+            put(at)
+        end
+        if scene_width < width then
+            -- copies of the whole scene to the left and right until the viewport is covered (at most 20 each side)
+            local reach = picture_width or scene_width
+            local k = 1
+            while not sky and at + k * scene_width < width and k <= 20 do
+                put(at + k * scene_width)
+                k = k + 1
+            end
+            k = 1
+            while at - k * scene_width + reach > 0 and k <= 20 do
+                put(at - k * scene_width)
+                k = k + 1
+            end
         end
     end
     function wrapped.icon(resource, x, y, ...) return context.icon(resource, x + dx, y + dy, ...) end

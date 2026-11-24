@@ -113,6 +113,7 @@ All notable changes to this project are documented in this file.
 - LF2 Darkfiren: `<weapon_piece>` `team: 1` keeps the pieces in the broken weapon's team and owner, otherwise they are independent.
 
 ### Fixed
+- Menus: no bare viewport colour is left beside or below a `<menu_back_N>` scene: a scene narrower than the viewport is repeated to both sides and the lowest opaque layer is stretched down to the bottom edge. [BELUM DIUJI] not run
 - UI: the character minibar (`<minibar>`) is drawn above the head: layer `y` counts upwards from the top of the sprite instead of downwards from the ground line (it sat under the feet, over the name label). [BELUM PASTI] anchor, taken from one Darkfiren screenshot
 - LF2 Darkfiren menus: the colour and pictures behind the title screen (`<menu_back_2>`) and the launch and network screens (`<menu_back_1>`) come from system.dat: `type:` 0 colour only, 1 one random picture, 2 all, 3 one random animation group; layers at `x`/`y` with `transparency`, `loop` (repeated to the right edge, at most 20) and the `cc`/`c1`/`c2` blink; without the blocks, and with the original Darkfiren system.dat, the picture is the same as before (AI5 R20, which includes R19)
 - Android: the app is locked to landscape (`sensorLandscape`: both landscape directions, never portrait) in the activity's manifest entry and in `setOrientationBis`, which set `FULL_SENSOR` whatever SDL asked for (bug014)
