@@ -137,12 +137,22 @@ function wide_menu.wrap(context, width, height)
             return
         end
         local at = x + shift
+        -- OpenLF2 change: a transparent picture of a scene narrower than the viewport that sits against the scene's left (or
+        -- right) edge, such as a portrait bleeding off the side, keeps that edge on the screen's edge instead of floating in
+        -- the middle with a cut-off edge; every other layer stays centred.
+        if keyed and not backing and picture_width and scene_width < width then
+            if x <= left then
+                at = x - left
+            elseif x + picture_width >= right then
+                at = x - left + (width - scene_width)
+            end
+        end
         if sky and picture_width and at + picture_width < width then
             put(at, width - at)   -- the sky picture ends short of the viewport's right edge: it is stretched to reach it
         else
             put(at)
         end
-        if scene_width < width and not backing then
+        if scene_width < width and not backing and not keyed then
             -- copies of the whole scene to the left and right until the viewport is covered (at most 20 each side)
             local reach = picture_width or scene_width
             local k = 1

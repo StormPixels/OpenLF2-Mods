@@ -94,7 +94,8 @@ function sd_menu_back.commands(view, tick, y_offset)
     -- OpenLF2 change (no bare viewport colour): the data lays the scene out for 794 pixels, so beyond that it can have holes
     -- (e.g. between two hills) that show the viewport colour. Copies of the unlooped layers, moved right by 794 and 1588, are
     -- drawn first, behind everything: they show only where the real layers leave a hole. [BELUM DIUJI] not run.
-    for copy = 2, 1, -1 do
+    -- Only for a scene wider than the classic 794: one laid out for exactly 794 has nothing beyond it to fill.
+    for copy = (view.right and view.right > 794) and 2 or 0, 1, -1 do
         for _, layer in ipairs(view.layers) do
             if visible(layer, tick) and not (layer.loop and layer.loop > 0) then
                 commands[#commands + 1] = {"backdrop", layer.resource, layer.x + copy * 794, layer.y + (y_offset or 0), layer.keyed,
