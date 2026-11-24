@@ -1331,64 +1331,97 @@ end
 -- right corner"): "Summary" turns the summary box (the score table so far) on and off; "Kill list" (only with `bound: 1` in the
 -- kill display's block) the who-killed-whom display. [BELUM PASTI] the content of Darkfiren's summary box (the readme gives none: here
 -- the table of the end of a round), the places, the size and the texts.
-local pause_rows = {summary = 6, kill = 26, combo = 46, pad1 = 70, pad2 = 88, pad3 = 106, pad4 = 124}
-local function checkbox_place(which) return constants.screen.width + wide_gap() - 22, pause_rows[which] or 6, 14 end
 local function summary_possible(view, current) return view.paused and not (current or {}).random_game end
--- `bound: 1` of <misc>: while paused each of the four key sets shows its input device and a click moves it to the next one
--- (keyboard, controller 1 to 4), as the controls page does. Not in a demo or a replay; the change is kept for this run
--- only (nothing is saved to config.json). [BELUM PASTI] how Darkfiren shows it; here one row per key set under the boxes.
+-- The boxes of the pause screen (LF2 Darkfiren video: a column at the right edge under the HUD, label left of a box only while the
+-- pointer is on it). Order: Scoreboard, Change controls (`<misc> bound: 1`), Hit counter (`<combo> bound: 1`), Radar display (the
+-- HUD style has a radar), Death counter (`<bmp_begin> bound: 1`). Rows that do not apply leave no gap.
+local pause_labels = {summary = "Scoreboard", controls = "Change controls", combo = "Hit counter", radar = "Radar display", kill = "Death counter"}
 local device_names = {[0] = "Keyboard", "Pad 1", "Pad 2", "Pad 3", "Pad 4"}
 local function pad_possible(view, current)
     current = current or {}
     return view.paused and not current.random_game and not current.replay and ui_modes.misc_control(options.current().battlefield_layout)
 end
-local function pause_rows_shown(view, current)
+local function pause_layout(view, current)
     local layout = options.current().battlefield_layout
-    local rows = {"summary"}
-    local kill = ui_modes.kill_settings(layout)
-    if kill and kill.checkbox then rows[#rows + 1] = "kill" end
+    local which = {}
+    if summary_possible(view, current) then which[#which + 1] = "summary" end
+    if pad_possible(view, current) then which[#which + 1] = "controls" end
     local combo = ui_modes.combo_settings(layout)
-    if combo and combo.checkbox then rows[#rows + 1] = "combo" end
-    if pad_possible(view, current) then for set = 1, 4 do rows[#rows + 1] = "pad" .. set end end
+    if combo and combo.checkbox then which[#which + 1] = "combo" end
+    local style = ui_hud.current(layout, options.wide_width(layout), options.current().hud_style)
+    if style and style.radar then which[#which + 1] = "radar" end
+    local kill = ui_modes.kill_settings(layout)
+    if kill and kill.checkbox then which[#which + 1] = "kill" end
+    -- Measured on the Darkfiren videos (classic 794 wide picture): a box is 15 pixels, the pitch 24, the right margin 6 and the first
+    -- box starts where the stage begins (y 104). [BELUM PASTI] the exe's own values.
+    local rows, x = {}, constants.screen.width + wide_gap() - 21
+    for index, name in ipairs(which) do rows[index] = {which = name, x = x, y = 104 + 24 * (index - 1), size = 15} end
     return rows
 end
+-- `Change controls` (the original opens its controls window): until that window exists here it opens a list of the four key sets
+-- under the boxes, each showing its input device, and a click on one moves it to the next (keyboard, controller 1 to 4). The
+-- change is kept for this run only (nothing is saved). [BELUM PASTI] how Darkfiren treats the name and the keys.
+local function control_rows(rows)
+    local last = rows[#rows]
+    local top = last and (last.y + 28) or 104
+    local result = {}
+    for set = 1, 4 do result[set] = {set = set, x = (last and last.x or 0) - 110, y = top + 18 * (set - 1), w = 130, h = 16} end
+    return result
+end
+local function inside(held_x, held_y, x, y, w, h) return held_x >= x - 2 and held_x <= x + w + 2 and held_y >= y - 2 and held_y <= y + h + 2 end
 function screen.pause_toggle(state, held)
     local view = state.view
+    if type(held) == "table" and type(held.pointer_x) == "number" and type(held.pointer_y) == "number" then state.hover_x, state.hover_y = held.pointer_x, held.pointer_y end
     if not (view and view.paused and type(held) == "table" and held.click and type(held.pointer_x) == "number" and type(held.pointer_y) == "number") then return false end
-    for _, which in ipairs(pause_rows_shown(view, state.match)) do
-        local x, y, size = checkbox_place(which)
-        if held.pointer_x >= x - 2 and held.pointer_x <= x + size + 2 and held.pointer_y >= y - 2 and held.pointer_y <= y + size + 2 then
-            if which == "summary" then state.summary_hidden = not state.summary_hidden
-            elseif which == "kill" then state.kill_hidden = not state.kill_hidden
-            elseif which == "combo" then state.combo_hidden = not state.combo_hidden
-            else
-                local set = controls.current().sets[tonumber(which:sub(4))]
+    local rows = pause_layout(view, state.match)
+    for _, row in ipairs(rows) do
+        if inside(held.pointer_x, held.pointer_y, row.x, row.y, row.size, row.size) then
+            if row.which == "summary" then state.summary_hidden = not state.summary_hidden
+            elseif row.which == "kill" then state.kill_hidden = not state.kill_hidden
+            elseif row.which == "combo" then state.combo_hidden = not state.combo_hidden
+            elseif row.which == "radar" then state.radar_hidden = not state.radar_hidden
+            else state.controls_open = not state.controls_open end
+            return row.which
+        end
+    end
+    if state.controls_open and pad_possible(view, state.match) then
+        for _, row in ipairs(control_rows(rows)) do
+            if inside(held.pointer_x, held.pointer_y, row.x, row.y, row.w, row.h) then
+                local set = controls.current().sets[row.set]
                 if set then set.device = (set.device + 1) % (constants.input_devices.controller_four + 1) end
+                return "pad" .. row.set
             end
-            return which
         end
     end
     return false
 end
-local function draw_checkbox(context, which, on, label)
-    local x, y, size = checkbox_place(which)
-    context.fill(x - 1, y - 1, size + 2, size + 2, 0, 0, 0)
-    context.fill(x, y, size, size, 200, 200, 200)
-    context.fill(x + 1, y + 1, size - 2, size - 2, 40, 40, 40)
-    if on then context.fill(x + 3, y + 3, size - 6, size - 6, 255, 255, 255) end
-    local text = i18n.tr(label)
-    font.gdi(context, text, x - math.max(62, font.gdi_width(text) + 6), y - 1, colorref(0xffffff))
+local function draw_checkbox(context, row, on, hovered)
+    local x, y, size = row.x, row.y, row.size
+    context.fill(x, y, size, size, 150, 100, 210)
+    context.fill(x + 1, y + 1, size - 2, size - 2, 42, 10, 76)
+    if on then
+        for i = 0, 3 do context.fill(x + 3 + i, y + 7 + i, 2, 2, 255, 255, 255) end
+        for i = 0, 6 do context.fill(x + 6 + i, y + 10 - i, 2, 2, 255, 255, 255) end
+    end
+    if hovered then font.gdi(context, i18n.tr(pause_labels[row.which]), x - 92, y, colorref(0xffffff)) end
 end
 local function draw_pause_checkboxes(context, state, view, current)
     if not view.paused then return end
-    for _, which in ipairs(pause_rows_shown(view, current)) do
-        if which == "summary" then
-            if summary_possible(view, current) then draw_checkbox(context, "summary", not state.summary_hidden, "Summary") end
-        elseif which == "kill" then draw_checkbox(context, "kill", not state.kill_hidden, "Kill list")
-        elseif which == "combo" then draw_checkbox(context, "combo", not state.combo_hidden, "Combo")
-        else
-            local set = controls.current().sets[tonumber(which:sub(4))]
-            if set then draw_checkbox(context, which, true, string.format("P%s: %s", which:sub(4), device_names[set.device] or "?")) end
+    local rows = pause_layout(view, current)
+    local hx, hy = state.hover_x, state.hover_y
+    for _, row in ipairs(rows) do
+        local on = true
+        if row.which == "summary" then on = not state.summary_hidden
+        elseif row.which == "kill" then on = not state.kill_hidden
+        elseif row.which == "combo" then on = not state.combo_hidden
+        elseif row.which == "radar" then on = not state.radar_hidden
+        else on = state.controls_open == true end
+        draw_checkbox(context, row, on, type(hx) == "number" and type(hy) == "number" and inside(hx, hy, row.x, row.y, row.size, row.size))
+    end
+    if state.controls_open and pad_possible(view, current) then
+        for _, row in ipairs(control_rows(rows)) do
+            local set = controls.current().sets[row.set]
+            if set then font.gdi(context, string.format("P%d: %s", row.set, device_names[set.device] or "?"), row.x, row.y, colorref(0xffffff)) end
         end
     end
 end
@@ -1549,7 +1582,7 @@ function screen.draw(state, context, window_bounds)
         local layout = options.current().battlefield_layout
         local style = ui_hud.current(layout, options.wide_width(layout), options.current().hud_style)
         draw_status(context, current, style)
-        if style and style.radar then
+        if style and style.radar and not state.radar_hidden then
             local _, radar_shift = hud_shifts(style)
             draw_radar(context, view, current, style.radar, radar_shift, options.wide_width(layout) or constants.screen.width)
         end
