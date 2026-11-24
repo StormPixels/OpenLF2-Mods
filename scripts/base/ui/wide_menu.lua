@@ -105,7 +105,7 @@ function wide_menu.wrap(context, width, height)
     -- A menu_back layer of system.dat (sd_menu_back): the scene spans left..right in its own coordinates. Like a stage at camera
     -- 0 it starts at the viewport's left edge (what is wider is cut off on the right); a scene narrower than the viewport is
     -- centred. A `loop` picture is repeated across the whole viewport, to its left edge too.
-    function wrapped.backdrop(resource, x, y, keyed, loop, left, right, sky, scene_height, foot)
+    function wrapped.backdrop(resource, x, y, keyed, loop, left, right, sky, scene_height, foot, backing)
         left, right = left or 0, right or base_width
         local scene_width = math.max(1, right - left)
         local shift = math.max(0, math.floor((width - scene_width) / 2)) - left
@@ -115,6 +115,8 @@ function wide_menu.wrap(context, width, height)
         -- OpenLF2 change (no bare viewport colour): the lowest opaque layer (`foot`) is stretched down to the viewport's bottom
         -- edge where the scene ends above it, and a scene narrower than the viewport is repeated to the left and to the right.
         -- [BELUM DIUJI] written without a way to run the game: the stretch uses `icon` like the sky does.
+        -- `backing`: a copy drawn behind the scene to fill its holes; nothing outside the viewport, no stretch, no repeats.
+        if backing and x + shift >= width then return end
         local drop = 0
         if foot and not keyed and picture_height then
             drop = math.max(0, height - (y + top + picture_height))
@@ -140,7 +142,7 @@ function wide_menu.wrap(context, width, height)
         else
             put(at)
         end
-        if scene_width < width then
+        if scene_width < width and not backing then
             -- copies of the whole scene to the left and right until the viewport is covered (at most 20 each side)
             local reach = picture_width or scene_width
             local k = 1

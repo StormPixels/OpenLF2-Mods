@@ -91,6 +91,17 @@ end
 -- everything down (the title screen's vertical offset). Draw them with draw_command.
 function sd_menu_back.commands(view, tick, y_offset)
     local commands = {}
+    -- OpenLF2 change (no bare viewport colour): the data lays the scene out for 794 pixels, so beyond that it can have holes
+    -- (e.g. between two hills) that show the viewport colour. Copies of the unlooped layers, moved right by 794 and 1588, are
+    -- drawn first, behind everything: they show only where the real layers leave a hole. [BELUM DIUJI] not run.
+    for copy = 2, 1, -1 do
+        for _, layer in ipairs(view.layers) do
+            if visible(layer, tick) and not (layer.loop and layer.loop > 0) then
+                commands[#commands + 1] = {"backdrop", layer.resource, layer.x + copy * 794, layer.y + (y_offset or 0), layer.keyed,
+                    0, view.left, view.right, false, view.height, false, true}
+            end
+        end
+    end
     for index, layer in ipairs(view.layers) do
         if visible(layer, tick) then
             commands[#commands + 1] = {"backdrop", layer.resource, layer.x, layer.y + (y_offset or 0), layer.keyed,
@@ -104,7 +115,7 @@ end
 -- wider than 794; a plain 794 context repeats it every loop pixels to the right edge (at most 20 times).
 function sd_menu_back.draw_command(context, command)
     local resource, x, y, keyed, loop = command[2], command[3], command[4], command[5], command[6] or 0
-    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8], command[9], command[10], command[11]) end
+    if context.backdrop then return context.backdrop(resource, x, y, keyed, loop, command[7], command[8], command[9], command[10], command[11], command[12]) end
     local copies = 1
     if loop > 0 then copies = math.min(repeat_limit, math.floor(794 / loop) + 1) end
     for copy = 0, copies - 1 do context.image(resource, x + copy * loop, y, keyed) end
