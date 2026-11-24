@@ -311,7 +311,13 @@ function screen.snapshot(state, snapshot)
     return snapshot
 end
 
+local control_window_update   -- defined with the control window further down
 function screen.update(state, held, context)
+    -- The control window (`Change controls`) owns the input and freezes the match while it is open.
+    if state.control_window then
+        control_window_update(state, held, context)
+        return
+    end
     screen.pause_toggle(state, held)
     local result = match.step(state.match, held)
     if result == "leave" then
@@ -1360,17 +1366,159 @@ local function pause_layout(view, current)
     for index, name in ipairs(which) do rows[index] = {which = name, x = x, y = 133 + 28 * (index - 1), size = 20} end
     return rows
 end
--- `Change controls` (the original opens its controls window): until that window exists here it opens a list of the four key sets
--- under the boxes, each showing its input device, and a click on one moves it to the next (keyboard, controller 1 to 4). The
--- change is kept for this run only (nothing is saved). [BELUM PASTI] how Darkfiren treats the name and the keys.
-local function control_rows(rows)
-    local last = rows[#rows]
-    local top = last and (last.y + 32) or 133
-    local result = {}
-    for set = 1, 4 do result[set] = {set = set, x = (last and last.x or 0) - 110, y = top + 18 * (set - 1), w = 130, h = 16} end
-    return result
+local function inside(held_x, held_y, x, y, w, h) return held_x >= x and held_x <= x + w and held_y >= y and held_y <= y + h end
+
+-- `Change controls` (`<misc> bound: 1`): the control window, the picture `pic` of <misc> (MENU_CLIP2b, 704 x 353) with the four player
+-- columns drawn on its dark boxes: the name, the device picture, seven key rows; ok and cancel are part of the picture. The same
+-- editing as the launch screen's Control Settings page: a click on the picture cycles the device, on a name types it, on a key row
+-- waits for the key (or controller button), OK saves into config.json and applies at once, Cancel or Escape drops the changes.
+-- The match stays frozen while it is open. [BELUM PASTI] its place (centered, y 108) and the exact boxes, measured on the picture.
+local virtual_keys = constants.virtual_keys
+local control_columns = {148, 287, 426, 564}
+local control_devices = {[constants.input_devices.keyboard] = "pe/cs6",
+    [constants.input_devices.controller_one] = "pe/cs2", [constants.input_devices.controller_two] = "pe/cs3",
+    [constants.input_devices.controller_three] = "pe/cs4", [constants.input_devices.controller_four] = "pe/cs5"}
+local control_picture_cache = {}
+local function control_picture(layout)
+    local key = tostring(layout)
+    if control_picture_cache[key] ~= nil then return control_picture_cache[key] or nil end
+    local found = false
+    local pic = ui_modes.misc_picture(layout)
+    if pic and type(engine) == "table" and type(engine.read_resource) == "function" then
+        local plain = (pic:gsub("^%s+", ""):gsub("%s+$", ""):gsub("\\", "/"))
+        for _, candidate in ipairs({plain, plain:lower(), "sprite/" .. plain, ("sprite/" .. plain):lower()}) do
+            if pcall(engine.read_resource, candidate) then found = candidate break end
+        end
+    end
+    control_picture_cache[key] = found
+    return found or nil
 end
-local function inside(held_x, held_y, x, y, w, h) return held_x >= x - 2 and held_x <= x + w + 2 and held_y >= y - 2 and held_y <= y + h + 2 end
+local function window_origin() return math.floor((constants.screen.width + wide_gap() - 704) / 2), 108 end
+local function open_control_window(state)
+    state.control_window = {editing = controls.copy(controls.current()), capture = nil, name_player = 0, previous_keys = {}, keyboard = false}
+end
+local function typed_character(input, code)
+    if code >= virtual_keys.left and code <= virtual_keys.down then return nil end
+    return controls.key_character(code, input.keys[virtual_keys.shift] == true)
+end
+local function type_name(win, input)
+    local name = win.editing.names[win.name_player]
+    for code = 0, 255 do
+        if input.keys[code] and not win.previous_keys[code] then
+            local character = typed_character(input, code)
+            if character and code ~= virtual_keys.backspace then
+                if #name < constants.text_limits.player_name_bytes and code ~= virtual_keys.enter then name = name .. character end
+            elseif code == virtual_keys.backspace and #name > 0 then
+                name = name:sub(1, -2)
+            end
+        end
+    end
+    win.editing.names[win.name_player] = (name .. (input.text or "")):sub(1, constants.text_limits.player_name_bytes)
+end
+function control_window_update(state, input, context)
+    local win = state.control_window
+    local editing = win.editing
+    local wx, wy = window_origin()
+    local used_cancel = false
+    if win.capture then
+        local set = editing.sets[win.capture.player]
+        if set.device == constants.input_devices.keyboard then
+            if input.nav.cancel then
+                win.capture, used_cancel = nil, true
+            else
+                for code = 0, 249 do
+                    if input.keys[code] then
+                        set.keys[win.capture.row] = code
+                        win.capture = nil
+                        break
+                    end
+                end
+            end
+        elseif input.keys[virtual_keys.escape] and not win.previous_keys[virtual_keys.escape] then
+            win.capture, used_cancel = nil, true
+        else
+            local pad, lowest = input.pads[set.device], nil
+            for button = 0, 31 do
+                if pad and pad.buttons[button] then lowest = button break end
+            end
+            if not lowest then win.capture.armed = true
+            elseif win.capture.armed then
+                set.buttons[win.capture.row - 4] = lowest
+                win.capture = nil
+            end
+        end
+    end
+    if win.name_player > 0 then
+        if input.nav.cancel or input.nav.ok or (input.keys[virtual_keys.tab] and not win.previous_keys[virtual_keys.tab]) then
+            win.name_player, used_cancel = 0, true
+        else
+            type_name(win, input)
+        end
+    end
+    local px, py, finished = input.pointer_x, input.pointer_y, nil
+    if input.click and type(px) == "number" and type(py) == "number" then
+        for player = 1, 4 do
+            local x = wx + control_columns[player]
+            local set = editing.sets[player]
+            if inside(px, py, x, wy + 61, 106, 91) then
+                win.capture = nil
+                set.device = (set.device + 1) % (constants.input_devices.controller_four + 1)
+            elseif inside(px, py, x, wy + 35, 106, 19) then
+                win.capture, win.name_player = nil, player
+            else
+                for row = 1, 7 do
+                    if inside(px, py, x, wy + 159 + (row - 1) * 22 - 2, 106, 19) then
+                        if set.device == constants.input_devices.keyboard or row > 4 then win.capture = {player = player, row = row} end
+                        win.name_player = 0
+                    end
+                end
+            end
+        end
+        if inside(px, py, wx + 395, wy + 318, 90, 28) then finished = "ok" end
+        if inside(px, py, wx + 555, wy + 318, 125, 28) then finished = "cancel" end
+    end
+    if not finished and input.nav.cancel and not used_cancel and not win.capture and win.name_player == 0 then finished = "cancel" end
+    local typing = win.name_player > 0
+    if finished then
+        if win.keyboard and context.text_input then context.text_input(false) end
+        if finished == "ok" then controls.save(editing) end
+        state.control_window = nil
+        return
+    end
+    if typing ~= win.keyboard then
+        win.keyboard = typing
+        if context.text_input then context.text_input(typing) end
+    end
+    win.previous_keys = input.keys
+end
+local function draw_control_window(context, state)
+    local win = state.control_window
+    if not win then return end
+    local wx, wy = window_origin()
+    local picture = control_picture(options.current().battlefield_layout)
+    if picture then context.image(picture, wx, wy, false) else context.fill(wx, wy, 704, 353, 110, 24, 161) end
+    local function field(text, x, y, rgb)
+        font.gdi(context, text, x + math.max(2, math.floor((106 - font.gdi_width(text)) / 2)), y + 1, colorref(rgb))
+    end
+    for player = 1, 4 do
+        local x = wx + control_columns[player]
+        local set, name = win.editing.sets[player], win.editing.names[player]
+        if win.name_player == player then
+            field(#name < constants.text_limits.player_name_bytes and name .. "_" or name, x, wy + 35, 0x1946ff)
+        else
+            field(name, x, wy + 35, 0xffffff)
+        end
+        if control_devices[set.device] then context.image(control_devices[set.device], x, wy + 61, false) end
+        for row = 1, 7 do
+            local capturing = win.capture and win.capture.player == player and win.capture.row == row
+            local label
+            if set.device == constants.input_devices.keyboard then label = controls.key_label(set.keys[row])
+            elseif row <= 4 then label = "-"
+            else label = i18n.tr("Button: %d", set.buttons[row - 4] + 1) end
+            field(label, x, wy + 159 + (row - 1) * 22, capturing and 0x1946ff or 0xffffff)
+        end
+    end
+end
 function screen.pause_toggle(state, held)
     local view = state.view
     if type(held) == "table" and type(held.pointer_x) == "number" and type(held.pointer_y) == "number" then state.hover_x, state.hover_y = held.pointer_x, held.pointer_y end
@@ -1382,30 +1530,26 @@ function screen.pause_toggle(state, held)
             elseif row.which == "kill" then state.kill_hidden = not state.kill_hidden
             elseif row.which == "combo" then state.combo_hidden = not state.combo_hidden
             elseif row.which == "radar" then state.radar_hidden = not state.radar_hidden
-            else state.controls_open = not state.controls_open end
+            else open_control_window(state) end
             return row.which
-        end
-    end
-    if state.controls_open and pad_possible(view, state.match) then
-        for _, row in ipairs(control_rows(rows)) do
-            if inside(held.pointer_x, held.pointer_y, row.x, row.y, row.w, row.h) then
-                local set = controls.current().sets[row.set]
-                if set then set.device = (set.device + 1) % (constants.input_devices.controller_four + 1) end
-                return "pad" .. row.set
-            end
         end
     end
     return false
 end
+-- The box is a sprite of MENU_CLIP6 (the 7th picture of resource.dat's <bmp_begin>), 20 x 20, so it takes the mod's own colours: frame 4
+-- (empty box, in the recording window of that sheet) always, frame 2 (the box with the tick) over it when on, and frame 1 (a white
+-- outline on black, black being clear) while the pointer is on it. Cells found by measuring the sheet (exe routine 0x459370).
+-- [BELUM PASTI] the label strips (a second sprite, one frame per box) are not identified, so the label is text.
+local checkbox_sheet = "pe/menu_clip6"
+local checkbox_base, checkbox_tick, checkbox_hover = {243, 166, 20, 20}, {24, 244, 20, 20}, {0, 244, 20, 20}
 local function draw_checkbox(context, row, on, hovered)
-    local x, y, size = row.x, row.y, row.size
-    context.fill(x, y, size, size, 150, 100, 210)
-    context.fill(x + 1, y + 1, size - 2, size - 2, 42, 10, 76)
-    if on then
-        for i = 0, 4 do context.fill(x + 4 + i, y + 9 + i, 2, 2, 255, 255, 255) end
-        for i = 0, 8 do context.fill(x + 8 + i, y + 13 - i, 2, 2, 255, 255, 255) end
+    local x, y = row.x, row.y
+    context.sprite(checkbox_sheet, checkbox_base, x, y, true)
+    if on then context.sprite(checkbox_sheet, checkbox_tick, x, y, true) end
+    if hovered then
+        context.sprite(checkbox_sheet, checkbox_hover, x, y, true)
+        font.gdi(context, i18n.tr(pause_labels[row.which]), x - 92, y + 3, colorref(0xffffff))
     end
-    if hovered then font.gdi(context, i18n.tr(pause_labels[row.which]), x - 92, y, colorref(0xffffff)) end
 end
 local function draw_pause_checkboxes(context, state, view, current)
     if not view.paused then return end
@@ -1417,15 +1561,10 @@ local function draw_pause_checkboxes(context, state, view, current)
         elseif row.which == "kill" then on = not state.kill_hidden
         elseif row.which == "combo" then on = not state.combo_hidden
         elseif row.which == "radar" then on = not state.radar_hidden
-        else on = state.controls_open == true end
+        else on = state.control_window ~= nil end
         draw_checkbox(context, row, on, type(hx) == "number" and type(hy) == "number" and inside(hx, hy, row.x, row.y, row.size, row.size))
     end
-    if state.controls_open and pad_possible(view, current) then
-        for _, row in ipairs(control_rows(rows)) do
-            local set = controls.current().sets[row.set]
-            if set then font.gdi(context, string.format("P%d: %s", row.set, device_names[set.device] or "?"), row.x, row.y, colorref(0xffffff)) end
-        end
-    end
+    draw_control_window(context, state)
 end
 
 -- LF2 Darkfiren team HP bars: the `frame:` blocks of the background (bg.dat, kept by the mode's `wait:`; `current.stage.team_frames`).

@@ -356,6 +356,8 @@ end
 -- the game: not in a network game, where it disconnects, and not on the launch screen's pages that use it.
 local function escape_free(state)
     if state.session then return false end
+    -- The match's control window (`Change controls`) uses Escape as its Cancel.
+    if state.active == "match" and state.match and state.match.control_window then return false end
     if state.active == "launch" then return state.launch.page == "menu" end
     return true
 end

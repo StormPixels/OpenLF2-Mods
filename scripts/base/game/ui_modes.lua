@@ -365,6 +365,14 @@ function ui_modes.misc_control(layout)
     return misc_cache[key]
 end
 
+-- `pic` of <misc> (UI\MENU_CLIP2b.png): the picture of the control window that `bound: 1` opens (704 x 353); nil without one.
+function ui_modes.misc_picture(layout)
+    local entry = entry_for_layout(layout)
+    local text = entry and ui_modes.text(entry) or nil
+    local block = text and mode_layout.blocks(text).misc or nil
+    return block and type(block.pic) == "string" and block.pic or nil
+end
+
 -- The kill display (readme/mode dat.txt, "CUSTOM NAME DISPLAY OF WHO KILLED WHOM"): the first <bmp_begin> block of a mode file.
 -- `mode` and `id` may repeat (the game modes it shows in, at most 20 excluded object ids), which mode_layout.blocks (first value
 -- of a key only) cannot give, so the block is read here line by line. Picture and sound names come back with "/" and lower case.
