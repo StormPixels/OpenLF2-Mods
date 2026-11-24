@@ -1746,6 +1746,8 @@ end
 
 local function small_menu(state, previous_menu, context)
     local options = state.options
+    -- LF2 Darkfiren starts with the extra settings open; the choice is kept from then on.
+    if options.extra_open == nil then options.extra_open = true end
     options.time_index = math.min(options.time_index or 0, #time_list)
     options.cost_index = math.min(options.cost_index or 0, #cost_settings.pools)
     if options.random_background then options.background = constants.background_rows.random end
@@ -1811,9 +1813,11 @@ local function small_menu(state, previous_menu, context)
             end
         end
     end
-    -- The TU mode's state sits in a black box at the Fight! row (layer 11's `dx`, `fy`), whether or not the extra settings are open.
+    -- The TU mode's state sits in a black box at the Fight! row (layer 11's `dx`, `fy`), while layer 11's own row is shown.
     local tu = small_layers[11]
-    if tu and menu_small.shown(tu, state.mode, allows, true) then
+    local tu_shown = false
+    for _, row in ipairs(rows) do if row.layer == 11 then tu_shown = true end end
+    if tu and tu_shown then
         local box_x, box_y = (tu.dx or 271), (tu.fy or 17)
         fill(state, box_x - 3, box_y - 2, 29, 15, 0)
         text(state, options.tu1 and "1tu" or "2tu", box_x, box_y, white)
@@ -2107,7 +2111,8 @@ small_background = function(state)
     local row = state.options.background
     local picture
     if state.options.random_background or row == constants.background_rows.random then
-        picture = "sprite/ui/bg_random.bmp"
+        -- The random picture the mode file names (`small:` of <grid_bg>, UI\\BG_RANDOM.png in the PNG game), else the BMP one.
+        picture = existing_picture(grid_bg.random_pic) or existing_picture("UI/BG_RANDOM.png") or "sprite/ui/bg_random.bmp"
     else
         local entry = state.backgrounds[row + 1]
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
@@ -2130,7 +2135,7 @@ small_background = function(state)
     -- BG_FRAME (260 x 144 in the game) is the frame of the preview and the background's picture (BG_RANDOM: 246 x 127) sits 7 pixels in.
     -- The mode's `pic` (MENU_CLIP2b, 704 x 353) is a sheet of menu pictures, not a frame: it is not drawn here. The resource is
     -- looked for as a file and, as the original keeps it, in the game's resources (resource.dat).
-    for _, base in ipairs({"sprite/ui/bg_frame.bmp", "pe/bg_frame"}) do
+    for _, base in ipairs({existing_picture("UI/BG_FRAME.png") or "ui/bg_frame.png", "sprite/ui/bg_frame.bmp", "pe/bg_frame"}) do
         if grid_has(base) then image(state, base, misc.frame_x + gap, misc.frame_y) break end
     end
     image(state, picture, misc.small_x + gap, misc.small_y)

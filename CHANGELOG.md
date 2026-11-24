@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- The 10 player options panel (mode3.dat's `<menu_small>`): the "Open/Close Extra Settings" row (layer 6) now opens the layers marked `kind: 1` (background mode, time, cost, drops, TU mode, Exit), which never showed; mode4.dat has no `kind`, so its 8 player panel was not affected. The TU state ("1tu"/"2tu") is drawn in a black box at the Fight! row, and the chosen background's preview frame is shown at the top right in that layout [BELUM DIUJI: written without a way to run the game]
+- The 10 player options panel (mode3.dat's `<menu_small>`): the "Open/Close Extra Settings" row (layer 6) now opens and closes the layers marked `kind: 1` (open when the menu is first shown, as in LF2 Darkfiren) (background mode, time, cost, drops, TU mode, Exit), which never showed; mode4.dat has no `kind`, so its 8 player panel was not affected. The TU state ("1tu"/"2tu") is drawn in a black box at the Fight! row, and the chosen background's preview at the top right is found in the PNG game too (`UI\BG_RANDOM.png` from the mode file's <grid_bg> `small:`, `UI\BG_FRAME.png` for the frame) and is on in that layout [BELUM DIUJI: written without a way to run the game]
 - A mode file's `<name>` label and `<frame>` picture (e.g. mode4.dat's `8P_super_widescreen` and `sprite\sys\julian_f.bmp`) are drawn on the title menu (menu 2), at the top left of the window, as LF2 Darkfiren does, instead of on the character menu
 
 ### Added
