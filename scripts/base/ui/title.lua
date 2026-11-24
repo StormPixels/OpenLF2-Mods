@@ -9,6 +9,8 @@ local sounds = require("base/game/sounds")
 local controls = require("base/ui/controls")
 local font = require("base/ui/font")
 local menu_data = require("base/game/menu_data")  -- HOOK(AI5): data\\menu.dat
+local ui_modes = require("base/game/ui_modes")
+local user_options = require("base/game/options")
 local menu_sheet = "pe/menu_clip3"
 local highlighted = {
     {32, 331, 210, 22, 289, 204},
@@ -21,6 +23,50 @@ local highlighted = {
     {55, 521, 165, 23, 312, 394},
 }
 local destinations = {"versus", "stage", "championship", "team_championship", "battle", "demo", "replay", "quit"}
+
+-- The chosen wide layout's mode file (mode4.dat, ...) has a <frame> picture and a <name> label that LF2 Darkfiren draws on this
+-- menu (menu 2), at the top left of the window: {frame = {pic, x, y, keyed} or nil, name = {name, x, y, hexf, hexb} or nil},
+-- or nil for the classic layouts and a mode file without them. Kept per layout; a layout whose file cannot be read yet is asked
+-- again next frame.
+local banners = {}
+local function banner()
+    local layout = user_options.current().battlefield_layout
+    local key = tostring(layout)
+    local cached = banners[key]
+    if cached ~= nil then return cached or nil end
+    local text = ui_modes.layout_text(layout)
+    local value = false
+    if text then
+        local frame, name = ui_modes.frame(text), ui_modes.title(text)
+        if frame or name then value = {frame = frame, name = name} end
+    end
+    local width = ui_modes.layout_width(layout)
+    if text or not width or width == constants.screen.width then banners[key] = value end
+    return value or nil
+end
+
+-- A Windows COLORREF (0xBBGGRR) as 0xRRGGBB; nil stays nil.
+local function from_colorref(value)
+    if not value then return nil end
+    return (value % 256) * 65536 + (math.floor(value / 256) % 256) * 256 + math.floor(value / 65536) % 256
+end
+
+local function draw_banner(context)
+    local mode = banner()
+    if not mode then return end
+    -- Anchored to the window's top-left corner, not to the 794 wide layout in the middle of it.
+    local origin = context.origin
+    local left, top = origin and origin.x or 0, origin and origin.y or 0
+    if mode.frame then
+        local resource = menu_data.picture(mode.frame.pic)
+        if resource then context.image(resource, left + mode.frame.x, top + mode.frame.y, mode.frame.keyed) end
+    end
+    if mode.name then
+        local label = (mode.name.name:gsub("_", " ")):sub(1, 100)
+        font.gdi(context, label, left + mode.name.x, top + mode.name.y, from_colorref(mode.name.hexf) or 0xffffff,
+            from_colorref(mode.name.hexb))
+    end
+end
 
 function title.create(options)
     options = options or {}
@@ -115,6 +161,7 @@ function title.draw(state, context)
             font.gdi(context, item.value, item.x, item.y + offset, item.color)
         end
     end
+    draw_banner(context)
     if state.showing_keys then
         context.sprite("pe/menu_clip5", {0, 389, 530, 200}, 5, 0x27, true)
         local settings = controls.current()

@@ -96,6 +96,9 @@ function wide_menu.wrap(context, width, height)
     local dx, dy = wide_menu.shift(width), wide_menu.shift_y(height)
     local wrapped = {}
     for name, command in pairs(context) do wrapped[name] = command end   -- what is not moved passes through as it is
+    -- Where the viewport's own top-left corner is in the 794 x 550 coordinates (negative: the layout sits in the middle), for
+    -- what is anchored to the window's edge instead of the layout (a mode file's <frame> and <name> on the title menu).
+    wrapped.origin = {x = -dx, y = -dy}
     function wrapped.viewport(_, _, red, green, blue) return context.viewport(width, height, red, green, blue) end
     function wrapped.sprite(resource, source, x, y, ...) return context.sprite(resource, source, x + dx, y + dy, ...) end
     function wrapped.image(resource, x, y, keyed)

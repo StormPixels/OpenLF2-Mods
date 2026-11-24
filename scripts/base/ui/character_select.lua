@@ -227,11 +227,11 @@ function selection.create(options)
     state.slot_count = not championship and state.wide and user_options.slot_count and user_options.slot_count(layout_name) or 8
     -- The 10 player mode (mode3.dat) has no <grid_char>: no roster of faces, panel or taps (championship included).
     state.no_roster = state.wide and ui_modes.is_ten(layout_name) or nil
+    -- LF2 Darkfiren shows the chosen background's preview at the top right in the 10 player layout too.
+    if state.no_roster then misc.show_small = 1 end
     if mode == constants.modes.battle and state.slot_count == 10 then
         for slot = 0, 9 do slots[slot].team = math.floor(slot / 5) + 1 end   -- two sides of five
     end
-    -- The mode file's <name> block: the mode's title at its own position, in a wide layout.
-    state.title = state.wide and ui_modes.title(mode_text) or nil
     -- The player cannot read the log: a wide layout that is not drawn as chosen says so on the screen.
     if width and not state.wide then state.layout_note = "Wide " .. width .. ": layout files not found, classic menu"
     elseif width and mode_source == "builtin" then state.layout_note = "Wide " .. width .. ": built-in layout (mode2.dat not read)" end
@@ -1676,11 +1676,15 @@ local function background_has_modes(state)
     if state.options.random_background or row == constants.background_rows.random then return false end
     return #visible_modes(row) > 1
 end
+-- Layer 6 (`more-options`, mode3.dat) is the "Open/Close Extra Settings" row: `small` is its Open picture, `smallb` the Close one
+-- (`head` and `smallc` the lit ones). The layers marked `kind: 1` (7 to 12: background mode, time, cost, drops, TU mode, Exit)
+-- are shown only while it is open. mode4.dat has no `kind` and a layer 6 that is never shown, so its rows are always there.
+local extra_toggle = 6
 local small_forced = {[7] = true, [8] = true}
 local function small_rows(state)
     local stage_mode = state.mode == constants.modes.stage
     local skip = {[8] = not stage_mode and #time_list == 0, [9] = stage_mode or #cost_settings.pools == 0}
-    return menu_small.rows(small_layers, state.mode, allows, small_forced, skip), stage_mode,
+    return menu_small.rows(small_layers, state.mode, allows, small_forced, skip, state.options.extra_open), stage_mode,
         not stage_mode and background_has_modes(state)
 end
 local function small_disabled(number, stage_mode, has_modes)
@@ -1766,7 +1770,8 @@ local function small_menu(state, previous_menu, context)
         elseif number == 7 and stage_mode then base, light = layer.smallc or base, nil
         elseif number == 7 and not has_modes then base, light = layer.smallb or base, nil
         elseif number == 8 and stage_mode then base, light = layer.smallb or base, nil
-        elseif number == 10 then base, light = (cost_on and layer.head) or layer.smalld or layer.head, nil end
+        elseif number == 10 then base, light = (cost_on and layer.head) or layer.smalld or layer.head, nil
+        elseif number == extra_toggle and options.extra_open then base, light = layer.smallb or base, layer.smallc or light end
         if base then keyed_image(state, base, x, y) end
         if selected and light then keyed_image(state, light, x, y) end
         if number == 3 and options.hide_random and layer.smallb then keyed_image(state, layer.smallb, layer.dx or 0, layer.dy or 0)
@@ -1804,9 +1809,14 @@ local function small_menu(state, previous_menu, context)
                 local focus = ({layer.small, layer.smallb, layer.smallc})[options.sub_row]
                 if focus then keyed_image(state, focus, x, y) end
             end
-        elseif number == 11 then
-            text(state, options.tu1 and "1tu" or "2tu", layer.dx or 271, layer.fy or 17, option_blue)
         end
+    end
+    -- The TU mode's state sits in a black box at the Fight! row (layer 11's `dx`, `fy`), whether or not the extra settings are open.
+    local tu = small_layers[11]
+    if tu and menu_small.shown(tu, state.mode, allows, true) then
+        local box_x, box_y = (tu.dx or 271), (tu.fy or 17)
+        fill(state, box_x - 3, box_y - 2, 29, 15, 0)
+        text(state, options.tu1 and "1tu" or "2tu", box_x, box_y, white)
     end
     -- The preview frame sits behind the background and mode lists (the original draws the list over it).
     if state.wide and (state.grid or state.mode_grid) then small_background(state) end
@@ -1854,6 +1864,9 @@ local function small_menu(state, previous_menu, context)
     elseif number == 4 then option_action(state, context, option_rows.background, {})
     elseif number == 5 then option_action(state, context, option_rows.difficulty, {})
     elseif number == 12 then option_action(state, context, option_rows.exit, {})
+    elseif number == extra_toggle then
+        sounds.direct(state, "ok")
+        options.extra_open = not options.extra_open
     elseif number == 7 and has_modes then
         sounds.direct(state, "ok")
         open_mode_grid(state, options.background, visible_modes(options.background))
@@ -2141,12 +2154,6 @@ function selection.update(state, held, context)
     slots_pass(state, held)
     if state.wide and not state.no_roster then roster_pass(state, held) end
     if state.layout_note then text(state, state.layout_note, 6, (state.height or constants.screen.height) - 14, 0xffd34c) end
-    if state.title then
-        -- hexf is the text colour, hexb the shadow colour (0xRRGGBB).
-        local title = state.title
-        if title.hexb then text(state, title.name, title.x + 1, title.y + 1, title.hexb) end
-        text(state, title.name, title.x, title.y, title.hexf or white)
-    end
     state.last_menu = state.menu
     if state.menu == menus.computer_count then computer_count_menu(state, previous_menu) end
     if state.menu == menus.computer_slots or state.menu == menus.options then computer_menu(state, previous_menu) end

@@ -25,9 +25,9 @@ Tampilan hanya bisa dinilai pengguna di ponsel; yang diuji di sini adalah logika
 | `<menu_control>`, `<grid_char>`, `<grid_bg>`, `<grid_bg_mode>`, `<grid_stage>`, `<misc>` | dibaca (`mode_layout.apply`); mode1/2/4 diuji |
 | `<menu_small>`, `<time>`, `<cost>`, `<battle>` | dibaca per mode (tes `small_menu_modes_test`) |
 | `<random>` | dibaca dari berkas mode, cadangan `game/random_pool` |
-| `<name>` | judul mode digambar di pojok kiri atas layar pilih karakter pada layout lebar (teks `hexf`, bayangan `hexb` 1 px) |
+| `<name>` | label mode digambar di menu utama (menu 2, bukan layar pilih karakter) di pojok kiri atas jendela pada layout lebar: teks `hexf`, kotak latar `hexb` (keduanya COLORREF), spasi dari `_` |
 | `<combo>` | dibaca (`ui_modes.combo`), belum digambar: match belum punya penghitung combo |
-| `<frame>` (mode3/mode4) | belum dipakai |
+| `<frame>` (mode3/mode4) | gambar `pic` di (`x`, `y`) digambar di menu utama (menu 2) bersama `<name>`, di pojok kiri atas jendela (`ui_modes.frame`; `transparency` 0 = tidak transparan; `respond` diabaikan) |
 | `<menu_wait>`, `<background>`, `<bmp_begin>` | belum dipakai |
 | blok `<mode>`/`<grid_bg>` ganda (mode3) | dibaca (`mode_layout.all_blocks`, diuji); belum dipetakan ke panel: `blocks` tetap hanya blok pertama. mode3: `<mode>` pertama = tingkat kesulitan (Easy..CRAZY!), kedua = mode permainan; `<grid_bg>` pertama berbentuk panel BOX_BGMODE, kedua BOX_STAGE [BELUM PASTI peran tiap blok] |
 
@@ -93,7 +93,7 @@ Data contoh ada di `RESULT/tests/data` (salinan `mode.dat`, `mode1-4.dat`, `fram
 - **Layout 1018 jadi classic (akar masalah)**: tiga sebab berurutan: (1) `game/dat_text` belum ada di C++ sehingga `mode.dat` tidak terbaca; (2) jalur `mode.dat` yang saya pakai salah (`data/mode/mode.dat`; yang benar `data/mode.dat`); (3) gambar menu mode2 `sprite/ui/charmenu.bmp` bukan berkas tersendiri (layout classic menggambar `pe/charmenu`). Perbaikan: `game/data_text.lua` membaca berkas game apa adanya dan mendekode `.dat` seperti `src/resources/data_file.cpp` (lewati 123 byte, kurangi kunci 37 huruf dari awal berkas); `character_select` memakai `pe/charmenu` bila berkas gambarnya tidak ada; salinan bawaan di `game/mode2_builtin.lua`; catatan di layar bila tidak membaca berkas game.
 - **Gempa layar**: `match.st.quake_x/quake_y` (piksel, dibatasi +-50) menggeser seluruh arena (latar, objek, spark) lewat pembungkus `context` di `match_screen.lua`; HUD, perintah stage, dan gambar jeda tidak ikut. Positif = ke kanan/bawah (arah itu pilihan saya).
 - **center_z**: aturan diperbaiki sesuai dokumentasi (lihat bagian 3).
-- **Judul mode** (`<name>`) digambar; **gaya HUD pilihan pemain** ditambahkan (bagian 2).
+- **Judul mode** (`<name>`) dan `<frame>` digambar di menu utama (menu 2), bukan di layar pilih karakter; **gaya HUD pilihan pemain** ditambahkan (bagian 2).
 - **Radar** digambar (lihat bagian 2); sebelumnya memilih gaya Radar hanya mengubah kotak HUD.
 
 ## 8. Putaran 5 (keputusan pengguna, BASE base-20261106-2-46e3dcd)

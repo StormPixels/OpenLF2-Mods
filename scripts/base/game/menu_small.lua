@@ -54,11 +54,12 @@ end
 
 -- Is the layer shown? hidden 4 and the lock values (10 and up) never; 1 to 3 once the cheat code is in. A layer
 -- that lists game modes is shown in those only. `game_mode`: 0 versus, 1 stage, 2 and 3 championships, 4 battle, 5 demo.
-function menu_small.shown(layer, game_mode, cheat)
+-- A `kind: 1` layer belongs to the extra settings (TU mode, Exit): shown only while `extra_open` is set.
+function menu_small.shown(layer, game_mode, cheat, extra_open)
     if not layer or not (layer.small or layer.head) then return false end
     local hidden = layer.hidden or 0
     if not permitted(hidden, cheat) then return false end
-    if layer.kind == 1 then return false end   -- "more settings" is not offered
+    if layer.kind == 1 and not extra_open then return false end   -- the extra settings, closed
     if layer.modes and not layer.modes[game_mode] then return false end
     return true
 end
@@ -66,15 +67,17 @@ end
 -- The rows to draw, top to bottom: {layer = n, y = top of the row}. `forced` lists layer numbers that stay in as
 -- disabled rows although their modes do not list this game mode (the time limit in Stage mode, for instance);
 -- `skip` lists layer numbers to leave out whatever else.
-function menu_small.rows(layers, game_mode, cheat, forced, skip)
+function menu_small.rows(layers, game_mode, cheat, forced, skip, extra_open)
     local numbers = {}
     for number in pairs(layers) do numbers[#numbers + 1] = number end
     table.sort(numbers)
     local rows, y = {}, nil
     for _, number in ipairs(numbers) do
         local layer = layers[number]
-        local show = menu_small.shown(layer, game_mode, cheat)
-        if not show and forced and forced[number] and layer.small then
+        local show = menu_small.shown(layer, game_mode, cheat, extra_open)
+        -- A `kind: 1` layer stays out while the extra settings are closed, forced or not.
+        local closed = layer and layer.kind == 1 and not extra_open
+        if not show and not closed and forced and forced[number] and layer.small then
             local hidden = layer.hidden or 0
             show = permitted(hidden, cheat)
         end

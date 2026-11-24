@@ -276,7 +276,8 @@ function ui_modes.random_pool(text)
 end
 
 -- The <name> block of a mode file: the mode's title (`name`) with the position (`x`, `y`) it is drawn at and its two
--- colours (`hexf` text, `hexb` shadow, as 0xRRGGBB numbers); nil without the block. Read only: nothing draws it yet.
+-- colours (`hexf` text, `hexb` background box; both Windows COLORREF numbers, 0xBBGGRR, as the file gives them); nil
+-- without the block. LF2 Darkfiren draws it on the title menu (menu 2), not on the character menu: ui/title does.
 function ui_modes.title(text)
     -- mode_layout.blocks turns a value that starts with digits ("8P_normal_mode") into a number, so the title is
     -- read from the lines directly.
@@ -293,6 +294,33 @@ function ui_modes.title(text)
     if not block.name or block.name == "" then return nil end
     return {name = block.name, x = tonumber(block.x) or 0, y = tonumber(block.y) or 0,
         hexf = tonumber(block.hexf), hexb = tonumber(block.hexb)}
+end
+
+-- The <frame> block of a mode file: a picture (`pic`) at (`x`, `y`) of the window, `transparency` 0 = opaque, else black is
+-- clear; the first <frame> block that names a picture; nil without one. Like <name>, LF2 Darkfiren draws it on the title
+-- menu (menu 2); `respond` is kept out (ignored).
+function ui_modes.frame(text)
+    local blocks, current = {}, nil
+    for line in (text or ""):gmatch("[^\r\n]+") do
+        local tag = line:match("^%s*<([%w_]+)>%s*$")
+        if tag == "frame" then
+            current = {}
+            blocks[#blocks + 1] = current
+        elseif tag then
+            current = nil
+        elseif current then
+            for key, value in line:gmatch("([%w_]+)%s*:%s*(%S+)") do
+                if current[key] == nil then current[key] = value end
+            end
+        end
+    end
+    for _, block in ipairs(blocks) do
+        if block.pic then
+            return {pic = block.pic, x = tonumber(block.x) or 0, y = tonumber(block.y) or 0,
+                keyed = (tonumber(block.transparency) or 0) ~= 0}
+        end
+    end
+    return nil
 end
 
 -- The <combo> block: the hit counter picture `pic` (digits of w x h), where it goes (`offset_x`, `offset_y`) and for how
