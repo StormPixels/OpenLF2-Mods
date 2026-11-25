@@ -185,7 +185,7 @@ function selection.create(options)
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
     end
     -- Option values are globals in the original and keep their values between visits.
-    local options = previous.options or {small_row = 1, hide_random = false, time_index = 0, cost_index = 0, item_drops = true, allow_transform = true, shuffle = false, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
+    local options = previous.options or {small_row = 1, hide_random = false, time_index = 0, cost_index = 0, item_drops = false, allow_transform = false, shuffle = false, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
         difficulty = 0, music = 0, stage_level = 0}
     -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
     -- that lacks a tag (or is gone) leaves the built-in one.
@@ -1778,8 +1778,8 @@ end
 
 local function small_menu(state, previous_menu, context)
     local options = state.options
-    -- LF2 Darkfiren starts with the extra settings open; the choice is kept from then on.
-    if options.extra_open == nil then options.extra_open = true end
+    -- The extra settings start closed; the choice is kept from then on.
+    if options.extra_open == nil then options.extra_open = false end
     options.time_index = math.min(options.time_index or 0, #time_list)
     options.cost_index = math.min(options.cost_index or 0, #cost_settings.pools)
     if options.random_background then options.background = constants.background_rows.random end

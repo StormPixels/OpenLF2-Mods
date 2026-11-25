@@ -702,8 +702,7 @@ function screen.update(state, flow_input, context)
         input = navigation.apply(state.nav, flow_input, navigation_page(state))
     end
     if state.page == "waiting" then
-        -- The Game Start frame: shows the wait image, then the title.
-        image(state, "pe/menu_wait", 0, 0, false)
+        -- The Game Start frame: straight to the title (no wait image: a game may not have it).
         context.action("game_start")
     elseif state.page == "controls" then
         control_settings(state, input, context)

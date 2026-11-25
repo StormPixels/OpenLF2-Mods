@@ -7,6 +7,7 @@
 -- This module reads the layers and works out which rows show and where; character_select draws and runs them.
 -- Compatible with Lua 5.1/LuaJIT.
 local menu_small = {}
+menu_small.exit_layer = 12   -- the Exit row of the options panel
 
 local path_keys = {small = true, head = true, smallb = true, smallc = true, smalld = true, smallp = true, pic = true, pic2 = true}
 
@@ -90,7 +91,8 @@ function menu_small.shown(layer, game_mode, cheat, extra_open, number)
     if not layer or not (layer.small or layer.head) then return false end
     local hidden = layer.hidden or 0
     if not permitted(hidden, cheat) then return false end
-    if layer.kind == 1 and not extra_open then return false end   -- the extra settings, closed
+    -- The extra settings, closed. Exit (layer 12) is not one of them: the original keeps it while they are closed.
+    if layer.kind == 1 and not extra_open and number ~= menu_small.exit_layer then return false end
     -- readme (mode dat, <menu_small>): "if mode not specified for layer 6~11, the layer will not appear in any mode".
     if number and number >= 6 and number <= 11 and not layer.modes then return false end
     if layer.modes and not layer.modes[game_mode] then return false end
@@ -109,7 +111,7 @@ function menu_small.rows(layers, game_mode, cheat, forced, skip, extra_open)
         local layer = layers[number]
         local show = menu_small.shown(layer, game_mode, cheat, extra_open, number)
         -- A `kind: 1` layer stays out while the extra settings are closed, forced or not.
-        local closed = layer and layer.kind == 1 and not extra_open
+        local closed = layer and layer.kind == 1 and not extra_open and number ~= menu_small.exit_layer
         -- Forced rows are those whose `mode:` list leaves this game mode out; a layer 6 to 11 with no list is in no mode at all.
         if not show and not closed and forced and forced[number] and layer.small and layer.modes then
             local hidden = layer.hidden or 0
