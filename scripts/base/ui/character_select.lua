@@ -45,7 +45,7 @@ local small_modes = {}   -- <mode> of the mode file: {[layer] = {name, hex}} (di
 -- <misc> of mode4.dat: the music line (position, colours) and the small picture of the chosen background in its frame
 -- (position, frame picture, on or off). 1142 is where the classic menu's music line lands in the wide picture.
 local misc = {music_x = 1142, music_y = 3, music_title = 0x5a77d8, music_hint = 0x223fa0, frame_x = 531, frame_y = 4,
-    small_x = 538, small_y = 11, show_small = 0, frame_pic = "sprite/ui/menu_clip2b.bmp"}
+    small_x = 538, small_y = 11, show_small = 0, frame_pic = "sprite/ui/menu_clip2b.bmp", allow_defense = 0}
 layout_targets.misc = misc
 -- LF2 Darkfiren <time> of mode4.dat: the time limits (seconds) the wide options menu offers, and who wins.
 local time_list, time_type = {}, 1
@@ -792,10 +792,24 @@ local function slots_pass(state, held)
     end
 end
 
+-- <misc> `allow_defense: 1`: the computer count dialog is CMC2 with a Defense box (CMC2 is in resource.dat); the box sets the
+-- armor of the computer fighters (100 = normal, steps of 50 up to 300 like the battle setup). Up and Down change it.
+local cmc2_available
+local function defense_dialog()
+    if misc.allow_defense ~= 1 then return false end
+    if cmc2_available == nil then cmc2_available = pcall(engine.read_resource, "pe/cmc2") end
+    return cmc2_available
+end
 local function computer_count_menu(state, previous_menu)
     -- The dialog is laid out for the classic 794-wide picture; the wide menu moves it to the middle of its picture.
     local dx = state.wide and math.floor(((state.width or constants.screen.wide_width) - constants.screen.width) / 2 + 0.5) or 0
-    image(state, "pe/cmc", 218 + dx, 215)
+    local defense_on = defense_dialog()
+    image(state, defense_on and "pe/cmc2" or "pe/cmc", 218 + dx, 215)
+    if defense_on then
+        state.options.computer_defense = state.options.computer_defense or constants.defense.normal
+        local value = state.options.computer_defense
+        text(state, string.format("%d.%d", math.floor(value / 100), math.floor(value % 100 / 10)), 218 + dx + 232, 215 + 87, white)
+    end
     local free, sides, teams = 0, 0, {}
     for index = 0, (state.slot_count or 8) - 1 do
         local slot = state.slots[index]
@@ -825,6 +839,15 @@ local function computer_count_menu(state, previous_menu)
                 if trigger(slot, accept) then
                     state.computers = state.computers - 1
                     if state.computers < minimum then state.computers = free end
+                end
+            elseif defense_on and (pressed(keys, "u") or pressed(keys, "d")) then
+                if trigger(slot, accept) then
+                    local step = pressed(keys, "u") and 50 or -50
+                    local value = state.options.computer_defense + step
+                    if value > constants.defense.maximum then value = constants.defense.normal end
+                    if value < constants.defense.normal then value = constants.defense.maximum end
+                    state.options.computer_defense = value
+                    sounds.direct(state, "ok")
                 end
             elseif pressed(keys, "c") or auto then
                 if auto then
@@ -2111,6 +2134,9 @@ function selection.match_options(state)
         respawn_shuffle = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0
             and state.options.shuffle or nil,
         tu1 = state.wide and state.options.tu1 == true or nil,
+        -- The Defense box of the computer count dialog (`allow_defense`): the armor of the computer fighters.
+        computer_defense = defense_dialog() and (state.options.computer_defense or constants.defense.normal) ~= constants.defense.normal
+            and state.options.computer_defense or nil,
         -- [BELUM TERHUBUNG] the hitlag mode (0, -1 ... -5) is chosen and carried to the match; combat does not read it yet.
         hitlag = state.wide and (state.options.hitlag or 0) ~= 0 and state.options.hitlag or nil,
         bg_mode = state.mode ~= constants.modes.stage and not state.options.random_background and state.options.bg_mode or nil,
@@ -2189,6 +2215,7 @@ end
 -- <misc> `background_small`: the chosen background's small map picture (bg/sys/map/<name>.bmp) in a frame next to the
 -- music line; Random shows sprite/ui/bg_random.bmp. Stage mode has no single background to show.
 small_background = function(state)
+    state.small_frame = state.frames   -- drawn in this update (see selection.update)
     if misc.show_small ~= 1 or state.mode == constants.modes.stage then return end
     local row = state.options.background
     local picture
@@ -2253,7 +2280,9 @@ function selection.update(state, held, context)
     if state.menu == menus.options and state.mode ~= constants.modes.battle then
         options_menu(state, previous_menu, context)
         -- With the menu panel and the music line, not before: the chosen background's small picture.
-        if state.wide and not (state.grid or state.mode_grid) then small_background(state) end
+        -- A list opened by this very press was not there when the options menu drew its frame, so the picture must still be
+        -- drawn this update or it (and its frame) would blink for one frame.
+        if state.wide and (not (state.grid or state.mode_grid) or state.small_frame ~= state.frames) then small_background(state) end
     elseif state.menu == menus.options and previous_menu ~= menus.options then
         context.action("battle_setup")
     end

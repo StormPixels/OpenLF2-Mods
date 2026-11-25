@@ -98,12 +98,13 @@ local function with_recording(state, options)
     if options.network then
         options.bg_mode, options.time_limit, options.cost = nil, nil, nil
         options.no_item_drops, options.no_transform, options.respawn_shuffle, options.tu1, options.hitlag = nil, nil, nil, nil, nil
+        options.computer_defense = nil
     end
     -- A replay file holds eight slots (names, frame records): a ten player match is not recorded.
     if user_options.slot_count and user_options.slot_count(user_options.current().battlefield_layout) > 8 then return options end
     local settings = controls.current()
     if settings.record == 0 or options.bg_mode or options.time_limit or options.cost
-       or options.no_item_drops or options.no_transform or options.respawn_shuffle or options.tu1 or options.hitlag then return options end
+       or options.no_item_drops or options.no_transform or options.respawn_shuffle or options.tu1 or options.hitlag or options.computer_defense then return options end
     local names = {}
     for slot = 0, 7 do names[slot + 1] = controls.name(slot) end
     options.record = {names = names, version = state.options.recording_version or 0, time = engine.local_time(),

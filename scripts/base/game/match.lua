@@ -134,6 +134,8 @@ function match.create(options)
             else
                 value.x_int = engine.random(math.floor(width / 2)) + math.floor(width / 4)
                 value.z_int = engine.random(far - near) + near
+                -- The Defense box of the computer count dialog: only the computers get it.
+                if entry.kind ~= "human" and options.computer_defense then value.armor = options.computer_defense end
             end
             local start_y = state.bg_area and state.bg_area.dvy or 0  -- HOOK(AI5): mode `dvy` start height
             value.y_int = start_y

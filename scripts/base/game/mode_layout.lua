@@ -73,7 +73,7 @@ local maps = {
         x = "start_x", y = "start_y", w = "w", h = "h", columns = "row", step = "centery", line_y = "centery", step_x = "centerx",
         name_x = "name_x", name_y = "name_y"},
     misc = {tag = "misc", music_x = "music_x", music_y = "music_y", frame_x = "frame_x", frame_y = "frame_y",
-        small_x = "small_x", small_y = "small_y", show_small = "background_small", frame_pic = "pic",
+        small_x = "small_x", small_y = "small_y", show_small = "background_small", frame_pic = "pic", allow_defense = "allow_defense",
         music_title = "hexf", music_hint = "hexb"},
     grid_stage = {tag = "grid_stage", panel_pic = "pic", panel_x = "pic_x", panel_y = "pic_y", x = "start_x", y = "start_y",
         w = "w", h = "h", columns = "row", step_x = "centerx", step_y = "centery", name_x = "name_x", name_y = "name_y"},
