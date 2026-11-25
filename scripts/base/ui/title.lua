@@ -103,6 +103,9 @@ function title.update(state, held, context)
         if state.selection < constants.title_entries.quit then sounds.direct(state, "ok") end
         context.action(destinations[state.selection + 1])
     end
+    -- Jump ("b" in base/ui/controls) goes back from this menu (menu.dat's <menu2>) to the launch menu (<menu1>). A network
+    -- game (replay_disabled) stays here: the launch menu would drop its connection.
+    if input == "b" and not state.replay_disabled then context.action("launch") end
     for _, sound in ipairs(sounds.flush(state)) do context.sound(sound.resource, sound.volume, sound.pan) end
     -- The key list counts down while shown; a click on the menu area shows it for 450 frames.
     state.showing_keys = state.key_list > 0
