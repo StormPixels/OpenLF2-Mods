@@ -827,7 +827,7 @@ local function bar_of(value, name, style)
     local display = display_of(value.record)
     local own = type(display) == "table" and display[name] or nil
     -- Only the plain horizontal bar (type 1, or none given) is drawn from it; other types are [BELUM PASTI] and keep the style's.
-    if type(own) == "table" and (own.type == nil or own.type == 1) and type(own.x) == "number"
+    if type(own) == "table" and (own.type == nil or own.type == 1 or own.type == 2 or (own.type == 3 and name == "hp_bar")) and type(own.x) == "number"
        and type(own.y) == "number" and type(own.w) == "number" and own.w >= 1 then
         return {x = own.x, y = own.y, w = own.w, h = type(own.h) == "number" and own.h >= 1 and own.h or style[name].h}
     end
@@ -1195,7 +1195,40 @@ local function draw_status(context, state, style)
                 -- 124 pixels is the full bar of the classic HUD; another width scales it.
                 local function filled(amount, geometry) return math.floor(amount * 31 / 125 * (geometry.w / 124)) end
                 bar(style.col_dhp, filled(value.dark_hp, hp_bar), hp_bar)
-                bar(style.col_hp, filled(value.hp, hp_bar), hp_bar)
+                local own_hp = display_of(value.record)
+                own_hp = type(own_hp) == "table" and own_hp.hp_bar or nil
+                local hp_animation = nil
+                if type(own_hp) == "table" and own_hp.type == 3 and type(own_hp.layers) == "table" and #own_hp.layers > 0 then hp_animation = own_hp
+                elseif style.hp_bar.type == 3 and type(style.hp_bar.layers) == "table" and #style.hp_bar.layers > 0 then hp_animation = style.hp_bar end
+                if type(own_hp) == "table" and own_hp.type == 2 then
+                    -- <hp_bar> type 2 (readme "hpbar.txt": rgb bar based on colour, hp only): one solid colour that goes green, yellow, red as
+                    -- the hp falls (the HUD of the video "RGB Bars (green => yellow => red)"). [BELUM PASTI] the exact curve: linear in two halves.
+                    local width = filled(value.hp, hp_bar)
+                    if width > 0 then
+                        local ratio = math.max(0, math.min(1, value.hp / constants.points.full))
+                        local red = math.min(255, math.floor(2 * (1 - ratio) * 255))
+                        local green = math.min(255, math.floor(2 * ratio * 255))
+                        context.fill(column + hp_bar.x, row + hp_bar.y, width, hp_bar.h, red, green, 0)
+                    end
+                elseif hp_animation then
+                    -- <hp_bar> type 3 (readme "hpbar.txt"): the bar is read from the bars picture at (dx, dy) of each layer, a layer shown only
+                    -- in c1..c2 of every cc ticks (so two layers swap), while the hp is below `effect` percent (always when it is missing or
+                    -- 100 or more); otherwise, or when no layer is shown, the usual bar. [BELUM PASTI] how `effect: 1xx` of the notes reads.
+                    local percent = value.hp * 100 / constants.points.full
+                    local drawn = false
+                    if hp_animation.effect == nil or hp_animation.effect >= 100 or percent < hp_animation.effect then
+                        local width = filled(value.hp, hp_bar)
+                        for _, layer in ipairs(hp_animation.layers) do
+                            if width > 0 and layer_shown(layer, state.elapsed) then
+                                context.sprite(bars_pic, {layer.dx or 0, layer.dy or 0, width, hp_bar.h}, column + hp_bar.x, row + hp_bar.y, false)
+                                drawn = true
+                            end
+                        end
+                    end
+                    if not drawn then bar(style.col_hp, filled(value.hp, hp_bar), hp_bar) end
+                else
+                    bar(style.col_hp, filled(value.hp, hp_bar), hp_bar)
+                end
                 -- Healing (milk, regeneration): the bar flashes every other tick of the 12-tick counter.
                 if (math.floor(value.regen_timer / constants.healing.timer_base) == 1 or value.heal_timer > 0) and state.counter_12 % 2 == 0 then
                     bar(style.col_bhp, filled(value.hp, hp_bar), hp_bar)
@@ -1215,6 +1248,44 @@ local function draw_status(context, state, style)
                         local pixels = math.max(1, math.floor(width * part / 50))
                         local slot_x = own_mp.facing == 1 and (own_mp.x + (9 - index) * pitch + width - pixels) or (own_mp.x + index * pitch)
                         context.sprite(bars_pic, {own_mp.dx or 0, own_mp.dy or 0, pixels, height}, column + slot_x, row + own_mp.y, false)
+                    end
+                elseif type(own_mp) == "table" and own_mp.type == 4 and type(own_mp.x) == "number" and type(own_mp.y) == "number" then
+                    -- <mp_bar> type 4 (readme "mpbar.txt"): 2 layers of 5 vertical bars, one bar for every 50 mp, `mp` fixed at 250 per layer; the
+                    -- second layer (read `h` rows lower) covers the first one from 251 mp. The rest as type 3. [BELUM PASTI] the layer offset.
+                    local width, height = own_mp.w or 6, own_mp.h or 10
+                    local pitch = own_mp.loop or width
+                    local mana = math.min(math.max(value.mp, 0), constants.points.full)
+                    local layers = (type(own_mp.amount) == "number" and own_mp.amount >= 1) and own_mp.amount or 2
+                    local layer = math.min(mana > 250 and 1 or 0, layers - 1)
+                    local function segments(index, amount)
+                        for number = 0, 4 do
+                            local part = math.min(50, amount - number * 50)
+                            if part <= 0 then break end
+                            local pixels = math.max(1, math.floor(width * part / 50))
+                            local slot_x = own_mp.facing == 1 and (own_mp.x + (4 - number) * pitch + width - pixels) or (own_mp.x + number * pitch)
+                            context.sprite(bars_pic, {own_mp.dx or 0, (own_mp.dy or 0) + index * height, pixels, height}, column + slot_x, row + own_mp.y, false)
+                        end
+                    end
+                    if layer > 0 then segments(0, 250) end
+                    segments(layer, mana - layer * 250)
+                elseif type(own_mp) == "table" and own_mp.type == 2 then
+                    -- <mp_bar> type 2 (readme "mpbar.txt"): `amount` layers of `h` rows read from the bars picture at (dx, dy + layer * h); the layer
+                    -- changes every `mp` (100 by default), so 1..100 mp fills layer 1, 101..200 fills layer 2 over a full layer 1, and so on;
+                    -- beyond the last layer the last one stays. [BELUM PASTI] the way a new layer grows over the previous one.
+                    local step = (type(own_mp.mp) == "number" and own_mp.mp >= 1) and own_mp.mp or 100
+                    local layers = (type(own_mp.amount) == "number" and own_mp.amount >= 1) and own_mp.amount or 1
+                    local mana = math.min(math.max(value.mp, 0), constants.points.full)
+                    if mana > 0 then
+                        local layer = math.min(math.ceil(mana / step) - 1, layers - 1)
+                        local function layer_row(index, pixels)
+                            if pixels > 0 then
+                                context.sprite(bars_pic, {own_mp.dx or 0, (own_mp.dy or 0) + index * mp_bar.h, pixels, mp_bar.h},
+                                    column + mp_bar.x, row + mp_bar.y, false)
+                            end
+                        end
+                        if layer > 0 then layer_row(layer - 1, mp_bar.w) end
+                        local part = math.min(1, (mana - layer * step) / step)
+                        layer_row(layer, math.floor(mp_bar.w * part))
                     end
                 else
                     bar(style.col_dmp, mp_bar.w, mp_bar)

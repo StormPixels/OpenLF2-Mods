@@ -58,6 +58,11 @@ function ui_hud.parse(text)
                 local value = block[key]
                 if type(value) == "number" and ((key ~= "w" and key ~= "h") or value >= 1) then style[name][key] = value end
             end
+            -- hp_bar type 3 of a style (cui2, cui4): the animation layers (cc, c1, c2, dx, dy) and `effect` are kept for the match screen.
+            if name == "hp_bar" and block.type == 3 then
+                style.hp_bar.type, style.hp_bar.effect = 3, block.effect
+                style.hp_bar.layers = ui_hud.parse_groups(text, "hp_bar", "layer")
+            end
         end
     end
     style.radar = ui_hud.parse_radar(text)
