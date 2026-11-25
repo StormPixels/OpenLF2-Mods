@@ -14,6 +14,7 @@ local controls = require("base/ui/controls")
 local music = require("base/game/music")
 local user_options = require("base/game/options")
 local unlock = require("base/game/unlock")
+local system_data = require("base/game/system_data")
 local selection = {}
 local idle_countdown = 150
 local computer_phase, computer_team_phase, computer_done = slot_phases.computer_fighter, slot_phases.computer_team, slot_phases.computer_ready
@@ -795,20 +796,23 @@ end
 -- <misc> `allow_defense: 1`: the computer count dialog is CMC2 with a Defense box (CMC2 is in resource.dat); the box sets the
 -- armor of the computer fighters (100 = normal, steps of 50 up to 300 like the battle setup). Up and Down change it.
 local cmc2_available
-local function defense_dialog()
-    if misc.allow_defense ~= 1 then return false end
+-- `allow_defense: 1` is read from <misc> of the mode file, or from system.dat (the newer Darkfiren puts it there). It is for the
+-- versus and stage modes only (readme: "works in vs and stage mode only"); battle sets its defense in its own setup.
+local function defense_dialog(state)
+    if state.mode ~= constants.modes.versus and state.mode ~= constants.modes.stage then return false end
+    if misc.allow_defense ~= 1 and system_data.number("allow_defense", 0) ~= 1 then return false end
     if cmc2_available == nil then cmc2_available = pcall(engine.read_resource, "pe/cmc2") end
     return cmc2_available
 end
 local function computer_count_menu(state, previous_menu)
     -- The dialog is laid out for the classic 794-wide picture; the wide menu moves it to the middle of its picture.
     local dx = state.wide and math.floor(((state.width or constants.screen.wide_width) - constants.screen.width) / 2 + 0.5) or 0
-    local defense_on = defense_dialog()
+    local defense_on = defense_dialog(state)
     image(state, defense_on and "pe/cmc2" or "pe/cmc", 218 + dx, 215)
     if defense_on then
         state.options.computer_defense = state.options.computer_defense or constants.defense.normal
         local value = state.options.computer_defense
-        text(state, string.format("%d.%d", math.floor(value / 100), math.floor(value % 100 / 10)), 218 + dx + 232, 215 + 87, white)
+        text(state, string.format("%d.%d", math.floor(value / 100), math.floor(value % 100 / 10)), 218 + dx + 241, 215 + 115, white)
     end
     local free, sides, teams = 0, 0, {}
     for index = 0, (state.slot_count or 8) - 1 do
@@ -882,7 +886,9 @@ local function computer_count_menu(state, previous_menu)
         -- Digits the choice cannot reach (below the minimum, or more than the free slots) are greyed.
         local unavailable = number < minimum or free < number
         text(state, tostring(number), x + 6, 286, unavailable and count_greyed or white, count_box)
-        if state.computers == number then
+        -- system.dat `respond: 1`: the box around the chosen number blinks (update log 21 Feb 2023).
+        local blink_on = system_data.number("respond", 0) ~= 1 or math.floor((state.frames or 0) / 8) % 2 == 0
+        if state.computers == number and blink_on then
             fill(state, x, 283, 21, 1, 255)
             fill(state, x, 283, 1, 21, 255)
             fill(state, x, 303, 21, 1, 255)
@@ -2135,7 +2141,7 @@ function selection.match_options(state)
             and state.options.shuffle or nil,
         tu1 = state.wide and state.options.tu1 == true or nil,
         -- The Defense box of the computer count dialog (`allow_defense`): the armor of the computer fighters.
-        computer_defense = defense_dialog() and (state.options.computer_defense or constants.defense.normal) ~= constants.defense.normal
+        computer_defense = defense_dialog(state) and (state.options.computer_defense or constants.defense.normal) ~= constants.defense.normal
             and state.options.computer_defense or nil,
         -- [BELUM TERHUBUNG] the hitlag mode (0, -1 ... -5) is chosen and carried to the match; combat does not read it yet.
         hitlag = state.wide and (state.options.hitlag or 0) ~= 0 and state.options.hitlag or nil,
