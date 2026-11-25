@@ -205,7 +205,8 @@ function selection.create(options)
             cost_settings = mode_layout.cost_settings(mode_text)
             -- `bound: 1` of <cost> (readme/mode dat.txt): the cost mode is on by default, with the first pool, in the modes the block names
             -- (`mode:` lines; all of them when it names none), until the player changes it. A menu that comes back keeps its choice.
-            if not previous.options and cost_settings.bound == 1 and #cost_settings.pools > 0 then
+            -- OpenLF2 option: the cost mode starts Off even when the mod's `bound: 1` asks for it.
+            if false and not previous.options and cost_settings.bound == 1 and #cost_settings.pools > 0 then
                 local listed = #cost_settings.modes == 0
                 for _, listed_mode in ipairs(cost_settings.modes) do if listed_mode == mode then listed = true end end
                 if listed then options.cost_index = 1 end
@@ -1920,8 +1921,19 @@ local function small_menu(state, previous_menu, context)
     local layer9_j = small_layers[9] and small_layers[9].caughtact == 1
     if keys.b then
         if number == 3 then options.hide_random = not options.hide_random; sounds.direct(state, "ok")
-        -- Layer 9's `caughtact: 1` allows J for the random respawn.
-        elseif number == 9 and cost_on and layer9_j then options.shuffle = not options.shuffle; sounds.direct(state, "ok")
+        -- J goes back through the values that A steps forward: difficulty, time limit, cost pool. (The random respawn that
+        -- layer 9's `caughtact: 1` gave J is still on the sub row of layer 10.)
+        elseif number == 5 then
+            local unlocked = require("base/game/unlock").flags.characters
+            options.difficulty = options.difficulty + 1
+            if options.difficulty > constants.difficulties.easy then
+                options.difficulty = unlocked == 0 and constants.difficulties.difficult or constants.difficulties.crazy
+            end
+            sounds.direct(state, "ok")
+        elseif number == 8 and not stage_mode then
+            options.time_index = (options.time_index - 1) % (#time_list + 1); sounds.direct(state, "ok")
+        elseif number == 9 then
+            options.cost_index = (options.cost_index - 1) % (#cost_settings.pools + 1); sounds.direct(state, "ok")
         elseif number == 10 then options.sub_row = options.sub_row % sub_count + 1; sounds.direct(state, "ok") end
     end
     -- `D` (defend) on the difficulty row: the hitlag mode 0, -1 ... -5 (readme/hitlag mode.txt).
