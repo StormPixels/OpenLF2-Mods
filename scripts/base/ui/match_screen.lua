@@ -1375,7 +1375,8 @@ local function inside(held_x, held_y, x, y, w, h) return held_x >= x and held_x 
 -- waits for the key (or controller button), OK saves into config.json and applies at once, Cancel or Escape drops the changes.
 -- The match stays frozen while it is open. [BELUM PASTI] its place (centered, y 108) and the exact boxes, measured on the picture.
 local virtual_keys = constants.virtual_keys
-local control_columns = {148, 287, 426, 564}
+-- Column x, relative to the picture: the launch screen's Control Settings page puts them at 0xc2 + 0x8b per column with its picture at 0x2e.
+local control_columns = {148, 287, 426, 565}
 local control_devices = {[constants.input_devices.keyboard] = "pe/cs6",
     [constants.input_devices.controller_one] = "pe/cs2", [constants.input_devices.controller_two] = "pe/cs3",
     [constants.input_devices.controller_three] = "pe/cs4", [constants.input_devices.controller_four] = "pe/cs5"}
@@ -1459,33 +1460,39 @@ function control_window_update(state, input, context)
         end
     end
     local px, py, finished = input.pointer_x, input.pointer_y, nil
+    if type(px) == "number" and type(py) == "number" then state.hover_x, state.hover_y = px, py end
+    -- The same boxes and rules as the launch screen's Control Settings page (the original mechanism); only the picture comes from <misc>.
     if input.click and type(px) == "number" and type(py) == "number" then
         for player = 1, 4 do
             local x = wx + control_columns[player]
             local set = editing.sets[player]
-            if inside(px, py, x, wy + 61, 106, 91) then
+            if inside(px, py, x, wy + 0x3d, 0x69, 0x5a) then
                 win.capture = nil
                 set.device = (set.device + 1) % (constants.input_devices.controller_four + 1)
-            elseif inside(px, py, x, wy + 35, 106, 19) then
+            end
+            if inside(px, py, x, wy + 0x23, 0x69, 0x11) then
                 win.capture, win.name_player = nil, player
-            else
-                for row = 1, 7 do
-                    if inside(px, py, x, wy + 159 + (row - 1) * 22 - 2, 106, 19) then
-                        if set.device == constants.input_devices.keyboard or row > 4 then win.capture = {player = player, row = row} end
-                        win.name_player = 0
-                    end
+            end
+            for row = 1, 7 do
+                local y = wy + 0xa2 + (row - 1) * 0x16
+                if inside(px, py, x, y - 3, 0x69, 0x12) then
+                    if set.device == constants.input_devices.keyboard or row > 4 then win.capture = {player = player, row = row} end
+                    win.name_player = 0
                 end
             end
         end
-        if inside(px, py, wx + 395, wy + 318, 90, 28) then finished = "ok" end
-        if inside(px, py, wx + 555, wy + 318, 125, 28) then finished = "cancel" end
+        if inside(px, py, wx + 0x167, wy + 0x140, 0x9b, 0x18) then finished = "ok" end
+        if inside(px, py, wx + 0x218, wy + 0x140, 0x9b, 0x18) then finished = "cancel" end
     end
     if not finished and input.nav.cancel and not used_cancel and not win.capture and win.name_player == 0 then finished = "cancel" end
     local typing = win.name_player > 0
     if finished then
         if win.keyboard and context.text_input then context.text_input(false) end
-        if finished == "ok" then controls.save(editing) end
+        -- As on the launch page: OK saves into config.json, Cancel reloads the stored settings; both play their menu sound.
+        if finished == "ok" then controls.save(editing) else controls.load() end
         state.control_window = nil
+        sounds.direct(state.match, finished)
+        for _, sound in ipairs(sounds.flush(state.match)) do context.sound(sound.resource, sound.volume, sound.pan) end
         return
     end
     if typing ~= win.keyboard then
@@ -1500,26 +1507,41 @@ local function draw_control_window(context, state)
     local wx, wy = window_origin()
     local picture = control_picture(options.current().battlefield_layout)
     if picture then context.image(picture, wx, wy, false) else context.fill(wx, wy, 704, 353, 110, 24, 161) end
-    local function field(text, x, y, rgb)
-        font.gdi(context, text, x + math.max(2, math.floor((106 - font.gdi_width(text)) / 2)), y + 1, colorref(rgb))
+    -- Drawn like the launch screen's Control Settings page: every name and key on a dark box as wide as its text, white, and blue
+    -- (0x1946ff) while it is edited; a translated language centres the text in the column instead.
+    local box, edited = 0x00092c, 0x1946ff
+    local function field(value, x, left, y, color)
+        if not i18n.active() then font.gdi(context, value, left, y, color, box)
+        else font.gdi(context, value, x + 0x35, y, color, nil, "center") end
     end
     for player = 1, 4 do
         local x = wx + control_columns[player]
         local set, name = win.editing.sets[player], win.editing.names[player]
         if win.name_player == player then
-            field(#name < constants.text_limits.player_name_bytes and name .. "_" or name, x, wy + 35, 0x1946ff)
+            field(#name < constants.text_limits.player_name_bytes and name .. "_" or name, x, x + 0x15, wy + 0x26, edited)
         else
-            field(name, x, wy + 35, 0xffffff)
+            field(name, x, x + 0x15, wy + 0x26, 0xffffff)
         end
-        if control_devices[set.device] then context.image(control_devices[set.device], x, wy + 61, false) end
         for row = 1, 7 do
             local capturing = win.capture and win.capture.player == player and win.capture.row == row
-            local label
-            if set.device == constants.input_devices.keyboard then label = controls.key_label(set.keys[row])
-            elseif row <= 4 then label = "-"
-            else label = i18n.tr("Button: %d", set.buttons[row - 4] + 1) end
-            field(label, x, wy + 159 + (row - 1) * 22, capturing and 0x1946ff or 0xffffff)
+            local y = wy + 0xa2 + (row - 1) * 0x16
+            local color = capturing and edited or 0xffffff
+            if set.device == constants.input_devices.keyboard then
+                local label, kind = controls.key_label(set.keys[row])
+                field(label, x, x + 0x29 - kind, y, color)
+            elseif row <= 4 then
+                field("-", x, x + 0x30, y, 0xffffff)
+            else
+                field(i18n.tr("Button: %d", set.buttons[row - 4] + 1), x, x + 0x22, y, color)
+            end
         end
+        if control_devices[set.device] then context.image(control_devices[set.device], x, wy + 0x3d, false) end
+    end
+    -- The pictures that light up OK and Cancel while the pointer is on them (the launch page's menu_clip 13 and 12).
+    local hx, hy = state.hover_x, state.hover_y
+    if type(hx) == "number" and type(hy) == "number" then
+        if inside(hx, hy, wx + 0x167, wy + 0x140, 0x9b, 0x18) then context.sprite("pe/menu_clip", {489, 426, 151, 26}, wx + 0x16a, wy + 0x140, true) end
+        if inside(hx, hy, wx + 0x218, wy + 0x140, 0x9b, 0x18) then context.sprite("pe/menu_clip", {643, 426, 151, 26}, wx + 0x216, wy + 0x140, true) end
     end
 end
 function screen.pause_toggle(state, held)
@@ -1751,10 +1773,13 @@ function screen.draw(state, context, window_bounds)
         end
     end
     if view.paused then
-        local summary = summary_possible(view, current) and not state.summary_hidden
+        -- While the control window (`Change controls`) is open the summary box is hidden (its check box keeps its state, so the box
+        -- comes back when the window is closed).
+        local control_open = state.control_window ~= nil
+        local summary = summary_possible(view, current) and not state.summary_hidden and not control_open
         if summary then draw_scoreboard(wide_center() ~= 0 and shifted(context, wide_center(), 0) or context, current, true) end
-        -- With the summary box up the pause picture goes to the top so that it does not cover the table.
-        context.image("pe/pause", centered_x(), summary and 6 or 288, true)
+        -- With the summary box or the control window up the pause picture goes to the top (above them) so that it does not cover them.
+        context.image("pe/pause", centered_x(), (summary or control_open) and 6 or 288, true)
         return
     end
     -- After the end loop: the demo's exit hint and DEMO picture, or the function-key line (GDI
