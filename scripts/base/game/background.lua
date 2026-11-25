@@ -349,13 +349,19 @@ end
 -- on are visible: at least the classic height, at most `max_view_height`. The platform scales the viewport to the
 -- window (letterboxed), so a taller background is shown smaller instead of being cut off at the bottom.
 local min_view_height, max_view_height = 550, 1000
--- A fixed match height for every background (Naruto: The Setting Dawn uses 730). nil = automatic: the height follows
--- the picture and the zboundary as below. Set it to 550 for the classic LF2 height.
-local fixed_view_height = 730
+-- Match height by the second number of the background's zboundary (Naruto: The Setting Dawn uses 730): a background
+-- whose far zboundary is at most `classic_far` (or has none) is classic and uses `classic_view_height`; one with a far
+-- zboundary above it uses `tall_view_height`. Set tall_view_height to nil for the automatic height below.
+local classic_far, classic_view_height, tall_view_height = 550, 550, 730
 local view_heights = {}
 local view_height_count = 0
 function background.view_height(data)
-    if fixed_view_height then return fixed_view_height end
+    if tall_view_height then
+        local zb = type(data) == "table" and data.zboundary or nil
+        local far = type(zb) == "table" and tonumber(zb[2]) or nil
+        if far and far > classic_far then return tall_view_height end
+        return classic_view_height
+    end
     if type(data) ~= "table" then return min_view_height end
     local height = view_heights[data]
     if height == nil then
