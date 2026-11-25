@@ -105,13 +105,21 @@ function title.update(state, held, context)
     end
     -- Jump ("b" in base/ui/controls) goes back from this menu (menu.dat's <menu2>) to the launch menu (<menu1>). A network
     -- game (replay_disabled) stays here: the launch menu would drop its connection.
-    if input == "b" and not state.replay_disabled then context.action("launch") end
+    if input == "b" and not state.replay_disabled then
+        state.key_list = 0
+        context.action("launch")
+    end
     for _, sound in ipairs(sounds.flush(state)) do context.sound(sound.resource, sound.volume, sound.pan) end
     -- The key list counts down while shown; a click on the menu area shows it for 450 frames.
     state.showing_keys = state.key_list > 0
     if state.key_list > 0 then state.key_list = state.key_list - 1 end
     local x, y = held.pointer_x, held.pointer_y - state.vertical_offset
-    if held.click and x >= 0xdf and x < 0x23e and y > 0xc2 and y < 0x1b0 and x ~= 0 then state.key_list = 450 end
+    -- A press of a control (jump, attack ...) in the same frame is not a click on the menu area.
+    local pressed = false
+    for slot = 0, 7 do
+        if (held[slot] or "") ~= "" then pressed = true end
+    end
+    if held.click and not pressed and x >= 0xdf and x < 0x23e and y > 0xc2 and y < 0x1b0 and x ~= 0 then state.key_list = 450 end
     -- menu.dat's <menu2_name>: a link under the pointer opens its address on a click.
     local names = menu_data.names(2)
     if names and held.click then

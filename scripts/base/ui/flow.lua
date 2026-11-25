@@ -197,6 +197,10 @@ local function route(state, input, context)
         state.active = "launch"
         state.session = nil
         controls.replace_names(nil)
+        -- Game Start left the launch screen on its "waiting" page, which would start the game again at once: back to the menu.
+        state.launch.page = "menu"
+        -- The finger or key that went back (jump) must not click or act on the launch menu it lands on.
+        state.wait_release, state.swallow_pointer = true, true
     elseif requested == "versus" or requested == "stage" or requested == "battle" then
         -- The previous visit's state carries the values the original keeps in globals.
         state.characters = require("base/ui/character_select").create({mode = requested,
