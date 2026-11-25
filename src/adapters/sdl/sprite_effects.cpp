@@ -156,7 +156,13 @@ struct SpriteEffects::Impl {
         const int w = region.width, h = region.height;
         if (region.x < 0 || region.y < 0 || w <= 0 || h <= 0 || w > (*image)->w || h > (*image)->h
             || region.x > (*image)->w - w || region.y > (*image)->h - h)
-            return fail(ErrorCode::format, "lit sprite rectangle outside texture: " + sprite.resource);
+        {
+            // A mod's image can be smaller than the rectangle drawn from it (e.g. NTSD/Darkfiren bat_ball2.png).
+            // Cache an empty entry: no shading and no shadow here, and the plain draw path clips the rectangle.
+            Entry empty;
+            empty.used = ++clock;
+            return &entries.emplace(key, std::move(empty)).first->second;
+        }
         const auto pixels = static_cast<std::size_t>(w) * static_cast<std::size_t>(h);
         if (pixels > max_pixels) return fail(ErrorCode::limit, "lit sprite exceeds memory budget");
         std::vector<std::uint8_t> rgba(pixels * 4);

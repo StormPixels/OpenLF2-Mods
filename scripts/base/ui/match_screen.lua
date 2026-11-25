@@ -1483,6 +1483,10 @@ function control_window_update(state, input, context)
         end
         if inside(px, py, wx + 0x167, wy + 0x140, 0x9b, 0x18) then finished = "ok" end
         if inside(px, py, wx + 0x218, wy + 0x140, 0x9b, 0x18) then finished = "cancel" end
+        -- The `Change controls` check box closes the window as well (like Cancel: nothing is saved).
+        for _, row in ipairs(state.view and pause_layout(state.view, state.match) or {}) do
+            if row.which == "controls" and inside(px, py, row.x, row.y, row.size, row.size) then finished = "cancel" end
+        end
     end
     if not finished and input.nav.cancel and not used_cancel and not win.capture and win.name_player == 0 then finished = "cancel" end
     local typing = win.name_player > 0

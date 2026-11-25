@@ -1034,7 +1034,9 @@ local function music_option(state, left, right)
         music.enabled = true
     end
     -- Top right corner: in the wide menu it follows the right edge of the wider picture.
-    local music_x = state.wide and misc.music_x + popup_gap(state) or 603
+    -- The original draws the music line at the mode file's `music_x` as it stands (323 in mode2, mode3 and mode4 alike, measured on
+    -- the 1018 wide game): no width is added, unlike `frame_x`. (The 1142 default already is the classic place in the 1333 picture.)
+    local music_x = state.wide and misc.music_x or 603
     local music_y = state.wide and misc.music_y or 3
     text(state, i18n.tr("Music: %s", i18n.tr(label)), music_x, music_y, state.wide and misc.music_title or music_title)
     text(state, i18n.tr("(Press Left/Right to change)"), music_x, music_y + 17, state.wide and misc.music_hint or music_hint)

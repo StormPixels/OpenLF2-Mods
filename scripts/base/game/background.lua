@@ -345,25 +345,19 @@ local function picture_height(resource)
     return height or nil
 end
 
--- The logical height the battlefield picture needs so that the whole background and the floor the fighters stand
--- on are visible: at least the classic height, at most `max_view_height`. The platform scales the viewport to the
--- window (letterboxed), so a taller background is shown smaller instead of being cut off at the bottom.
-local min_view_height, max_view_height = 550, 1000
+-- The logical height of the match screen follows the background's `zboundary`: the second number is the height
+-- (`zboundary: 380 550` shows a 550 high screen). Without a usable zboundary the classic 550 is used. The platform
+-- scales the viewport to the window (letterboxed), so a taller background is shown smaller instead of being cut off.
+local classic_view_height, min_view_height, max_view_height = 550, 100, 1000
 local view_heights = {}
 local view_height_count = 0
 function background.view_height(data)
-    if type(data) ~= "table" then return min_view_height end
+    if type(data) ~= "table" then return classic_view_height end
     local height = view_heights[data]
     if height == nil then
-        height = min_view_height
         local far = type(data.zboundary) == "table" and tonumber(data.zboundary[2]) or nil
-        -- The feet are at z; leave room for the shadow and the name under them.
-        if far then height = math.max(height, far + 24) end
-        for _, layer in ipairs(data.layers or {}) do
-            local tall = layer.color ~= 0 and (layer.height or 0) or picture_height(layer.resource) or 0
-            height = math.max(height, (layer.y or 0) + tall)
-        end
-        height = math.floor(math.min(height, max_view_height))
+        height = (far and far == far and far > 0) and far or classic_view_height
+        height = math.floor(math.max(min_view_height, math.min(height, max_view_height)))
         if view_height_count >= 64 then view_heights, view_height_count = {}, 0 end
         view_heights[data] = height
         view_height_count = view_height_count + 1

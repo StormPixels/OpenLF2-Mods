@@ -868,6 +868,7 @@ private:
             if (sprite.lighting && sprite.lighting->character) {
                 auto lit = sprite_effects_.shaded(*renderer_, resources_, sprite);
                 if (!lit) return std::unexpected(lit.error());
+                if (*lit) {
                 if (!SDL_SetTextureColorMod(*lit, static_cast<Uint8>(sprite.tint >> 16),
                     static_cast<Uint8>(sprite.tint >> 8), static_cast<Uint8>(sprite.tint))) return error();
                 const SDL_FRect destination{static_cast<float>(sprite.x) * sprite.scale_x
@@ -875,6 +876,7 @@ private:
                     static_cast<float>(sprite.source.width) * sprite.scale_x, static_cast<float>(sprite.source.height)};
                 if (!SDL_RenderTexture(renderer_.get(), *lit, nullptr, &destination)) return error();
                 continue;
+                } // else: no lit texture (rectangle outside the image) -> plain path below clips it
             }
             const auto key = sprite.resource + (sprite.color_key ? ":key" : ":opaque");
             if (!textures_.contains(key)) {
