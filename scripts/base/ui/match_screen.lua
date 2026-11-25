@@ -1172,15 +1172,25 @@ local function draw_status(context, state, style)
     for slot = 0, (style.slots or 8) - 1 do
         local row = math.floor(slot / style.row) * style.frame_h + style.frame_y
         local column = style.frame_x + (slot % style.row) * style.frame_w + boxes_shift
-        context.image(style.frame_pic, column, row, false)
         local value = state.items[slot] or state.items[slot + 10]
+        -- A character's own `frame:` and `bars:` (<bmp_begin>, readme "new in bmp part.txt") replace the style's pictures in its box; the
+        -- placement and the bar colour rows still come from the style. A picture the game lacks falls back to the style's.
+        local frame_pic, bars_pic = style.frame_pic, style.bars_pic
+        if value then
+            local header = value.record.data.header
+            if type(header) == "table" then
+                if type(header.frame) == "string" and readable_picture(header.frame) then frame_pic = header.frame:gsub("\\", "/"):lower() end
+                if type(header.bars) == "string" and readable_picture(header.bars) then bars_pic = header.bars:gsub("\\", "/"):lower() end
+            end
+        end
+        context.image(frame_pic, column, row, false)
         if value then
             local small = framebox_face(value)
             if small then context.image(small:gsub("\\", "/"):lower(), column + style.small_x, row + style.small_y, false) end
             local hp_bar, mp_bar = bar_of(value, "hp_bar", style), bar_of(value, "mp_bar", style)
             if value.hp > 0 then
                 local function bar(source_y, width, geometry)
-                    if width > 0 then context.sprite(style.bars_pic, {0, source_y, width, geometry.h}, column + geometry.x, row + geometry.y, false) end
+                    if width > 0 then context.sprite(bars_pic, {0, source_y, width, geometry.h}, column + geometry.x, row + geometry.y, false) end
                 end
                 -- 124 pixels is the full bar of the classic HUD; another width scales it.
                 local function filled(amount, geometry) return math.floor(amount * 31 / 125 * (geometry.w / 124)) end
