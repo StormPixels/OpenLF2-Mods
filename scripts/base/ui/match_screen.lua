@@ -1200,8 +1200,26 @@ local function draw_status(context, state, style)
                 if (math.floor(value.regen_timer / constants.healing.timer_base) == 1 or value.heal_timer > 0) and state.counter_12 % 2 == 0 then
                     bar(style.col_bhp, filled(value.hp, hp_bar), hp_bar)
                 end
-                bar(style.col_dmp, mp_bar.w, mp_bar)
-                bar(style.col_mp, filled(math.min(value.mp, constants.points.full), mp_bar), mp_bar)
+                -- <mp_bar> type 3 (readme "mpbar.txt"): 10 vertical bars of `w` x `h` read from the bars picture at (dx, dy), one for every 50 mp,
+                -- `loop` pixels apart; `facing: 1` fills from the right. The frame picture holds the empty slots. [BELUM PASTI] the partial
+                -- bar is drawn narrower, `amount` layers are not used.
+                local own_mp = display_of(value.record)
+                own_mp = type(own_mp) == "table" and own_mp.mp_bar or nil
+                if type(own_mp) == "table" and own_mp.type == 3 and type(own_mp.x) == "number" and type(own_mp.y) == "number" then
+                    local width, height = own_mp.w or 6, own_mp.h or 10
+                    local pitch = own_mp.loop or width
+                    local mana = math.min(math.max(value.mp, 0), constants.points.full)
+                    for index = 0, 9 do
+                        local part = math.min(50, mana - index * 50)
+                        if part <= 0 then break end
+                        local pixels = math.max(1, math.floor(width * part / 50))
+                        local slot_x = own_mp.facing == 1 and (own_mp.x + (9 - index) * pitch + width - pixels) or (own_mp.x + index * pitch)
+                        context.sprite(bars_pic, {own_mp.dx or 0, own_mp.dy or 0, pixels, height}, column + slot_x, row + own_mp.y, false)
+                    end
+                else
+                    bar(style.col_dmp, mp_bar.w, mp_bar)
+                    bar(style.col_mp, filled(math.min(value.mp, constants.points.full), mp_bar), mp_bar)
+                end
             end
             local own_display = display_of(value.record)
             local own_flag = own_display and own_display.team_flag or nil
