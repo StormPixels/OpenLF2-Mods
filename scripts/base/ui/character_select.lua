@@ -812,7 +812,7 @@ local function computer_count_menu(state, previous_menu)
     if defense_on then
         state.options.computer_defense = state.options.computer_defense or constants.defense.normal
         local value = state.options.computer_defense
-        text(state, string.format("%d.%d", math.floor(value / 100), math.floor(value % 100 / 10)), 218 + dx + 241, 215 + 115, white)
+        text(state, string.format("x %d.%d", math.floor(value / 100), math.floor(value % 100 / 10)), 218 + dx + 232, 215 + 115, white)
     end
     local free, sides, teams = 0, 0, {}
     for index = 0, (state.slot_count or 8) - 1 do
@@ -881,11 +881,15 @@ local function computer_count_menu(state, previous_menu)
             end
         end
     end
-    for number = 0, (state.slot_count or 8) - 1 do
-        local x = 280 + number * 30 + dx
+    -- The row of numbers is centred in the dialog: 8 numbers from x 280 in the classic layout; a layout of more than 8 slots
+    -- (10 players) has 0 to the slot count, the 11 numbers of LF2 Darkfiren's dialog, which also leaves 0 to count as spectators.
+    local slots_total = state.slot_count or 8
+    local numbers = slots_total > 8 and slots_total + 1 or slots_total
+    for number = 0, numbers - 1 do
+        local x = 280 + number * 30 - (numbers - 8) * 15 + dx
         -- Digits the choice cannot reach (below the minimum, or more than the free slots) are greyed.
         local unavailable = number < minimum or free < number
-        text(state, tostring(number), x + 6, 286, unavailable and count_greyed or white, count_box)
+        text(state, tostring(number), number >= 10 and x + 2 or x + 6, 286, unavailable and count_greyed or white)   -- no box: the dialog picture's own colour shows behind the digits
         -- system.dat `respond: 1`: the box around the chosen number blinks (update log 21 Feb 2023).
         local blink_on = system_data.number("respond", 0) ~= 1 or math.floor((state.frames or 0) / 8) % 2 == 0
         if state.computers == number and blink_on then
