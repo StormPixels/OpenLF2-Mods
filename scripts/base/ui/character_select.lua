@@ -1565,9 +1565,10 @@ local function mode_popup(state, previous_menu)
             local mode = grid.cells[position]
             if mode then
                 local x, y = grid_mode.x + column * grid_mode.step_x, grid_mode.y + line * grid_mode.step_y
-                -- `smallb` is the alternate small picture; a mode that does not write it falls back to its `small`.
-                local picture = existing_picture(mode.smallb) or existing_picture(mode.small)
-                if picture then image(state, picture, x, y) end
+                -- A cell shows the mode's `smallb:` when it has one, else the background's own `small:` (its grid picture,
+                -- bg/sys/grid/<n>.bmp). A mode's `small:` is the preview picture (small_background), not this one.
+                local picture = existing_picture(mode.smallb) or grid_picture(state, grid.row)
+                if picture and grid_has(picture) then image(state, picture, x, y) end
                 local gray = ((chosen == mode.effects and (chosen ~= nil or position == 1)) and 255)
                     or (position == grid.cursor and 140 or nil)
                 if gray then
@@ -1893,17 +1894,10 @@ local function small_menu(state, previous_menu, context)
             end
         end
     end
-    -- The "extra settings" of the readme (mode dat, <menu_small>): the picked row (the selected one) shows its `pic` when it
-    -- has `pickedact`. 1: at (`x` + `centerx`, the row's y + `centery`); 2: at (`centerx`, `centery`) whatever the row loop gave.
-    -- `transparency: 0` leaves black as black.
-    for _, row in ipairs(rows) do
-        local layer = small_layers[row.layer]
-        if row.layer == options.small_row and layer.pic and (layer.pickedact == 1 or layer.pickedact == 2) then
-            local px, py = layer.centerx or 0, layer.centery or 0
-            if layer.pickedact == 1 then px, py = (layer.x or 3) + px, row.y + py end
-            if layer.transparency == 0 then image(state, layer.pic, px, py) else keyed_image(state, layer.pic, px, py) end
-        end
-    end
+    -- Not drawn: a layer's `pic` (with `pickedact`, `centerx`, `centery`). Release R24 drew it for the selected row, but the
+    -- 10 player file (mode3.dat) gives every layer a `pic` that is a leftover picture (pause.bmp, demo.bmp, davis_f.bmp,
+    -- julian_s.bmp ...) and the row would show it over the panel (PAUSE, DEMO and fighter faces popping up). LF2 Darkfiren
+    -- does not show them. The keys are still parsed by game/menu_small.lua.
     -- The TU mode's state sits in a black box at the Fight! row (layer 11's `dx`, `fy`), while layer 11's own row is shown;
     -- with `caughtact: 1` it is always there (the extra settings closed too), as long as the layer may show in this mode.
     local tu = small_layers[11]
@@ -2230,8 +2224,10 @@ small_background = function(state)
     local row = state.options.background
     local picture
     if state.options.random_background or row == constants.background_rows.random then
-        -- The random picture the mode file names (`small:` of <grid_bg>, UI\\BG_RANDOM.png in the PNG game), else the BMP one.
-        picture = existing_picture(grid_bg.random_pic) or existing_picture("UI/BG_RANDOM.png") or "sprite/ui/bg_random.bmp"
+        -- Random shows BG_RANDOM, line 8 of resource.dat (sprite\\UI\\BG_RANDOM.bmp), as "pe/bg_random". The `small:` of <grid_bg>
+        -- (BG_GRID_RANDOM) is the thumbnail of the background list, not this preview, so it is no longer used here.
+        picture = "pe/bg_random"
+        if not grid_has(picture) then picture = existing_picture("UI/BG_RANDOM.png") or "sprite/ui/bg_random.bmp" end
     else
         local entry = state.backgrounds[row + 1]
         picture = "bg/sys/map/" .. (entry and entry.path:match("bg/sys/([^/]+)/") or "temp") .. ".bmp"
