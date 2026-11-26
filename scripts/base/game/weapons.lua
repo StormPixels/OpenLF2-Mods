@@ -174,7 +174,7 @@ function weapons.carry(state)
                         value.frame = random(6)
                         value.vx = holder.facing == constants.facings.right and point.dvx or -point.dvx
                         local st = value.fx and value.fx.status
-                        print("THROW heavy delay timer:", st and st.delay)
+                        io.stderr:write("THROW heavy delay timer: ", tostring(st and st.delay), "\n")
                         value.vy = point.dvy
                         holder.weapon, value.weapon = constants.weapon_holder_codes.none, constants.weapon_holder_codes.none
                         throw_depth(holder, value, point)
