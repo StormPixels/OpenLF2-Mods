@@ -173,6 +173,8 @@ function weapons.carry(state)
                     if kind == record_kinds.heavy_item then
                         value.frame = random(6)
                         value.vx = holder.facing == constants.facings.right and point.dvx or -point.dvx
+                        local st = value.fx and value.fx.status
+                        print("THROW heavy delay timer:", st and st.delay)
                         value.vy = point.dvy
                         holder.weapon, value.weapon = constants.weapon_holder_codes.none, constants.weapon_holder_codes.none
                         throw_depth(holder, value, point)

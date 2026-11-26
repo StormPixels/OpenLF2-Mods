@@ -79,6 +79,7 @@ function fx.apply(attacker, victim, itr, defended, random)
                     victim.team = attacker.team
                 else
                     local current = status[name] or 0
+                    if victim.record.kind ~= constants.record_kinds.character then print("APPLY", name, timed.duration, victim.record.id) end
                     if timed.duration > current then status[name] = timed.duration end
                     -- mimic: who to copy (the slot of the attacker's owner); cleared when the timer ends
                     if name == "mimic" then status.mimic_by = attacker.owner end
