@@ -26,6 +26,13 @@ local function pick_all(fighters)
                 if not taken then candidates[#candidates + 1] = index end
             end
         end
+        if #candidates == 0 then
+            -- Fewer fighters than demo slots (the 10 player layout asks for ten): the same fighter may appear twice instead of
+            -- ending the game with an error.
+            for index, fighter in ipairs(fighters) do
+                if fighter.record >= 1 and fighter.id < constants.record_id_ranges.random_fighter_end_exclusive then candidates[#candidates + 1] = index end
+            end
+        end
         assert(#candidates > 0, "no fighter left for the demo")
         picks[slot] = candidates[engine.random(#candidates) + 1]
     end

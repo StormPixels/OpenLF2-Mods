@@ -9,7 +9,7 @@
 --   weak:    hp recovery stops, mp recovery slows (regenerate in match.lua)
 --   confus:  the keys are permuted at random (PDK 0x430e9e; see remap_keys)
 --   mimic:   the victim copies the keys of the fighter that applied it (value.fx.status.mimic_by = that slot)
--- delay ("cannot move fast"): velocity x 0.25 per tick (see st_status.slow).
+-- delay ("cannot move fast"): velocity x 0.25 per tick (see st_status.slow); fighters and weapons.
 local st_constants = require("base/game/st_constants")
 local constants = require("base/game/constants")
 local st_status = {}
@@ -36,8 +36,13 @@ function st_status.weak(value) return is_fighter(value) and active(value, "weak"
 -- walking fighter moves at a quarter of its speed and an airborne one loses its speed quickly (0.25 per tick). The timer itself is
 -- AI 3's (fx_status). [BELUM PASTI] PDK also multiplies three per-frame floats (+0x108..+0x110, probably a per-frame displacement)
 -- by the same factor: not done here, our frames have no such tag.
+-- darkfiren's clip: the delay effect slows the weapons too (an itr's `delay` lands on them: fx_status.apply does not limit it to fighters).
+local slowed_kinds = {
+    [constants.record_kinds.character] = true, [constants.record_kinds.light_item] = true, [constants.record_kinds.heavy_item] = true,
+    [constants.record_kinds.baseball] = true, [constants.record_kinds.drink] = true,
+}
 function st_status.slow(value)
-    if not (is_fighter(value) and active(value, "delay")) then return end
+    if not (slowed_kinds[value.record.kind] and active(value, "delay")) then return end
     local factor = st_constants.delay_factor
     value.vx, value.vy, value.vz = value.vx * factor, value.vy * factor, (value.vz or 0.0) * factor
 end
