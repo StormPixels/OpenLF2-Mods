@@ -1,3 +1,4 @@
+io.stderr:write("DEBUG-LOADED fx_status.lua v2\n")
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2026 OpenLF2 contributors
 
