@@ -694,7 +694,10 @@ local function navigation_page(state)
 end
 
 function screen.update(state, flow_input, context)
-    state.display = {}
+    -- The Game Start frame (page "waiting") draws nothing of its own, and the launch screen is drawn once more when the title goes back
+    -- to it before it has updated: both showed a bare screen of the menu colour for a moment (a blue flash between the menus), so the
+    -- last picture of the menu is kept for those frames.
+    if state.page ~= "waiting" or not state.display then state.display = {} end
     state.menu_ticks = (state.menu_ticks or 0) + 1  -- HOOK(AI5)
     state.features = flow_input.filters
     local input = flow_input
@@ -740,7 +743,7 @@ function screen.draw(state, context)
     local back = sd_menu_back.view(1, state.menu_seed)  -- HOOK(AI5)
     local color = back and back.color or {16, 32, 108}
     context.viewport(constants.screen.width, constants.screen.height, color[1], color[2], color[3])
-    for _, command in ipairs(state.display) do
+    for _, command in ipairs(state.display or {}) do
         local kind = command[1]
         if kind == "sprite" then
             context.sprite(command[2], command[3], command[4], command[5], command[6], command[7], command[8])

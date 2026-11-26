@@ -186,7 +186,7 @@ function selection.create(options)
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
     end
     -- Option values are globals in the original and keep their values between visits.
-    local options = previous.options or {small_row = 1, hide_random = false, time_index = 0, cost_index = 0, item_drops = false, allow_transform = false, shuffle = false, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
+    local options = previous.options or {small_row = 1, hide_random = false, time_index = 0, cost_index = 0, item_drops = true, allow_transform = true, shuffle = false, row = option_rows.reroll, background = constants.background_rows.random, random_background = true,
         difficulty = 0, music = 0, stage_level = 0}
     -- mode4.dat's positions (only the wide layout draws with them); the built-in values come back first, so a file
     -- that lacks a tag (or is gone) leaves the built-in one.

@@ -1213,19 +1213,17 @@ local function draw_status(context, state, style)
                 elseif hp_animation then
                     -- <hp_bar> type 3 (readme "hpbar.txt"): the bar is read from the bars picture at (dx, dy) of each layer, a layer shown only
                     -- in c1..c2 of every cc ticks (so two layers swap), while the hp is below `effect` percent (always when it is missing or
-                    -- 100 or more); otherwise, or when no layer is shown, the usual bar. [BELUM PASTI] how `effect: 1xx` of the notes reads.
+                    -- 100 or more); otherwise, or when no layer is shown, the usual bar. the layers go over the normal bar, as in the minibar. [BELUM PASTI] how `effect: 1xx` of the notes reads.
                     local percent = value.hp * 100 / constants.points.full
-                    local drawn = false
+                    bar(style.col_hp, filled(value.hp, hp_bar), hp_bar)
                     if hp_animation.effect == nil or hp_animation.effect >= 100 or percent < hp_animation.effect then
                         local width = filled(value.hp, hp_bar)
                         for _, layer in ipairs(hp_animation.layers) do
                             if width > 0 and layer_shown(layer, state.elapsed) then
                                 context.sprite(bars_pic, {layer.dx or 0, layer.dy or 0, width, hp_bar.h}, column + hp_bar.x, row + hp_bar.y, false)
-                                drawn = true
                             end
                         end
                     end
-                    if not drawn then bar(style.col_hp, filled(value.hp, hp_bar), hp_bar) end
                 else
                     bar(style.col_hp, filled(value.hp, hp_bar), hp_bar)
                 end
@@ -1239,7 +1237,7 @@ local function draw_status(context, state, style)
                 local own_mp = display_of(value.record)
                 own_mp = type(own_mp) == "table" and own_mp.mp_bar or nil
                 if type(own_mp) == "table" and own_mp.type == 3 and type(own_mp.x) == "number" and type(own_mp.y) == "number" then
-                    local width, height = own_mp.w or 6, own_mp.h or 10
+                    local width, height = own_mp.w or 6, 10 -- the height is fixed at 10 for type 3 and 4 (darkfiren)
                     local pitch = own_mp.loop or width
                     local mana = math.min(math.max(value.mp, 0), constants.points.full)
                     for index = 0, 9 do
@@ -1251,8 +1249,8 @@ local function draw_status(context, state, style)
                     end
                 elseif type(own_mp) == "table" and own_mp.type == 4 and type(own_mp.x) == "number" and type(own_mp.y) == "number" then
                     -- <mp_bar> type 4 (readme "mpbar.txt"): 2 layers of 5 vertical bars, one bar for every 50 mp, `mp` fixed at 250 per layer; the
-                    -- second layer (read `h` rows lower) covers the first one from 251 mp. The rest as type 3. [BELUM PASTI] the layer offset.
-                    local width, height = own_mp.w or 6, own_mp.h or 10
+                    -- second layer (read `h` rows lower) covers the first one from 251 mp. The rest as type 3. 
+                    local width, height = own_mp.w or 6, 10 -- the height is fixed at 10 for type 3 and 4 (darkfiren)
                     local pitch = own_mp.loop or width
                     local mana = math.min(math.max(value.mp, 0), constants.points.full)
                     local layers = (type(own_mp.amount) == "number" and own_mp.amount >= 1) and own_mp.amount or 2
