@@ -111,6 +111,7 @@ Berkas yang disentuh (milik AI4, dikirim sebagai diff terpisah): `ui/character_s
 - Di dalam grid: **panah** menggeser kotak yang berkedip, **A** konfirmasi, **J** tutup grid, **D** tidak berfungsi. Daftar background satu kolom kini juga membaca kiri/kanan (sama dengan atas/bawah); popup lain sudah begitu.
 - Background: urutan Random, 0, 1, ... lalu kembali ke Random; berpindah dengan A/J tidak membuka daftar mode (mode kembali ke mode pertama, polos), sama seperti pemilihan lewat grid yang ditutup tanpa memilih mode.
 - Stage: memutar level yang tampil di daftar (`stage_levels.visible`); tanpa daftar level, memutar 1..5 dan Survival (kelipatan 10, modulo 60) seperti sebelumnya.
-- bg mode: A memutar mode yang terlihat dan sudah `supported` (yang belum didukung dilewati). **J pada bg mode tidak ada catatannya, jadi tidak melakukan apa-apa**; ubah `bg_mode_back` menjadi `true` di `character_select.lua` bila J harus mundur.
+- bg mode: A (attack) memutar ke mode berikutnya yang terlihat dan sudah `supported` (yang belum didukung dilewati); J (jump) mundur.
+- Baris time limit dan cost: fungsi J untuk mundur dihapus (J tidak melakukan apa-apa di sana). A tetap menyalakan/mematikan, kiri/kanan mengubah nilai.
 - Sebelumnya A pada baris background dan bg mode membuka grid; sekarang tombol itu D. Menu opsi lama (bukan panel kecil) tidak berubah.
 - **[BELUM DIUJI]** ditulis tanpa bisa menjalankan game atau Lua di sini.

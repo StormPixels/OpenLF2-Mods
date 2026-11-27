@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Changed
-- The 10 player options panel (`<menu_small>`), background, background mode and Stage rows: with the grid shut, A steps to the next value, J to the previous one (not on the background mode row) and D opens the grid; A used to open it. In a grid the arrows move the blinking cell, A confirms, J closes it and D does nothing (the one-column background list reads left/right too) [BELUM DIUJI: written without a way to run the game]
+- The 10 player options panel (`<menu_small>`), background, background mode and Stage rows: with the grid shut, A steps to the next value, J to the previous one and D opens the grid; J no longer steps back on the time limit and cost pool rows; A used to open it. In a grid the arrows move the blinking cell, A confirms, J closes it and D does nothing (the one-column background list reads left/right too) [BELUM DIUJI: written without a way to run the game]
 
 ### Fixed
 - Cost mode backup mark: `team1_cmb`..`team5_cmb` (and `cost_x/y`, `team_cmb_x/y`) of `<menu_control>` were declared in the character menu but never mapped by `mode_layout.apply`, so they always stayed empty and the team pictures (`sprite\UI\cb\t1.bmp` .. `t5.bmp`) were never drawn; they are read now [NOT RUN: only the parsing was checked, with the built-in mode file]

@@ -1838,8 +1838,6 @@ end
 -- Closed rows of the small menu for the background, the background mode and the Stage level (the grid shut):
 --   A steps to the next value, J to the previous one, D opens the grid (background list, mode list, stage list).
 -- Inside a grid the arrows move the blinking cell, A confirms, J closes it and D does nothing (see the popups).
--- The background mode row has no J note, so J does nothing there; set bg_mode_back to true to make J step back.
-local bg_mode_back = false
 local function small_background_step(state, step)
     local options = state.options
     sounds.direct(state, "ok")
@@ -2095,7 +2093,7 @@ local function small_menu(state, previous_menu, context)
     local layer9_j = small_layers[9] and small_layers[9].caughtact == 1
     if keys.b then
         if number == 3 then options.hide_random = not options.hide_random; sounds.direct(state, "ok")
-        -- J goes back through the values that A steps forward: difficulty, time limit, cost pool. (The random respawn that
+        -- J goes back through the values that A steps forward: difficulty, background, background mode (not the time limit or the cost pool: J does nothing there). (The random respawn that
         -- layer 9's `caughtact: 1` gave J is still on the sub row of layer 10.)
         elseif number == 5 then
             local unlocked = require("base/game/unlock").flags.characters
@@ -2105,11 +2103,7 @@ local function small_menu(state, previous_menu, context)
             end
             sounds.direct(state, "ok")
         elseif number == 4 then small_background_step(state, -1)
-        elseif number == 7 and has_modes and bg_mode_back then small_mode_step(state, -1)
-        elseif number == 8 and not stage_mode then
-            options.time_index = (options.time_index - 1) % (#time_list + 1); sounds.direct(state, "ok")
-        elseif number == 9 then
-            options.cost_index = (options.cost_index - 1) % (#cost_settings.pools + 1); sounds.direct(state, "ok")
+        elseif number == 7 and has_modes then small_mode_step(state, -1)
         elseif number == 10 then options.sub_row = options.sub_row % sub_count + 1; sounds.direct(state, "ok") end
     end
     -- `D` (defend) on the difficulty row: the hitlag mode 0, -1 ... -5 (readme/hitlag mode.txt).
