@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Cost mode backup mark: `team1_cmb`..`team5_cmb` (and `cost_x/y`, `team_cmb_x/y`) of `<menu_control>` were declared in the character menu but never mapped by `mode_layout.apply`, so they always stayed empty and the team pictures (`sprite\UI\cb\t1.bmp` .. `t5.bmp`) were never drawn; they are read now [NOT RUN: only the parsing was checked, with the built-in mode file]
 - The BG mode grid shows each mode's `smallb:` when it has one, else the background's own `small:` (grid picture); a mode's `small:` is the preview picture only [NOT RUN]
 - The background preview of the character menu shows BG_RANDOM from resource.dat (line 8) for Random, not the list thumbnail BG_GRID_RANDOM named by the mode file's <grid_bg> `small:` [NOT RUN]
 - The 10 player options panel no longer shows stray pictures (PAUSE, DEMO, fighter faces) over the menu when a row is selected: a layer's `pic` with `pickedact` is not drawn [NOT RUN: no way to run the game here]

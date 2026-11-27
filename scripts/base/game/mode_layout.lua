@@ -65,7 +65,10 @@ local maps = {
     menu = {tag = "menu_control", pic = "pic", x = "start_x", y = "start_y", row = "row", step_x = "centerx", step_y = "centery",
         face_x = "face_x", face_y = "face_y", name_x = "name_x", name_y = "name_y", fighter_x = "fighter_x", fighter_y = "fighter_y",
         team_x = "team_x", team_y = "team_y", name_hide = "name", bound = "bound",
-        flag0 = "team0_flag", flag1 = "team1_flag", flag2 = "team2_flag", flag3 = "team3_flag", flag4 = "team4_flag"},
+        flag0 = "team0_flag", flag1 = "team1_flag", flag2 = "team2_flag", flag3 = "team3_flag", flag4 = "team4_flag",
+        -- cost mode (LF2 Darkfiren update 17): the price text and the backup mark of a team 1 to 5 member
+        cost_x = "cost_x", cost_y = "cost_y", team_cmb_x = "team_cmb_x", team_cmb_y = "team_cmb_y",
+        team1_cmb = "team1_cmb", team2_cmb = "team2_cmb", team3_cmb = "team3_cmb", team4_cmb = "team4_cmb", team5_cmb = "team5_cmb"},
     roster = {tag = "grid_char", panel_pic = "pic", small_pic = "small", panel_x = "pic_x", panel_y = "pic_y",
         x = "start_x", y = "start_y", columns = "row", step_x = "centerx", step_y = "centery", width = "w", height = "h",
         human_x = "human_x", human_y = "human_y", com_x = "com_x", com_y = "com_y"},
