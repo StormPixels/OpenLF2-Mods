@@ -74,7 +74,11 @@ local function set_places(wide, modes)
     places.face_dx, places.face_dy = across("face_x", 147), down("face_y", 94)
     -- cost_x is the left edge of the price text; unwritten, it is 33 right of the face and 17 above it (the update 17 default 180, 77)
     places.cost_dx, places.cost_dy = across("cost_x", places.face_dx + 33), down("cost_y", places.face_dy - 17)
-    places.cmb_dx, places.cmb_dy = across("team_cmb_x", places.face_dx), down("team_cmb_y", places.face_dy)
+    -- team_cmb_x is NOT a screen place like face_x: the u17 mode files move start_x, face_x, name_x, fighter_x, team_x and cost_x together
+    -- but leave team_cmb_x at 147 (mode2.dat start_x 40, mode3.dat 80, mode4.dat 10), and then the mark is always on the face. So it is
+    -- counted from the slot corner as it is (the corner is start_x - 40 from the classic one), not minus start_x plus 40.
+    places.cmb_dx = (wide and type(menu.team_cmb_x) == "number" and menu.team_cmb_x ~= ABSENT) and menu.team_cmb_x or places.face_dx
+    places.cmb_dy = down("team_cmb_y", places.face_dy)
     for team = 1, 5 do
         local path = wide and menu["team" .. team .. "_cmb"] or ""
         places.cmb[team] = path ~= "" and (path:gsub("\\", "/"):lower()) or nil
@@ -1799,6 +1803,7 @@ stage_popup = function(state, previous_menu) return centered_popup(state, stage_
 -- What attack does on a row of the options menu (the classic panel's rows, then the extra rows).
 -- LF2 Darkfiren's options panel (<menu_small> of mode4.dat, game/menu_small.lua): picture rows stacked from the top
 -- left, the selected one lit by its highlight picture, values written into the boxes the pictures leave.
+local function layer9_has_random(layer) return layer ~= nil and layer.caughtact == 1 end
 local function small_menu_wanted(state)
     local first = small_layers[1]
     return state.wide and first ~= nil and first.small ~= nil and grid_has(first.small)
@@ -2008,7 +2013,9 @@ local function small_menu(state, previous_menu, context)
             if cost_on then
                 if layer.smallb then keyed_image(state, layer.smallb, layer.dvx or 108, y + (layer.dvy or 8)) end
                 text(state, tostring(cost_settings.pools[options.cost_index]), layer.dx or 188, layer.fy or (y + (layer.dy or 8)), color)
-                if options.shuffle and layer.smallb then keyed_image(state, layer.smallb, layer.next or 276, y + (layer.dvy or 8)) end
+                -- The Random box at the right end of the cost row exists only where the layer has `caughtact: 1` (mode4.dat);
+                -- the other layouts (mode1 to mode3) keep Respawn shuffle on layer 10 and have no box here.
+                if options.shuffle and layer.smallb and layer9_has_random(layer) then keyed_image(state, layer.smallb, layer.next or 276, y + (layer.dvy or 8)) end
             end
         elseif number == 10 then
             -- The focus picture of the selected box goes first and the check marks (`smallp`) after it, so a mark is never
@@ -2092,7 +2099,7 @@ local function small_menu(state, previous_menu, context)
         if options[field] > 0 then options[field] = base end
         sounds.direct(state, "ok")
     end
-    local layer9_j = small_layers[9] and small_layers[9].caughtact == 1
+    local layer9_j = layer9_has_random(small_layers[9])
     if keys.b then
         if number == 3 then options.hide_random = not options.hide_random; sounds.direct(state, "ok")
         -- J goes back through the values that A steps forward: difficulty, background, background mode. On the cost pool row
