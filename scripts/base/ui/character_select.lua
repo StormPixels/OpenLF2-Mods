@@ -445,12 +445,17 @@ local function draw_fighter(state, slot, col, row, color)
     draw_menu_face(state, slot, fighter, col + places.face_dx, row + places.face_dy)
     -- Cost mode: the backup mark of the team and the fighter's price ("Cost: $100") above its portrait. A fighter hidden
     -- behind Random shows no price.
-    if state.wide and state.options and (state.options.cost_index or 0) > 0 and cost_in_mode(state.mode) then
+    -- The backup mark is drawn in the computer menu even while the cost pool is still Off (the pool is chosen later, in the
+    -- options menu); afterwards it shows only while the pool is on.
+    local cost_on = state.wide and state.options and (state.options.cost_index or 0) > 0 and cost_in_mode(state.mode)
+    if state.wide and state.options and cost_in_mode(state.mode) and (cost_on or state.menu == menus.computer_slots) then
         local mark = backup_marked(state, slot) and places.cmb[slot.team] or nil
         if mark then
             if cmb_known[mark] == nil then cmb_known[mark] = pcall(engine.read_resource, mark) end
             if cmb_known[mark] then image(state, mark, col + places.cmb_dx, row + places.cmb_dy) end
         end
+    end
+    if cost_on then
         if fighter then
             -- fighter.record is only the number of the catalog record; the fighter's own `cost:` is read by the catalog
             local own = tonumber(fighter.cost)
