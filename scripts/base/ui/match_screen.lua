@@ -305,8 +305,9 @@ function screen.snapshot(state, snapshot)
     if state.cost then
         snapshot.cost_pool = snapshot.cost_pool or {}
         for team, left in pairs(state.cost.pool) do snapshot.cost_pool[team] = left end
+        snapshot.cost_y = state.cost.y
     else
-        snapshot.cost_pool = nil
+        snapshot.cost_pool, snapshot.cost_y = nil, nil
     end
     snapshot.paused, snapshot.stage = nil, nil
     return snapshot
@@ -1785,7 +1786,7 @@ function screen.draw(state, context, window_bounds)
         local shift = camera - window_bounds.left
         local classic_right = view.camera + constants.screen.width - shift
         view = {camera = shift, items = view.items, paused = view.paused, shake = view.shake, stage = view.stage,
-            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, kills = view.kills, kill_clock = view.kill_clock, etc_width = view.etc_width, names_kind = view.names_kind, boss_slot = view.boss_slot}
+            time_left = view.time_left, time_row = view.time_row, cost_pool = view.cost_pool, cost_y = view.cost_y, kills = view.kills, kill_clock = view.kill_clock, etc_width = view.etc_width, names_kind = view.names_kind, boss_slot = view.boss_slot}
         -- Only matters for a stage narrower than the window.
         bounds = {left = math.max(window_bounds.left, -shift), right = math.min(window_bounds.right, stage_width - shift)}
         passable_bounds = {left = bounds.left, right = bounds.right}
@@ -1864,13 +1865,22 @@ function screen.draw(state, context, window_bounds)
         bold_text(context, clock_text, 0x18d + wide_center() - math.floor(font.width(clock_text) / 2), 0x6e + (view.time_row or 0))
     end
     if view.cost_pool then
-        -- LF2 Darkfiren's cost mode: what each team has left, one line per team under the clock.
+        -- LF2 Darkfiren's cost mode: what each team has left, in one row ("P3: $200   Team1: $200"). The independent
+        -- fighters come first, then the teams; the labels sit at 1/(n+1), 2/(n+1) ... of the window width. The row is at
+        -- the `y:` of <cost> (mode.dat) when the window is tall enough for it, else on the last text line of the classic picture.
         local teams = {}
         for team in pairs(view.cost_pool) do teams[#teams + 1] = team end
-        table.sort(teams)
-        for line, team in ipairs(teams) do
-            local label = string.format("%s %d: %d", team >= 10 and "P" or "Team", team >= 10 and team - 9 or team, view.cost_pool[team])
-            bold_text(context, label, 0x18d + wide_center() - math.floor(font.width(label) / 2), 0x6e + 14 * line)
+        table.sort(teams, function(a, b)
+            local solo_a, solo_b = a >= 10, b >= 10
+            if solo_a ~= solo_b then return solo_a end
+            return a < b
+        end)
+        local row_y = view.cost_y
+        if type(row_y) ~= "number" or row_y < 0 or row_y > constants.screen.height - 16 then row_y = constants.screen.height - 36 end
+        local window = constants.screen.width + wide_gap()
+        for slot, team in ipairs(teams) do
+            local label = string.format("%s%d: $%d", team >= 10 and "P" or "Team", team >= 10 and team - 9 or team, view.cost_pool[team])
+            bold_text(context, label, math.floor(window * slot / (#teams + 1)) - math.floor(font.width(label) / 2), row_y)
         end
     end
     if view.paused then

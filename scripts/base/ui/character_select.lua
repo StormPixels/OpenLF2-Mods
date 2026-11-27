@@ -24,6 +24,7 @@ local computer_phase, computer_team_phase, computer_done = slot_phases.computer_
 -- The numbers below are what mode4.dat gives; selection.create takes the file's own (game/mode_layout.lua), so
 -- these only stand when the file is missing or has no such tag.
 local mode_layout = require("base/game/mode_layout")
+local cost_rules = require("base/game/cost")
 local stage_levels = require("base/game/stage_levels")
 local menu_small = require("base/game/menu_small")
 local ui_modes = require("base/game/ui_modes")
@@ -52,20 +53,32 @@ layout_targets.misc = misc
 local time_list, time_type = {}, 1
 -- LF2 Darkfiren <cost> of mode4.dat: the pools the options menu offers and the prices (cost mode).
 local cost_settings = {kind = 100, pools = {}, groups = {}}
+local cost_in_mode   -- defined with the options panel below; the slot drawing needs it too
+local cmb_known = {}
 local per_row, shift, step_x, step_y = 4, 0, 153, 212
 local ABSENT = -99999   -- "the file does not write this tag" (mode_layout.apply only takes a value of the type of the default)
 local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212,
     face_x = ABSENT, face_y = ABSENT, name_x = ABSENT, name_y = ABSENT, fighter_x = ABSENT, fighter_y = ABSENT, team_x = ABSENT, team_y = ABSENT,
-    name_hide = ABSENT, bound = ABSENT, flag0 = "", flag1 = "", flag2 = "", flag3 = "", flag4 = ""}
+    name_hide = ABSENT, bound = ABSENT, flag0 = "", flag1 = "", flag2 = "", flag3 = "", flag4 = "",
+    -- cost mode (LF2 Darkfiren update 17): the price above a portrait (centre x, y) and the backup mark of a team 1 to 5 member
+    cost_x = ABSENT, cost_y = ABSENT, team_cmb_x = ABSENT, team_cmb_y = ABSENT,
+    team1_cmb = "", team2_cmb = "", team3_cmb = "", team4_cmb = "", team5_cmb = ""}
 -- The places of a slot's pictures and texts from its corner (x) and from its row (y): the classic menu's own, in the wide menu the
 -- mode file's face_x, name_x, fighter_x, team_x (the place of the first slot on the screen: value - start_x + 40 from the corner,
 -- as the corner is start_x - 40 from the classic one) and the y values as they are. A tag the file lacks keeps the classic place.
-local places = {face_dx = 147, face_dy = 94, name_dx = 177, name_y = 219, fighter_dx = 177, fighter_y = 241, team_dx = 167, team_y = 263,
+local places = {face_dx = 147, face_dy = 94, cost_dx = 180, cost_dy = 77, cmb_dx = 147, cmb_dy = 94, cmb = {}, name_dx = 177, name_y = 219, fighter_dx = 177, fighter_y = 241, team_dx = 167, team_y = 263,
     name_hide = false, same_allowed = true, flags = {}}
 local function set_places(wide, modes)
     local function across(tag, default) local v = menu[tag] return (wide and type(v) == "number" and v ~= ABSENT) and v - menu.x + 40 or default end
     local function down(tag, default) local v = menu[tag] return (wide and type(v) == "number" and v ~= ABSENT) and v or default end
     places.face_dx, places.face_dy = across("face_x", 147), down("face_y", 94)
+    -- cost_x is the middle of the price text; unwritten, it is 33 right of the face and 17 above it (the update 17 default 180, 77)
+    places.cost_dx, places.cost_dy = across("cost_x", places.face_dx + 33), down("cost_y", places.face_dy - 17)
+    places.cmb_dx, places.cmb_dy = across("team_cmb_x", places.face_dx), down("team_cmb_y", places.face_dy)
+    for team = 1, 5 do
+        local path = wide and menu["team" .. team .. "_cmb"] or ""
+        places.cmb[team] = path ~= "" and (path:gsub("\\", "/"):lower()) or nil
+    end
     places.name_dx, places.name_y = across("name_x", 177), down("name_y", 219)
     places.fighter_dx, places.fighter_y = across("fighter_x", 177), down("fighter_y", 241)
     places.team_dx, places.team_y = across("team_x", 167), down("team_y", 263)
@@ -419,6 +432,19 @@ local function draw_fighter(state, slot, col, row, color)
     if head and not pcall(engine.read_resource, head) then head = nil end   -- a picture the game lacks keeps the fighter's own
     image(state, head or (fighter and fighter.portrait) or "pe/rface", col + places.face_dx, row + places.face_dy)
     draw_menu_face(state, slot, fighter, col + places.face_dx, row + places.face_dy)
+    -- Cost mode: the backup mark of the team and the fighter's price ("Cost: $100") above its portrait. A fighter hidden
+    -- behind Random shows no price.
+    if state.wide and state.options and (state.options.cost_index or 0) > 0 and cost_in_mode(state.mode) then
+        local mark = places.cmb[slot.team]
+        if mark then
+            if cmb_known[mark] == nil then cmb_known[mark] = pcall(engine.read_resource, mark) end
+            if cmb_known[mark] then image(state, mark, col + places.cmb_dx, row + places.cmb_dy) end
+        end
+        if fighter then
+            local price = cost_rules.price({groups = cost_settings.groups, default = cost_settings.kind}, fighter.id, fighter.record)
+            text(state, string.format("Cost: $%d", price), col + places.cost_dx, row + places.cost_dy, color, nil, "center")
+        end
+    end
     slot_text(state, fighter and fighter.name or " Random", col, row, color, row + places.fighter_y, places.fighter_dx, places.fighter_dx + 30)
 end
 local flag_known = {}
@@ -1749,7 +1775,7 @@ local extra_on_uses_small = false
 local hitlag_steps = 5   -- hitlag modes 0 (normal) and -1 to -5 (readme/hitlag mode.txt); `D` (defend) on the difficulty row cycles them
 local small_forced = {[7] = true, [8] = true}
 -- The `mode:` lines of <cost> name the game modes that have the cost mode (none named: all of them).
-local function cost_in_mode(mode)
+function cost_in_mode(mode)
     local list = cost_settings.modes
     if not list or #list == 0 then return true end
     for _, listed in ipairs(list) do if listed == mode then return true end end
@@ -2140,7 +2166,7 @@ function selection.match_options(state)
             and time_list[state.options.time_index] or nil, time_type = time_type,
         cost = state.wide and state.mode ~= constants.modes.stage and cost_in_mode(state.mode) and (state.options.cost_index or 0) > 0 and
             {pool = cost_settings.pools[state.options.cost_index], kind = cost_settings.kind, groups = cost_settings.groups,
-                randoms = cost_settings.randoms, team = cost_settings.team} or nil,
+                randoms = cost_settings.randoms, team = cost_settings.team, y = cost_settings.y, dy = cost_settings.dy} or nil,
         no_item_drops = state.wide and state.mode ~= constants.modes.stage and state.options.item_drops == false or nil,
         no_transform = state.wide and state.mode ~= constants.modes.stage and state.options.allow_transform == false or nil,
         respawn_shuffle = state.wide and state.mode ~= constants.modes.stage and cost_in_mode(state.mode) and (state.options.cost_index or 0) > 0

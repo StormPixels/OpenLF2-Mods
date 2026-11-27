@@ -13,7 +13,8 @@ function cost.create(pool, settings, teams)
     local pools = {}
     for team in pairs(teams) do pools[team] = pool end
     return {pool = pools, start = pool, default = settings.kind or 100, groups = settings.groups or {}, out = {},
-        randoms = settings.randoms or {}, shuffle = settings.shuffle == true, kill_team = settings.team == 1}
+        randoms = settings.randoms or {}, shuffle = settings.shuffle == true, kill_team = settings.team == 1,
+        y = settings.y, dy = settings.dy}
 end
 
 -- A fighter's own `cost:` in its dat's <bmp_begin> (record.data.header.cost) wins over the mode file's groups and `kind:`

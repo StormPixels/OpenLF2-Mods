@@ -147,7 +147,8 @@ end
 
 -- The <cost> block (LF2 Darkfiren cost mode): `kind:` is the price of a fighter no `cost:` group lists, `respond:` each
 -- a choice of pool for the menu (up to 100), `cost: N` followed by `id:` lines the price N of those fighters (the
--- `random:` ... `random_end:` blocks are lists of ids a fighter may respawn as). Returns {kind, pools, groups, randoms}.
+-- `random:` ... `random_end:` blocks are lists of ids a fighter may respawn as), `y:`/`dy:` the line the pools are drawn on.
+-- Returns {kind, pools, groups, randoms, modes, team, bound, y, dy}.
 function mode_layout.cost_settings(text)
     local settings = {kind = 100, pools = {}, groups = {}, randoms = {}, modes = {}}
     local words = {}
@@ -164,6 +165,8 @@ function mode_layout.cost_settings(text)
             elseif word == "team:" and number and not group and not skipping then settings.team = number -- 1: the team dies at once when its pool is spent
             elseif word == "kind:" and number and number > 0 then settings.kind = number
             elseif word == "bound:" and number and not group and not skipping then settings.bound = number   -- 1: on by default in the options menu
+            elseif word == "y:" and number and not group and not skipping then settings.y = number           -- where the pools are drawn (all modes but recording)
+            elseif word == "dy:" and number and not group and not skipping then settings.dy = number         -- the same for a recording
             elseif word == "mode:" and number and not group and not skipping and #settings.modes < 20 then settings.modes[#settings.modes + 1] = number
             elseif word == "respond:" and number and number > 0 and #settings.pools < 100 then settings.pools[#settings.pools + 1] = number
             elseif word == "cost:" and number and number > 0 then group = number
