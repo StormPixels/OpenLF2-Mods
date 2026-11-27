@@ -143,7 +143,12 @@ function physics.step(match, value)
     if value.weapon < 0 then return end
     if frame(value.frame).cpoint.kind == cpoint_kinds.caught then return end
     if value.floor_object then st_block.carry(match, value) end
-    st_status.slow(value)   -- delay: velocity x 0.25 (PDK runs it right after the platform carry, before the position moves)
+    local extra = value.fx
+    if extra and extra.release_step then
+        extra.release_step = nil -- first step after a throw runs at full speed (original LF2), delay slows from the next tick
+    else
+        st_status.slow(value)   -- delay: velocity x 0.25 (PDK runs it right after the platform carry, before the position moves)
+    end
     local floor_before = value.floor_y or 0
     local air_frame, was_airborne = value.frame, value.y - floor_before < -0.0001
     if not ((value.vx > 0.0 and value.blocked_right) or (value.vx < 0.0 and value.blocked_left)) then

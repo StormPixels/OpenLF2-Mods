@@ -58,6 +58,10 @@ end
 
 -- Called once for a landed (not defended) plain hit.
 function fx.apply(attacker, victim, itr, defended, random)
+    if victim.record.kind ~= constants.record_kinds.character then
+        debug_log("APPLY? victim=" .. tostring(victim.record.id) .. " state=" .. tostring(victim.record.frame(victim.frame).state)
+            .. " itr.kind=" .. tostring(itr.kind) .. " itr.delay=" .. tostring(itr.delay) .. " defended=" .. tostring(defended))
+    end
     if defended or (itr.kind ~= 0 and itr.kind ~= 9) then return end
     local character = victim.record.kind == constants.record_kinds.character
     if itr.poison and itr.poison ~= 0 then
