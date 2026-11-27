@@ -381,6 +381,8 @@ local function step_fighter(state, slot, direction)
     end
     slot.fighter, slot.skin = position, nil
 end
+-- Up/down on the roster grid (<grid_char>): defined with the roster below, as it needs the roster's cells and columns.
+local roster_move
 local function next_fighter(state, slot) step_fighter(state, slot, 1) end
 local function previous_fighter(state, slot) step_fighter(state, slot, -1) end
 
@@ -702,7 +704,12 @@ local function fighter_slot(state, slot, keys, col, row)
     elseif pressed(keys, "l") then
         if trigger(slot) then previous_fighter(state, slot) end
     elseif pressed(keys, "u") then
-        if trigger(slot) then slot.fighter, slot.skin = 0, nil end
+        if trigger(slot) then
+            -- OpenLF2: with the roster grid on screen, up/down move a row (Random is the first cell); without it up stays Random.
+            if not roster_move(state, slot, -1) then slot.fighter, slot.skin = 0, nil end
+        end
+    elseif pressed(keys, "d") then
+        if trigger(slot) then roster_move(state, slot, 1) end
     elseif pressed(keys, "f") then
         if trigger(slot) then next_skin(state, slot) end
     elseif pressed(keys, "c") then
@@ -955,8 +962,13 @@ local function computer_keys(state, previous_menu)
         local slot = state.slots[index]
         if slot.ready then
             local keys = state.held[index] or ""
-            if pressed(keys, "u") then actions.random = trigger(slot, accept) or actions.random
-            elseif pressed(keys, "d") then slot.latched = true
+            if pressed(keys, "u") then
+                -- With the roster grid on screen, up moves a row; without it up stays Random.
+                if state.wide and not state.no_roster then actions.up = trigger(slot, accept) or actions.up
+                else actions.random = trigger(slot, accept) or actions.random end
+            elseif pressed(keys, "d") then
+                if state.wide and not state.no_roster then actions.down = trigger(slot, accept) or actions.down
+                else slot.latched = true end
             elseif pressed(keys, "f") then actions.backup = trigger(slot, accept) or actions.backup
             elseif pressed(keys, "r") then actions.next = trigger(slot, accept) or actions.next
             elseif pressed(keys, "l") then actions.previous = trigger(slot, accept) or actions.previous
@@ -1001,6 +1013,8 @@ local function computer_menu(state, previous_menu)
         if actions.next then next_fighter(state, slot) end
         if actions.previous then previous_fighter(state, slot) end
         if actions.random then slot.fighter = 0 end
+        if actions.up then roster_move(state, slot, -1) end
+        if actions.down then roster_move(state, slot, 1) end
         if state.previous_random then
             slot.fighter = 0
             state.previous_random = false
@@ -2227,6 +2241,34 @@ local function roster_fighters(state)
         if catalog.listed(fighter) then cells[#cells + 1] = index end
     end
     return cells
+end
+-- Moves the slot's fighter `rows` rows up (negative) or down on the roster grid, keeping the column; past the first or last row it
+-- wraps round, and a short last row takes its last cell. Fighters another slot holds are jumped over when the mode forbids
+-- doubles (`bound: 0`). Returns false when this menu has no roster grid (the caller keeps its old up/down meaning).
+roster_move = function(state, slot, rows)
+    if not state.wide or state.no_roster then return false end
+    local cells = roster_fighters(state)
+    local total_rows = math.ceil(#cells / roster.columns)
+    local index = 1
+    for position, fighter_index in ipairs(cells) do if fighter_index == slot.fighter then index = position break end end
+    local column, line = (index - 1) % roster.columns, math.floor((index - 1) / roster.columns)
+    for _ = 1, total_rows do
+        line = (line + rows) % total_rows
+        local target = math.min(line * roster.columns + column + 1, #cells)
+        local fighter_index = cells[target]
+        local taken = false
+        if not places.same_allowed and fighter_index ~= 0 then
+            for other = 0, (state.slot_count or 8) - 1 do
+                local held = state.slots[other]
+                if held ~= slot and held.phase >= slot_phases.choosing_fighter and held.fighter == fighter_index then taken = true end
+            end
+        end
+        if not taken then
+            slot.fighter, slot.skin = fighter_index, nil
+            return true
+        end
+    end
+    return true
 end
 local function roster_panel(state)
     -- A game whose mode file has no <grid_char> (and no sprite/ui/grid/box_char2.bmp) has no roster panel: a missing
