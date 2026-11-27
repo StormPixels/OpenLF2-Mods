@@ -104,3 +104,13 @@ Berkas yang disentuh (milik AI4/AI2, dikirim sebagai diff terpisah `HOOK_extra_s
 - Layer 5: nama dan warna kesulitan dari blok `<mode>` (`menu_small.parse_modes`, blok pertama yang punya layer; bawaan lama bila tidak ada). Mode hitlag: tombol Defend (`f`) di baris kesulitan memutar 0, -1 ... -5; namanya (layer 6 sampai 10) digambar di (`dvx`, `dvy`). Pilihan dibawa ke `options.hitlag` dan `state.hitlag`, dan dimatikan di jaringan dan rekaman. **[BELUM TERHUBUNG]** nilai hitlag belum dibaca combat (bagian AI3: attacker 3, victim -3, hitBlock 3, blockstun -5 dikurangi per mode, lihat readme `hitlag mode.txt`).
 - Blok "extra settings" readme (`pickedact`, `centerx`, `centery`, `pic:`): TIDAK digambar lagi (perbaikan R-menu 10P). mode3.dat memberi tiap layer `pic` sisa (pause.bmp, demo.bmp, davis_f.bmp, julian_s.bmp ...) yang muncul menimpa panel saat baris terpilih. Kunci tetap diparse oleh `game/menu_small.lua`. [BELUM PASTI] arti asli `pic` di Darkfiren; belum dijalankan di ponsel.
 - Belum diuji di game; hanya sintaks dan `parse_modes`/`rows` yang dicoba dengan Lua 5.3.
+
+## R25 (AI5): tombol baris background, bg mode, dan stage di panel `<menu_small>`
+Berkas yang disentuh (milik AI4, dikirim sebagai diff terpisah): `ui/character_select.lua`.
+- Baris tertutup (grid belum dibuka): **A** pilih berikutnya, **J** pilih mundur, **D** buka grid. Berlaku untuk baris background (layer 4), bg mode (layer 7), dan level stage (layer 4 di mode Stage).
+- Di dalam grid: **panah** menggeser kotak yang berkedip, **A** konfirmasi, **J** tutup grid, **D** tidak berfungsi. Daftar background satu kolom kini juga membaca kiri/kanan (sama dengan atas/bawah); popup lain sudah begitu.
+- Background: urutan Random, 0, 1, ... lalu kembali ke Random; berpindah dengan A/J tidak membuka daftar mode (mode kembali ke mode pertama, polos), sama seperti pemilihan lewat grid yang ditutup tanpa memilih mode.
+- Stage: memutar level yang tampil di daftar (`stage_levels.visible`); tanpa daftar level, memutar 1..5 dan Survival (kelipatan 10, modulo 60) seperti sebelumnya.
+- bg mode: A memutar mode yang terlihat dan sudah `supported` (yang belum didukung dilewati). **J pada bg mode tidak ada catatannya, jadi tidak melakukan apa-apa**; ubah `bg_mode_back` menjadi `true` di `character_select.lua` bila J harus mundur.
+- Sebelumnya A pada baris background dan bg mode membuka grid; sekarang tombol itu D. Menu opsi lama (bukan panel kecil) tidak berubah.
+- **[BELUM DIUJI]** ditulis tanpa bisa menjalankan game atau Lua di sini.

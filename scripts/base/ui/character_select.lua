@@ -1547,15 +1547,15 @@ local function grid_popup(state, previous_menu)
         if slot.ready then
             local keys_held = state.held[index] or ""
             local key
-            for _, candidate in ipairs({"u", "d", "c", "b"}) do
+            for _, candidate in ipairs({"u", "d", "l", "r", "c", "b"}) do
                 if pressed(keys_held, candidate) then key = candidate; break end
             end
             if key then keys[key] = trigger(slot, accept) or keys[key]
             else slot.latched = false end
         end
     end
-    if keys.u then grid.cursor = math.max(1, grid.cursor - 1) end
-    if keys.d then grid.cursor = math.min(#grid.cells, grid.cursor + 1) end
+    if keys.u or keys.l then grid.cursor = math.max(1, grid.cursor - 1) end
+    if keys.d or keys.r then grid.cursor = math.min(#grid.cells, grid.cursor + 1) end
     grid_follow(grid)
     if keys.b then state.grid = nil; return end
     if keys.c then grid_choose(state, grid.cells[grid.cursor]); return end
@@ -1835,6 +1835,61 @@ local function small_disabled(number, stage_mode, has_modes)
     return (number == 7 and (stage_mode or not has_modes)) or (number == 8 and stage_mode)
 end
 
+-- Closed rows of the small menu for the background, the background mode and the Stage level (the grid shut):
+--   A steps to the next value, J to the previous one, D opens the grid (background list, mode list, stage list).
+-- Inside a grid the arrows move the blinking cell, A confirms, J closes it and D does nothing (see the popups).
+-- The background mode row has no J note, so J does nothing there; set bg_mode_back to true to make J step back.
+local bg_mode_back = false
+local function small_background_step(state, step)
+    local options = state.options
+    sounds.direct(state, "ok")
+    if state.mode == constants.modes.stage then
+        if levels_wanted(state) then
+            local cells = stage_cells()
+            if #cells == 0 then return end
+            local position = 1
+            for index, info in ipairs(cells) do
+                if info.id == math.floor(options.stage_level / 10) then position = index end
+            end
+            options.stage_level = cells[(position - 1 + step) % #cells + 1].id * 10
+        else
+            options.stage_level = (options.stage_level + 10 * step) % 60
+        end
+        return
+    end
+    local cells = grid_cells(state)
+    local current = options.random_background and constants.background_rows.random or options.background
+    local position = 1
+    for index, row in ipairs(cells) do if row == current then position = index; break end end
+    local row = cells[(position - 1 + step) % #cells + 1]
+    options.random_background = row == constants.background_rows.random
+    options.background = row
+    -- A new background starts on its first, plain mode (as when the list picks it); no mode list opens while stepping.
+    options.bg_mode, options.bg_mode_title, options.bg_mode_small = nil, nil, nil
+end
+local function small_mode_step(state, step)
+    local options = state.options
+    local modes = visible_modes(options.background)
+    if #modes < 2 then return end
+    local position = 1
+    if options.bg_mode_title ~= nil then
+        for index, mode in ipairs(modes) do if mode.title == options.bg_mode_title then position = index end end
+    end
+    for _ = 1, #modes do   -- modes that cannot be chosen yet (not supported) are skipped
+        position = (position - 1 + step) % #modes + 1
+        if mode_choose(state, modes[position]) then return end
+    end
+end
+local function small_open_grid(state, number)
+    if number == 4 then
+        if levels_wanted(state) then sounds.direct(state, "ok"); open_stage_grid(state)
+        elseif state.mode ~= constants.modes.stage then sounds.direct(state, "ok"); open_grid(state) end
+    elseif number == 7 then
+        sounds.direct(state, "ok")
+        open_mode_grid(state, state.options.background, visible_modes(state.options.background))
+    end
+end
+
 local function option_action(state, context, row, extras)
     local options = state.options
     sounds.direct(state, "ok")
@@ -2049,6 +2104,8 @@ local function small_menu(state, previous_menu, context)
                 options.difficulty = unlocked == 0 and constants.difficulties.difficult or constants.difficulties.crazy
             end
             sounds.direct(state, "ok")
+        elseif number == 4 then small_background_step(state, -1)
+        elseif number == 7 and has_modes and bg_mode_back then small_mode_step(state, -1)
         elseif number == 8 and not stage_mode then
             options.time_index = (options.time_index - 1) % (#time_list + 1); sounds.direct(state, "ok")
         elseif number == 9 then
@@ -2060,19 +2117,19 @@ local function small_menu(state, previous_menu, context)
         options.hitlag = -(((-(options.hitlag or 0)) + 1) % (hitlag_steps + 1))
         sounds.direct(state, "ok")
     end
+    -- `D` (defend) on the background, background mode and stage rows: opens their grid.
+    if keys.f and (number == 4 or (number == 7 and has_modes)) then small_open_grid(state, number) end
     if not keys.c then return end
     if number == 1 then option_action(state, context, option_rows.start, {})
     elseif number == 2 then option_action(state, context, option_rows.reselect, {})
     elseif number == 3 then option_action(state, context, option_rows.reroll, {})
-    elseif number == 4 then option_action(state, context, option_rows.background, {})
+    elseif number == 4 then small_background_step(state, 1)
     elseif number == 5 then option_action(state, context, option_rows.difficulty, {})
     elseif number == 12 then option_action(state, context, option_rows.exit, {})
     elseif number == extra_toggle then
         sounds.direct(state, "ok")
         options.extra_open = not options.extra_open
-    elseif number == 7 and has_modes then
-        sounds.direct(state, "ok")
-        open_mode_grid(state, options.background, visible_modes(options.background))
+    elseif number == 7 and has_modes then small_mode_step(state, 1)
     elseif number == 8 and not stage_mode then
         sounds.direct(state, "ok")
         if options.time_index > 0 then options.time_last = options.time_index; options.time_index = 0
