@@ -1,4 +1,3 @@
-debug_log("DEBUG-LOADED fx_status.lua v3")
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2026 OpenLF2 contributors
 
@@ -58,15 +57,6 @@ end
 
 -- Called once for a landed (not defended) plain hit.
 function fx.apply(attacker, victim, itr, defended, random)
-    if victim.record.kind ~= constants.record_kinds.character then
-        debug_log("APPLY? victim=" .. tostring(victim.record.id) .. " state=" .. tostring(victim.record.frame(victim.frame).state)
-            .. " itr.kind=" .. tostring(itr.kind) .. " itr.delay=" .. tostring(itr.delay) .. " defended=" .. tostring(defended)
-            .. " attacker=" .. tostring(attacker.record.id) .. " atk_frame=" .. tostring(attacker.frame))
-        local keys = {}
-        for key, val in pairs(itr) do keys[#keys + 1] = tostring(key) .. "=" .. tostring(val) end
-        table.sort(keys)
-        debug_log("ITR-DUMP " .. table.concat(keys, " "))
-    end
     if defended or (itr.kind ~= 0 and itr.kind ~= 9) then return end
     local character = victim.record.kind == constants.record_kinds.character
     if itr.poison and itr.poison ~= 0 then
@@ -89,7 +79,6 @@ function fx.apply(attacker, victim, itr, defended, random)
                     victim.team = attacker.team
                 else
                     local current = status[name] or 0
-                    if victim.record.kind ~= constants.record_kinds.character then debug_log("APPLY " .. tostring(name) .. " " .. tostring(timed.duration) .. " " .. tostring(victim.record.id)) end
                     if timed.duration > current then status[name] = timed.duration end
                     -- mimic: who to copy (the slot of the attacker's owner); cleared when the timer ends
                     if name == "mimic" then status.mimic_by = attacker.owner end
