@@ -441,7 +441,9 @@ local function draw_fighter(state, slot, col, row, color)
             if cmb_known[mark] then image(state, mark, col + places.cmb_dx, row + places.cmb_dy) end
         end
         if fighter then
-            local price = cost_rules.price({groups = cost_settings.groups, default = cost_settings.kind}, fighter.id, fighter.record)
+            -- fighter.record is only the number of the catalog record; the fighter's own `cost:` is read by the catalog
+            local own = tonumber(fighter.cost)
+            local price = own and own > 0 and own or cost_rules.price({groups = cost_settings.groups, default = cost_settings.kind}, fighter.id, nil)
             text(state, string.format("Cost: $%d", price), col + places.cost_dx, row + places.cost_dy, color, nil, "center")
         end
     end

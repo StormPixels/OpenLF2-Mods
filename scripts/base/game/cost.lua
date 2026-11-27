@@ -20,7 +20,7 @@ end
 -- A fighter's own `cost:` in its dat's <bmp_begin> (record.data.header.cost) wins over the mode file's groups and `kind:`
 -- (readme/mode dat.txt, as in the u17 pack).
 function cost.price(self, id, record)
-    local data = record and record.data
+    local data = type(record) == "table" and record.data
     local header = type(data) == "table" and data.header
     local raw = type(header) == "table" and header.cost
     if type(raw) == "table" then raw = raw[1] end

@@ -60,9 +60,10 @@ function catalog.load()
                 local small = header:match("small:%s*(%S+)")
                 local lock = header_number(header, "hidden")
                 local menu_kind = header_number(header, "kind")
+                local own_cost = header_number(header, "cost") -- cost mode: the fighter's own price
                 fighters[#fighters + 1] = {id = id, record = record, name = name,
                     portrait = canonical(portrait), small = small and canonical(small) or nil, path = path,
-                    hidden = default_locked(id), lock = lock, menu_hidden = menu_kind == -1}
+                    hidden = default_locked(id), lock = lock, menu_hidden = menu_kind == -1, cost = own_cost}
                 assert(#fighters <= 1000, "too many character records")
             end
         elseif line:find("%S") and not id then error("invalid object catalog line") end
