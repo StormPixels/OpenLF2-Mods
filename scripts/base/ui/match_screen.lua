@@ -1875,8 +1875,13 @@ function screen.draw(state, context, window_bounds)
             if solo_a ~= solo_b then return solo_a end
             return a < b
         end)
-        local row_y = view.cost_y
-        if type(row_y) ~= "number" or row_y < 0 or row_y > constants.screen.height - 16 then row_y = constants.screen.height - 36 end
+        -- `y:` of <cost> is the distance up from the bottom edge of the picture (every u17 mode file writes 38, `dy:` 54 for a
+        -- recording): the row sits just above the status line (mode, FPS), as the u17 video shows. A value past the middle of
+        -- the picture is taken as a line from the top (the readme's example 690).
+        local height = screen.view.height or constants.screen.height
+        local row_y = type(view.cost_y) == "number" and view.cost_y or 38
+        if row_y < height / 2 then row_y = height - row_y end
+        row_y = math.max(0, math.min(row_y, height - 16))
         local window = constants.screen.width + wide_gap()
         for slot, team in ipairs(teams) do
             local label = string.format("%s%d: $%d", team >= 10 and "P" or "Team", team >= 10 and team - 9 or team, view.cost_pool[team])

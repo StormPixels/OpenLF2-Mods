@@ -60,7 +60,7 @@ local ABSENT = -99999   -- "the file does not write this tag" (mode_layout.apply
 local menu = {pic = "sprite/ui/charmenu3.bmp", x = 10, y = 33, row = 8, step_x = 153, step_y = 212,
     face_x = ABSENT, face_y = ABSENT, name_x = ABSENT, name_y = ABSENT, fighter_x = ABSENT, fighter_y = ABSENT, team_x = ABSENT, team_y = ABSENT,
     name_hide = ABSENT, bound = ABSENT, flag0 = "", flag1 = "", flag2 = "", flag3 = "", flag4 = "",
-    -- cost mode (LF2 Darkfiren update 17): the price above a portrait (centre x, y) and the backup mark of a team 1 to 5 member
+    -- cost mode (LF2 Darkfiren update 17): the price above a portrait (left x, y) and the backup mark of a team 1 to 5 member
     cost_x = ABSENT, cost_y = ABSENT, team_cmb_x = ABSENT, team_cmb_y = ABSENT,
     team1_cmb = "", team2_cmb = "", team3_cmb = "", team4_cmb = "", team5_cmb = ""}
 -- The places of a slot's pictures and texts from its corner (x) and from its row (y): the classic menu's own, in the wide menu the
@@ -72,7 +72,7 @@ local function set_places(wide, modes)
     local function across(tag, default) local v = menu[tag] return (wide and type(v) == "number" and v ~= ABSENT) and v - menu.x + 40 or default end
     local function down(tag, default) local v = menu[tag] return (wide and type(v) == "number" and v ~= ABSENT) and v or default end
     places.face_dx, places.face_dy = across("face_x", 147), down("face_y", 94)
-    -- cost_x is the middle of the price text; unwritten, it is 33 right of the face and 17 above it (the update 17 default 180, 77)
+    -- cost_x is the left edge of the price text; unwritten, it is 33 right of the face and 17 above it (the update 17 default 180, 77)
     places.cost_dx, places.cost_dy = across("cost_x", places.face_dx + 33), down("cost_y", places.face_dy - 17)
     places.cmb_dx, places.cmb_dy = across("team_cmb_x", places.face_dx), down("team_cmb_y", places.face_dy)
     for team = 1, 5 do
@@ -444,7 +444,8 @@ local function draw_fighter(state, slot, col, row, color)
             -- fighter.record is only the number of the catalog record; the fighter's own `cost:` is read by the catalog
             local own = tonumber(fighter.cost)
             local price = own and own > 0 and own or cost_rules.price({groups = cost_settings.groups, default = cost_settings.kind}, fighter.id, nil)
-            text(state, string.format("Cost: $%d", price), col + places.cost_dx, row + places.cost_dy, color, nil, "center")
+            -- Left edge at cost_x and always light blue, whatever the slot's blinking colour (as in the u17 video).
+            text(state, string.format("Cost: $%d", price), col + places.cost_dx, row + places.cost_dy, 0x6e8fff)
         end
     end
     slot_text(state, fighter and fighter.name or " Random", col, row, color, row + places.fighter_y, places.fighter_dx, places.fighter_dx + 30)

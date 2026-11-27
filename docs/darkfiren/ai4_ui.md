@@ -276,7 +276,7 @@ Tag lain di `<menu_control>` yang BELUM dibaca (tetap di tempat bawaan dalam kod
 - **`name: 1`**: teks nama pemain tidak digambar (nama karakter dan tim tetap).
 - **`team0_flag` sampai `team4_flag`**: gambar (independent dan tim 1 sampai 4) di tempat tulisan tim, bila berkasnya ada; selain itu tulisan.
 - **`bound` dan `mode:`**: `bound: 0` = karakter yang sama tidak boleh dipilih dua slot pada mode yang tertulis di baris `mode:` (semua mode bila tidak ada baris); `bound: 1` atau tanpa tag = boleh. Langkah pilih karakter (kanan dan kiri) melompati karakter yang dipegang slot lain; Random selalu bebas. Daftar `mode:` berulang dibaca `ui_modes.repeated`.
-- **Sudah (mode biaya)**: `cost_x/y` (tengah teks "Cost: $N" di atas wajah; tanpa tag: wajah + 33, wajah - 17) dan `team_cmb_x/y` + `team1_cmb` sampai `team5_cmb` (gambar penanda tim slot, bila gambarnya ada; tanpa tag: di atas wajah); hanya tampil saat Cost pool menyala. Baris saldo di bawah layar mengikuti `y:` pada `<cost>`.
+- **Sudah (mode biaya)**: `cost_x/y` (tepi kiri teks "Cost: $N" di atas wajah, selalu biru muda; tanpa tag: wajah + 33, wajah - 17) dan `team_cmb_x/y` + `team1_cmb` sampai `team5_cmb` (gambar penanda tim slot, bila gambarnya ada; tanpa tag: di atas wajah); hanya tampil saat Cost pool menyala. Baris saldo di bawah layar mengikuti `y:` pada `<cost>`.
 - **Belum**: `transform`, `hidden` pada `<menu_control>`, `respond` (penyesuaian bila ukuran jendela berubah; rumusnya tidak dijelaskan), `facing: 10`, `caughtact`.
 - Tes: `tests/menu_control_test.lua`.
 
