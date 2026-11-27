@@ -1,4 +1,4 @@
-io.stderr:write("DEBUG-LOADED weapons.lua v2\n")
+debug_log("DEBUG-LOADED weapons.lua v3")
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2026 OpenLF2 contributors
 
@@ -175,7 +175,7 @@ function weapons.carry(state)
                         value.frame = random(6)
                         value.vx = holder.facing == constants.facings.right and point.dvx or -point.dvx
                         local st = value.fx and value.fx.status
-                        io.stderr:write("THROW heavy delay timer: ", tostring(st and st.delay), "\n")
+                        debug_log("THROW heavy delay timer: " .. tostring(st and st.delay))
                         value.vy = point.dvy
                         holder.weapon, value.weapon = constants.weapon_holder_codes.none, constants.weapon_holder_codes.none
                         throw_depth(holder, value, point)

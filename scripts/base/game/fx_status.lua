@@ -1,4 +1,4 @@
-io.stderr:write("DEBUG-LOADED fx_status.lua v2\n")
+debug_log("DEBUG-LOADED fx_status.lua v3")
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2026 OpenLF2 contributors
 
@@ -80,7 +80,7 @@ function fx.apply(attacker, victim, itr, defended, random)
                     victim.team = attacker.team
                 else
                     local current = status[name] or 0
-                    if victim.record.kind ~= constants.record_kinds.character then io.stderr:write("APPLY ", tostring(name), " ", tostring(timed.duration), " ", tostring(victim.record.id), "\n") end
+                    if victim.record.kind ~= constants.record_kinds.character then debug_log("APPLY " .. tostring(name) .. " " .. tostring(timed.duration) .. " " .. tostring(victim.record.id)) end
                     if timed.duration > current then status[name] = timed.duration end
                     -- mimic: who to copy (the slot of the attacker's owner); cleared when the timer ends
                     if name == "mimic" then status.mimic_by = attacker.owner end
