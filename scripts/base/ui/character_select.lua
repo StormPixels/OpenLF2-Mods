@@ -413,8 +413,10 @@ local function backup_marked(state, slot)
     end
     return false
 end
--- `bound: N` of a layer (update log 21 December 2024, "to match the layer animation with the skin number selected"): the layer is
--- shown only while skin N is worn (the fighter's own look is skin 1); 0 or no tag: every skin. [BELUM PASTI] this reading.
+-- `bound: N` of a layer (update log 21 December 2024, "to match the layer animation with the skin number selected"): N counts skins
+-- from 0 (0 = the fighter's own look, the first <pic>; 1 = the second, ...). No tag is 0 (the exe's field starts at zero), so a layer
+-- without `bound` shows on the first skin only; `bound: -1` (the #hit_ layers of readme/dat file/menu face.txt) shows on every skin.
+-- Reason: a data file with woody_stand (no tag) and woody_standb..e (`bound: 1` to 4) only makes sense read this way. [BELUM PASTI]
 local function draw_menu_face(state, slot, fighter, x0, y0)
     local layers = menu_face_of(fighter)
     if not layers then return end
@@ -425,7 +427,7 @@ local function draw_menu_face(state, slot, fighter, x0, y0)
         local wanted = layer.respond == 1 and human or layer.respond == 2 and not human or (layer.respond ~= 1 and layer.respond ~= 2)
         local period = type(layer.cc) == "number" and math.floor(layer.cc) or 0
         local shown = period <= 0 or ((state.frames or 0) % period >= (layer.c1 or 0) and (state.frames or 0) % period <= (layer.c2 or 0))
-        local skin_ok = type(layer.bound) ~= "number" or layer.bound <= 0 or layer.bound == skin_number
+        local skin_ok = type(layer.bound) == "number" and layer.bound < 0 or (type(layer.bound) == "number" and layer.bound or 0) == skin_number - 1
         if wanted and shown and skin_ok and type(layer.pic) == "string" and type(layer.w) == "number" and layer.w >= 1 and type(layer.h) == "number" and layer.h >= 1 then
             local picture = layer.pic:gsub("\\", "/"):lower()
             local copies = type(layer.amount) == "number" and layer.amount >= 1 and math.floor(layer.amount) or 1
@@ -2018,8 +2020,23 @@ local function small_menu(state, previous_menu, context)
     end
     if keys.u then move(-1) end
     if keys.d then move(1) end
-    music_option(state, keys.l, keys.r)
     local number = options.small_row
+    -- Time limit and cost rows (LF2 Darkfiren, discord #darkfiren-exe-dll): A turns the setting on/off, left/right change its value
+    -- (the time, the total cost). Left/right then do not touch the music. [BELUM PASTI] left/right while the setting is off: here they
+    -- still change the value that A turns on again.
+    local time_row = number == 8 and not stage_mode and #time_list > 0
+    local cost_row = number == 9 and #cost_settings.pools > 0
+    if time_row or cost_row then music_option(state, false, false) else music_option(state, keys.l, keys.r) end
+    local step = (keys.r and 1 or 0) - (keys.l and 1 or 0)
+    if step ~= 0 and (time_row or cost_row) then
+        local count = time_row and #time_list or #cost_settings.pools
+        local field, last = time_row and "time_index" or "cost_index", time_row and "time_last" or "cost_last"
+        local base = options[field] > 0 and options[field] or math.max(1, math.min(options[last] or 1, count))
+        base = (base - 1 + step) % count + 1
+        options[last] = base
+        if options[field] > 0 then options[field] = base end
+        sounds.direct(state, "ok")
+    end
     local layer9_j = small_layers[9] and small_layers[9].caughtact == 1
     if keys.b then
         if number == 3 then options.hide_random = not options.hide_random; sounds.direct(state, "ok")
@@ -2058,10 +2075,12 @@ local function small_menu(state, previous_menu, context)
         open_mode_grid(state, options.background, visible_modes(options.background))
     elseif number == 8 and not stage_mode then
         sounds.direct(state, "ok")
-        options.time_index = (options.time_index + 1) % (#time_list + 1)
+        if options.time_index > 0 then options.time_last = options.time_index; options.time_index = 0
+        else options.time_index = math.max(1, math.min(options.time_last or 1, #time_list)) end
     elseif number == 9 then
         sounds.direct(state, "ok")
-        options.cost_index = (options.cost_index + 1) % (#cost_settings.pools + 1)
+        if options.cost_index > 0 then options.cost_last = options.cost_index; options.cost_index = 0
+        else options.cost_index = math.max(1, math.min(options.cost_last or 1, #cost_settings.pools)) end
     elseif number == 10 then
         sounds.direct(state, "ok")
         if options.sub_row == 1 then options.item_drops = options.item_drops == false
