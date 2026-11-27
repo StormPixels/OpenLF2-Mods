@@ -71,7 +71,8 @@ function animation.advance(match, value, index)
         -- Defeated and lying: stay down; non-player fighters start blinking out.
         -- LF2 Darkfiren: a fighter whose lives came from a 4xxx state blinks out too, so frame_rules can bring it back.
         if (value.follow >= 0 or value.team == team_enemies or index > 19
-            or (value.st ~= nil and value.st.reserve == true and value.lives >= 2)) and value.blink < 1 then
+            or (value.st ~= nil and value.st.reserve == true and value.lives >= 2)
+            or value.cost_pending) and value.blink < 1 then -- cost mode: paid for, blinks until frame_rules revives it
             value.blink = blink_defeated_frames
         end
         value.wait_counter = 0

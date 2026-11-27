@@ -168,12 +168,22 @@ function frame_rules.after_physics(state, index, value)
         local price = cost.price(state.cost, value.record.id, value.record)
         if price > (value.cost_price or 0) then value.cost_price = price end
     end
-    -- LF2 Darkfiren's cost mode: a beaten fighter (hp 0, lying) is paid for from its team's pool and comes back while
-    -- the pool lasts; once the team is out its body stays.
+    -- LF2 Darkfiren's cost mode: a beaten fighter (hp 0, lying) is paid for from its team's pool on the first tick it lies
+    -- there; if the pool lasts it blinks for blink.defeated_frames and comes back once blink is below 5 (u17 exe: 0x40D211,
+    -- 0x40D230, 0x41E6F1, 0x45FA20), which is 27 ticks after it was paid for. Once the team is out its body stays.
+    if value.cost_pending and value.hp > 0 then value.cost_pending, value.cost_part = nil, nil end
     if state.cost and value.record.kind == record_kinds.character and value.hp <= 0 and not value.cost_paid
        and state_of(value) == constants.frame_states.lying and state.cost.pool[value.team] ~= nil then
-        local result, part = cost.beaten(state.cost, value.team, value.record.id, value.record, value.cost_price)
-        if result == "respawn" then
+        if not value.cost_pending then
+            local result, part = cost.beaten(state.cost, value.team, value.record.id, value.record, value.cost_price)
+            if result == "respawn" then
+                -- animation.advance starts the blink (it holds a pending fighter down, like a beaten stage enemy).
+                value.cost_pending, value.cost_part = true, part
+            else
+                value.cost_paid = true
+                if state.cost.kill_team then drop_team(state, value.team) end
+            end
+        elseif value.blink > 0 and value.blink < 5 then
             -- Respawn shuffle: a fighter that was chosen with Random comes back as another one.
             if state.cost.shuffle and value.random_pick then
                 local taken = {}
@@ -188,10 +198,9 @@ function frame_rules.after_physics(state, index, value)
                     value.cost_price, value.cost_seen_id = nil, nil -- the new fighter has its own price
                 end
             end
+            local part = value.cost_part or 1
+            value.cost_pending, value.cost_part = nil, nil
             frame_rules.revive_in_place(state, value, part)
-        else
-            value.cost_paid = true
-            if state.cost.kill_team then drop_team(state, value.team) end
         end
         return true
     end
