@@ -60,7 +60,12 @@ end
 function fx.apply(attacker, victim, itr, defended, random)
     if victim.record.kind ~= constants.record_kinds.character then
         debug_log("APPLY? victim=" .. tostring(victim.record.id) .. " state=" .. tostring(victim.record.frame(victim.frame).state)
-            .. " itr.kind=" .. tostring(itr.kind) .. " itr.delay=" .. tostring(itr.delay) .. " defended=" .. tostring(defended))
+            .. " itr.kind=" .. tostring(itr.kind) .. " itr.delay=" .. tostring(itr.delay) .. " defended=" .. tostring(defended)
+            .. " attacker=" .. tostring(attacker.record.id) .. " atk_frame=" .. tostring(attacker.frame))
+        local keys = {}
+        for key, val in pairs(itr) do keys[#keys + 1] = tostring(key) .. "=" .. tostring(val) end
+        table.sort(keys)
+        debug_log("ITR-DUMP " .. table.concat(keys, " "))
     end
     if defended or (itr.kind ~= 0 and itr.kind ~= 9) then return end
     local character = victim.record.kind == constants.record_kinds.character
