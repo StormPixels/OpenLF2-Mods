@@ -445,14 +445,15 @@ local function draw_fighter(state, slot, col, row, color)
     draw_menu_face(state, slot, fighter, col + places.face_dx, row + places.face_dy)
     -- Cost mode: the backup mark of the team and the fighter's price ("Cost: $100") above its portrait. A fighter hidden
     -- behind Random shows no price.
-    -- The backup mark is drawn in the computer menu even while the cost pool is still Off (the pool is chosen later, in the
+    -- The backup mark is also drawn in the computer menu while the cost pool is still Off (the pool is chosen later, in the
     -- options menu); afterwards it shows only while the pool is on.
     local cost_on = state.wide and state.options and (state.options.cost_index or 0) > 0 and cost_in_mode(state.mode)
-    if state.options and cost_in_mode(state.mode) and (cost_on or state.menu == menus.computer_slots) and backup_marked(state, slot) then
-        local mark = state.wide and places.cmb[slot.team] or nil
-        if mark and cmb_known[mark] == nil then cmb_known[mark] = pcall(engine.read_resource, mark) end
-        if mark and cmb_known[mark] then image(state, mark, col + places.cmb_dx, row + places.cmb_dy)
-        else text(state, "BACKUP", col + places.face_dx, row + places.face_dy, 0xffd24a) end   -- no picture to show: plain text
+    if state.wide and state.options and cost_in_mode(state.mode) and (cost_on or state.menu == menus.computer_slots) then
+        local mark = backup_marked(state, slot) and places.cmb[slot.team] or nil
+        if mark then
+            if cmb_known[mark] == nil then cmb_known[mark] = pcall(engine.read_resource, mark) end
+            if cmb_known[mark] then keyed_image(state, mark, col + places.cmb_dx, row + places.cmb_dy) end   -- black is the transparent colour of the u17 cb pictures
+        end
     end
     if cost_on then
         if fighter then
@@ -984,23 +985,6 @@ end
 
 local function computer_menu(state, previous_menu)
     local actions = computer_keys(state, previous_menu)
-    -- TEMPORARY debug line for the backup mark (remove when it works): the key letters each ready human holds, the mode, and
-    -- whether the COM at the cursor is in its team phase. D (defend) must show as the letter f.
-    do
-        local parts = {}
-        for hindex = 0, (state.slot_count or 8) - 1 do
-            local hslot = state.slots[hindex]
-            if hslot.ready then parts[#parts + 1] = string.format("P%d[%s]", hindex + 1, state.held[hindex] or "") end
-        end
-        local cursor_slot = state.order[state.cursor + 1] and state.slots[state.order[state.cursor + 1]]
-        text(state, string.format("DBG %s mode=%s versus=%s cost=%s phase=%s", table.concat(parts, " "), tostring(state.mode),
-            tostring(state.mode == constants.modes.versus), tostring(cost_in_mode(state.mode)), tostring(cursor_slot and cursor_slot.phase)), 10, 8, 0xffffff)
-    end
-    local note = state.backup_note
-    if note and (state.frames or 0) < note.until_frame then
-        local ncol, nrow = origin(note.index)
-        text(state, note.text, ncol + places.team_dx, nrow + places.team_y + 22, 0xffd24a)
-    end
     for position = 1, state.computers do
         local index = state.order[position]
         local slot = state.slots[index]
@@ -1056,14 +1040,9 @@ local function computer_menu(state, previous_menu)
         if actions.backup and cost_in_mode(state.mode) and state.mode == constants.modes.versus then
             -- Mark or unmark this computer as a backup (needs a human in its team).
             actions.backup = false
-            local was_marked = slot.backup
             slot.backup = not slot.backup or nil
-            local refused = false
-            if slot.backup and not backup_marked(state, slot) then slot.backup = nil; refused = true end
+            if slot.backup and not backup_marked(state, slot) then slot.backup = nil end
             sounds.direct(state, slot.backup and "join" or "cancel")
-            -- On-screen answer (about 1.5 s), so a refused mark is not mistaken for a mark that did not draw.
-            local note = slot.backup and "BACKUP: ON" or (refused and "BACKUP: NEEDS A HUMAN IN THIS TEAM" or "BACKUP: OFF")
-            state.backup_note = {text = note, index = index, until_frame = (state.frames or 0) + 90}
         end
         if actions.next then
             slot.team = (slot.team + 1) % constants.teams.enemies
