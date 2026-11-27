@@ -125,6 +125,18 @@ function frame_rules.drop_in(state, index, value, part)
     value.vy = 0.0
 end
 
+-- Cost mode (u17 video): a beaten fighter whose team still has cost does not drop from the sky, it gets up where it fell, on its
+-- feet and blinking (`part`, 0 to 1, is the share of hp and mp it comes back with).
+function frame_rules.revive_in_place(state, value, part)
+    value.mp = part >= 1 and constants.points.full or math.max(1, math.floor(constants.points.full * part))
+    value.dark_hp = part >= 1 and value.max_hp or math.max(1, math.floor(value.max_hp * part))
+    value.hp = value.dark_hp
+    value.blink = constants.blink.spawn_frames
+    value.frame = constants.character_frames.standing
+    value.wait_counter = 0
+    value.vx, value.vy, value.vz = 0.0, 0.0, 0.0
+end
+
 -- Cost mode `team: 1`: when a team's pool is spent, its fighters still on their feet go down at once.
 local function drop_team(state, team)
     for other = 0, constants.item_slots - 1 do
@@ -176,7 +188,7 @@ function frame_rules.after_physics(state, index, value)
                     value.cost_price, value.cost_seen_id = nil, nil -- the new fighter has its own price
                 end
             end
-            frame_rules.drop_in(state, index, value, part)
+            frame_rules.revive_in_place(state, value, part)
         else
             value.cost_paid = true
             if state.cost.kill_team then drop_team(state, value.team) end

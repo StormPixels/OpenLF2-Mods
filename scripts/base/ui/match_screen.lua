@@ -1884,7 +1884,16 @@ function screen.draw(state, context, window_bounds)
         row_y = math.max(0, math.min(row_y, height - 16))
         local window = constants.screen.width + wide_gap()
         for slot, team in ipairs(teams) do
-            local label = string.format("%s%d: $%d", team >= 10 and "P" or "Team", team >= 10 and team - 9 or team, view.cost_pool[team])
+            -- An independent fighter's team is its item slot + 10: a human (slot 0 to 9) shows the player's name, a computer
+            -- "P" and the number of the menu slot it stands in (item slot 10 + n - 1, so slot 3 gives P3).
+            local who
+            if team >= constants.teams.slot_offset then
+                local index = team - constants.teams.slot_offset
+                who = index < constants.player_slots and controls.name(index) or ("P" .. (index - constants.player_slots + 1))
+            else
+                who = "Team" .. team
+            end
+            local label = string.format("%s: $%d", who, view.cost_pool[team])
             bold_text(context, label, math.floor(window * slot / (#teams + 1)) - math.floor(font.width(label) / 2), row_y)
         end
     end
