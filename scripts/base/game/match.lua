@@ -115,9 +115,20 @@ function match.create(options)
     local near, far = state.stage.zboundary[1] or 0, state.stage.zboundary[2] or 0
     if options.demo then create_demo(state, options, width, near, far) end
     if options.replay then create_replay(state, options.replay) end
+    -- LF2 Darkfiren's COM backup: a computer marked as backup does not fight (cost mode with Respawn shuffle, Versus, and
+    -- a human in its team); a human of its team comes back as it (cost.backup_for).
+    local backups, human_team = {}, {}
+    if options.cost and options.respawn_shuffle and options.mode == constants.modes.versus then
+        for slot = 0, constants.player_slots - 1 do
+            local entry = options.slots[slot]
+            if entry and entry.kind == "human" then human_team[entry.team] = true end
+        end
+    end
     for slot = 0, constants.player_slots - 1 do
         local entry = options.slots[slot]
-        if entry and entry.kind then
+        if entry and entry.kind == "computer" and entry.backup and human_team[entry.team] then
+            backups[#backups + 1] = {team = entry.team, id = options.fighters[entry.fighter].id}
+        elseif entry and entry.kind then
             local fighter = options.fighters[entry.fighter]
             local record = item.record({id = fighter.id, kind = record_kinds.character}, object_data.load(fighter.path))
             local index = entry.kind == "human" and slot or slot + 10
@@ -182,6 +193,7 @@ function match.create(options)
         end
         options.cost.shuffle = options.respawn_shuffle
         state.cost = cost.create(options.cost.pool, options.cost, teams)
+        if state.cost then cost.set_backups(state.cost, backups) end
     end
     -- LF2 Darkfiren: the objects the background's opoints put on the stage (state.stage.opoints, filtered above).
     if state.stage.opoints then objects.spawn_stage(state, state.stage.opoints) end

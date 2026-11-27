@@ -184,8 +184,16 @@ function frame_rules.after_physics(state, index, value)
                 if state.cost.kill_team then drop_team(state, value.team) end
             end
         elseif value.blink > 0 and value.blink < 5 then
+            -- COM backup: a human fighter comes back as the next fighter of the computers marked as backup in its team
+            -- (it comes before the shuffle: with a backup the shuffle is skipped).
+            local backup = state.cost.shuffle and state.mode == constants.modes.versus
+                and cost.backup_for(state.cost, index, value.team) or nil
+            local backup_record = backup and objects.record(state, backup.id)
+            if backup_record then
+                value.record, value.pic_offset = backup_record, 0
+                value.cost_price, value.cost_seen_id = nil, nil -- the new fighter has its own price
             -- Respawn shuffle: a fighter that was chosen with Random comes back as another one.
-            if state.cost.shuffle and value.random_pick then
+            elseif not backup and state.cost.shuffle and value.random_pick then
                 local taken = {}
                 for other = 0, constants.item_slots - 1 do
                     local mate = state.items[other]

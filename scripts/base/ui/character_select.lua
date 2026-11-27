@@ -400,6 +400,17 @@ local function menu_face_of(fighter)
     end
     return cached or nil
 end
+-- Cost mode: a computer marked as backup (key D while its team is chosen) shows its team's mark; it only counts when a human
+-- is in the same team (team 1 to 5), as in the u17 exe (0x4607C0).
+local function backup_marked(state, slot)
+    if not slot.backup or slot.phase < computer_phase then return false end
+    if slot.team < constants.teams.player_one or slot.team > constants.teams.player_five then return false end
+    for index = 0, (state.slot_count or 8) - 1 do
+        local other = state.slots[index]
+        if other ~= slot and other.phase >= slot_phases.choosing_fighter and other.phase < computer_phase and other.team == slot.team then return true end
+    end
+    return false
+end
 -- `bound: N` of a layer (update log 21 December 2024, "to match the layer animation with the skin number selected"): the layer is
 -- shown only while skin N is worn (the fighter's own look is skin 1); 0 or no tag: every skin. [BELUM PASTI] this reading.
 local function draw_menu_face(state, slot, fighter, x0, y0)
@@ -435,7 +446,7 @@ local function draw_fighter(state, slot, col, row, color)
     -- Cost mode: the backup mark of the team and the fighter's price ("Cost: $100") above its portrait. A fighter hidden
     -- behind Random shows no price.
     if state.wide and state.options and (state.options.cost_index or 0) > 0 and cost_in_mode(state.mode) then
-        local mark = places.cmb[slot.team]
+        local mark = backup_marked(state, slot) and places.cmb[slot.team] or nil
         if mark then
             if cmb_known[mark] == nil then cmb_known[mark] = pcall(engine.read_resource, mark) end
             if cmb_known[mark] then image(state, mark, col + places.cmb_dx, row + places.cmb_dy) end
@@ -941,6 +952,7 @@ local function computer_keys(state, previous_menu)
             local keys = state.held[index] or ""
             if pressed(keys, "u") then actions.random = trigger(slot, accept) or actions.random
             elseif pressed(keys, "d") then slot.latched = true
+            elseif pressed(keys, "f") then actions.backup = trigger(slot, accept) or actions.backup
             elseif pressed(keys, "r") then actions.next = trigger(slot, accept) or actions.next
             elseif pressed(keys, "l") then actions.previous = trigger(slot, accept) or actions.previous
             elseif pressed(keys, "c") then actions.confirm = trigger(slot, accept) or actions.confirm
@@ -978,6 +990,7 @@ local function computer_menu(state, previous_menu)
     local index = state.order[state.cursor + 1]
     local slot = index and state.slots[index]
     if slot and slot.phase == computer_phase then
+        slot.backup = nil
         local col, row = origin(index)
         draw_fighter(state, slot, col, row, blink_color(state))
         if actions.next then next_fighter(state, slot) end
@@ -1019,6 +1032,13 @@ local function computer_menu(state, previous_menu)
         end
         normalize_team(state, slot, avoid)
         draw_team(state, slot, col, row)
+        if actions.backup and cost_in_mode(state.mode) and state.mode == constants.modes.versus then
+            -- Mark or unmark this computer as a backup (needs a human in its team).
+            actions.backup = false
+            slot.backup = not slot.backup or nil
+            if slot.backup and not backup_marked(state, slot) then slot.backup = nil end
+            sounds.direct(state, slot.backup and "join" or "cancel")
+        end
         if actions.next then
             slot.team = (slot.team + 1) % constants.teams.enemies
             if slot.team == avoid then slot.team = (slot.team + 1) % constants.teams.enemies end
@@ -2160,7 +2180,8 @@ function selection.match_options(state)
         if slot.phase >= slot_phases.choosing_fighter and slot.phase <= slot_phases.computer_fighter - 1 then
             slots[index] = {kind = "human", fighter = slot.fighter, team = slot.team, random = slot.was_random, skin = chosen_skin(slot)}
         elseif slot.phase >= slot_phases.computer_fighter then
-            slots[index] = {kind = "computer", fighter = slot.fighter, team = slot.team, random = slot.was_random, skin = chosen_skin(slot)}
+            slots[index] = {kind = "computer", fighter = slot.fighter, team = slot.team, random = slot.was_random, skin = chosen_skin(slot),
+                backup = backup_marked(state, slot) or nil}
         end
     end
     return {mode = state.mode, difficulty = state.options.difficulty, background = state.options.background,

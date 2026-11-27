@@ -70,6 +70,35 @@ function cost.shuffle_id(self, id, taken, draw)
     return pool[draw(#pool) + 1]
 end
 
+-- COM backup (LF2 Darkfiren `mark com as backup`, u17 exe 0x4606C0): computers marked in the menu do not fight; they are
+-- the line of fighters a human of their team comes back as, while Respawn shuffle is on (Versus only). `list` holds
+-- {team =, id =} in slot order.
+function cost.set_backups(self, list)
+    self.backups, self.backup_used, self.backup_taken, self.backup_count = list, {}, {}, {}
+    for _, entry in ipairs(list) do self.backup_count[entry.team] = (self.backup_count[entry.team] or 0) + 1 end
+end
+
+-- The backup the human fighter `index` (item 0 to 9) of `team` comes back as, or nil. Each backup is used once for the
+-- team; once this human has had as many as the team has, the team's backups are free again (and he starts over).
+function cost.backup_for(self, index, team)
+    local list = self.backups
+    if not list or index >= 10 or not self.backup_count[team] then return nil end
+    local taken = self.backup_taken[index] or 0
+    if taken == self.backup_count[team] then
+        for _, entry in ipairs(list) do if entry.team == team then self.backup_used[entry] = nil end end
+        taken = 0
+    end
+    self.backup_taken[index] = taken
+    for _, entry in ipairs(list) do
+        if entry.team == team and not self.backup_used[entry] then
+            self.backup_used[entry] = true
+            self.backup_taken[index] = taken + 1
+            return entry
+        end
+    end
+    return nil
+end
+
 -- A team with cost left, or one that never had a pool, is not beaten yet.
 function cost.standing(self, team)
     return self.pool[team] ~= nil and not self.out[team]
