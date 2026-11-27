@@ -1748,9 +1748,16 @@ local extra_toggle = 6
 local extra_on_uses_small = false
 local hitlag_steps = 5   -- hitlag modes 0 (normal) and -1 to -5 (readme/hitlag mode.txt); `D` (defend) on the difficulty row cycles them
 local small_forced = {[7] = true, [8] = true}
+-- The `mode:` lines of <cost> name the game modes that have the cost mode (none named: all of them).
+local function cost_in_mode(mode)
+    local list = cost_settings.modes
+    if not list or #list == 0 then return true end
+    for _, listed in ipairs(list) do if listed == mode then return true end end
+    return false
+end
 local function small_rows(state)
     local stage_mode = state.mode == constants.modes.stage
-    local skip = {[8] = not stage_mode and #time_list == 0, [9] = stage_mode or #cost_settings.pools == 0}
+    local skip = {[8] = not stage_mode and #time_list == 0, [9] = stage_mode or #cost_settings.pools == 0 or not cost_in_mode(state.mode)}
     return menu_small.rows(small_layers, state.mode, allows, small_forced, skip, state.options.extra_open), stage_mode,
         not stage_mode and background_has_modes(state)
 end
@@ -2016,7 +2023,7 @@ local function options_menu(state, previous_menu, context)
                 return limit and string.format("%d:%02d", math.floor(limit / 60), limit % 60) or "Off"
             end, action = function() options.time_index = (options.time_index + 1) % (#time_list + 1) end}
         end
-        if #cost_settings.pools > 0 then
+        if #cost_settings.pools > 0 and cost_in_mode(state.mode) then
             extras[#extras + 1] = {label = "Cost pool:", value = function()
                 return options.cost_index > 0 and tostring(cost_settings.pools[options.cost_index]) or "Off"
             end, action = function() options.cost_index = (options.cost_index + 1) % (#cost_settings.pools + 1) end}
@@ -2025,7 +2032,7 @@ local function options_menu(state, previous_menu, context)
             action = function() options.item_drops = options.item_drops == false end}
         extras[#extras + 1] = {label = "Transform:", value = function() return options.allow_transform == false and "Off" or "On" end,
             action = function() options.allow_transform = options.allow_transform == false end}
-        if #cost_settings.pools > 0 then
+        if #cost_settings.pools > 0 and cost_in_mode(state.mode) then
             extras[#extras + 1] = {label = "Respawn shuffle:", value = function() return options.shuffle and "On" or "Off" end,
                 action = function() options.shuffle = not options.shuffle end}
         end
@@ -2131,11 +2138,12 @@ function selection.match_options(state)
         stage_level = state.options.stage_level,
         time_limit = state.wide and state.mode ~= constants.modes.stage and (state.options.time_index or 0) > 0
             and time_list[state.options.time_index] or nil, time_type = time_type,
-        cost = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0 and
-            {pool = cost_settings.pools[state.options.cost_index], kind = cost_settings.kind, groups = cost_settings.groups} or nil,
+        cost = state.wide and state.mode ~= constants.modes.stage and cost_in_mode(state.mode) and (state.options.cost_index or 0) > 0 and
+            {pool = cost_settings.pools[state.options.cost_index], kind = cost_settings.kind, groups = cost_settings.groups,
+                randoms = cost_settings.randoms, team = cost_settings.team} or nil,
         no_item_drops = state.wide and state.mode ~= constants.modes.stage and state.options.item_drops == false or nil,
         no_transform = state.wide and state.mode ~= constants.modes.stage and state.options.allow_transform == false or nil,
-        respawn_shuffle = state.wide and state.mode ~= constants.modes.stage and (state.options.cost_index or 0) > 0
+        respawn_shuffle = state.wide and state.mode ~= constants.modes.stage and cost_in_mode(state.mode) and (state.options.cost_index or 0) > 0
             and state.options.shuffle or nil,
         tu1 = state.wide and state.options.tu1 == true or nil,
         -- The Defense box of the computer count dialog (`allow_defense`): the armor of the computer fighters.

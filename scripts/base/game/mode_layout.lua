@@ -160,6 +160,8 @@ function mode_layout.cost_settings(text)
             local number = tonumber((words[index + 1] or ""):match("^(-?%d+)$"))
             if word == "random:" then skipping = true; settings.randoms[#settings.randoms + 1] = {}
             elseif word == "random_end:" then skipping = false
+            elseif word == "cost_end:" then group = nil
+            elseif word == "team:" and number and not group and not skipping then settings.team = number -- 1: the team dies at once when its pool is spent
             elseif word == "kind:" and number and number > 0 then settings.kind = number
             elseif word == "bound:" and number and not group and not skipping then settings.bound = number   -- 1: on by default in the options menu
             elseif word == "mode:" and number and not group and not skipping and #settings.modes < 20 then settings.modes[#settings.modes + 1] = number

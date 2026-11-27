@@ -125,6 +125,20 @@ function frame_rules.drop_in(state, index, value, part)
     value.vy = 0.0
 end
 
+-- Cost mode `team: 1`: when a team's pool is spent, its fighters still on their feet go down at once.
+local function drop_team(state, team)
+    for other = 0, constants.item_slots - 1 do
+        local mate = state.items[other]
+        if mate and mate.team == team and mate.record.kind == record_kinds.character and mate.hp > 0 then
+            mate.hp, mate.dark_hp = 0, 0
+            local kind = state_of(mate)
+            if kind ~= constants.frame_states.lying and kind ~= constants.frame_states.falling then
+                mate.frame = constants.character_frames.falling
+            end
+        end
+    end
+end
+
 -- After each item's physics step (the item may be removed; returns false then).
 function frame_rules.after_physics(state, index, value)
     -- bg mode `etc_mode: 1`: the ETC message (the team order marker) sticks to the player who gave the order (p1..p8): it follows that
@@ -136,11 +150,17 @@ function frame_rules.after_physics(state, index, value)
             value.x_int, value.z_int = owner.x_int, owner.z_int
         end
     end
+    -- Cost mode: the highest price a fighter has had (a transformation to a cheaper fighter keeps the dearer price).
+    if state.cost and value.record.kind == record_kinds.character and value.cost_seen_id ~= value.record.id then
+        value.cost_seen_id = value.record.id
+        local price = cost.price(state.cost, value.record.id, value.record)
+        if price > (value.cost_price or 0) then value.cost_price = price end
+    end
     -- LF2 Darkfiren's cost mode: a beaten fighter (hp 0, lying) is paid for from its team's pool and comes back while
     -- the pool lasts; once the team is out its body stays.
     if state.cost and value.record.kind == record_kinds.character and value.hp <= 0 and not value.cost_paid
        and state_of(value) == constants.frame_states.lying and state.cost.pool[value.team] ~= nil then
-        local result, part = cost.beaten(state.cost, value.team, value.record.id)
+        local result, part = cost.beaten(state.cost, value.team, value.record.id, value.record, value.cost_price)
         if result == "respawn" then
             -- Respawn shuffle: a fighter that was chosen with Random comes back as another one.
             if state.cost.shuffle and value.random_pick then
@@ -151,11 +171,15 @@ function frame_rules.after_physics(state, index, value)
                 end
                 local id = cost.shuffle_id(state.cost, value.record.id, taken, random)
                 local record = id and objects.record(state, id)
-                if record then value.record, value.pic_offset = record, 0 end
+                if record then
+                    value.record, value.pic_offset = record, 0
+                    value.cost_price, value.cost_seen_id = nil, nil -- the new fighter has its own price
+                end
             end
             frame_rules.drop_in(state, index, value, part)
         else
             value.cost_paid = true
+            if state.cost.kill_team then drop_team(state, value.team) end
         end
         return true
     end

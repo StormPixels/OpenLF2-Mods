@@ -29,12 +29,6 @@ local traceback = debug.traceback
 local protected_call = xpcall
 local module_definitions, module_cache, loading = {}, {}, {}
 
--- Temporary debugging aid: scripts have no io or print, so this writes a line to stderr (openlf2.log on Android).
-local stderr = io and io.stderr
-local function debug_log(text)
-    if stderr then stderr:write(tostring(text), "\n") end
-end
-
 local function copy_library(library)
     local copy = {}
     for key, value in pairs(library) do copy[key] = value end
@@ -48,7 +42,7 @@ local function evaluate(declaration, previous)
         next = next, select = select, tonumber = tonumber, tostring = tostring,
         type = type, unpack = unpack_values, pcall = pcall,
         math = copy_library(math), string = copy_library(string), table = copy_library(table),
-        require = load_module, debug_log = debug_log,
+        require = load_module,
         engine = {read_resource = read_resource, read_object_data = read_object_data,
             read_background_data = read_background_data, read_stage_data = read_stage_data,
             random = random, crt_random = crt_random, new_array = new_array,

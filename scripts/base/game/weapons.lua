@@ -1,4 +1,3 @@
-debug_log("DEBUG-LOADED weapons.lua v3")
 -- SPDX-License-Identifier: MIT
 -- Copyright (c) 2026 OpenLF2 contributors
 
@@ -170,19 +169,13 @@ function weapons.carry(state)
                         value.vy = point.dvy
                         holder.weapon, value.weapon = constants.weapon_holder_codes.none, constants.weapon_holder_codes.none
                         throw_depth(holder, value, point)
-                        value.fx = value.fx or {}
-                        value.fx.release_step = true -- original LF2: the first step after release is not slowed by delay
                     end
                     if kind == record_kinds.heavy_item then
                         value.frame = random(6)
                         value.vx = holder.facing == constants.facings.right and point.dvx or -point.dvx
-                        local st = value.fx and value.fx.status
-                        debug_log("THROW heavy delay timer: " .. tostring(st and st.delay))
                         value.vy = point.dvy
                         holder.weapon, value.weapon = constants.weapon_holder_codes.none, constants.weapon_holder_codes.none
                         throw_depth(holder, value, point)
-                        value.fx = value.fx or {}
-                        value.fx.release_step = true -- original LF2: the first step after release is not slowed by delay
                     end
                 end
                 if point.kind == constants.wpoint_kinds.drop then

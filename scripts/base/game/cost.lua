@@ -13,18 +13,29 @@ function cost.create(pool, settings, teams)
     local pools = {}
     for team in pairs(teams) do pools[team] = pool end
     return {pool = pools, start = pool, default = settings.kind or 100, groups = settings.groups or {}, out = {},
-        randoms = settings.randoms or {}, shuffle = settings.shuffle == true}
+        randoms = settings.randoms or {}, shuffle = settings.shuffle == true, kill_team = settings.team == 1}
 end
 
-function cost.price(self, id)
+-- A fighter's own `cost:` in its dat's <bmp_begin> (record.data.header.cost) wins over the mode file's groups and `kind:`
+-- (readme/mode dat.txt, as in the u17 pack).
+function cost.price(self, id, record)
+    local data = record and record.data
+    local header = type(data) == "table" and data.header
+    local raw = type(header) == "table" and header.cost
+    if type(raw) == "table" then raw = raw[1] end
+    local own = tonumber(raw)
+    if own and own > 0 then return own end
     return self.groups[id] or self.default
 end
 
 -- A fighter of `team` with record `id` was beaten. Returns "respawn" and the part (0 to 1) of its hp and mp it comes
 -- back with, or "out" when the pool is spent (the team has lost).
-function cost.beaten(self, team, id)
+-- `record` is the fighter's record (its own `cost:`); `held` is the highest price it has had so far: a transformation to a
+-- dearer fighter raises the price, one to a cheaper fighter does not lower it.
+function cost.beaten(self, team, id, record, held)
     if self.pool[team] == nil or self.out[team] then return "out", 0 end
-    local price = cost.price(self, id)
+    local price = cost.price(self, id, record)
+    if held and held > price then price = held end
     local left = self.pool[team] - price
     if left <= 0 then
         self.pool[team] = 0
