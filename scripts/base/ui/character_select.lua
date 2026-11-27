@@ -2011,16 +2011,18 @@ local function small_menu(state, previous_menu, context)
                 if options.shuffle and layer.smallb then keyed_image(state, layer.smallb, layer.next or 276, y + (layer.dvy or 8)) end
             end
         elseif number == 10 then
+            -- The focus picture of the selected box goes first and the check marks (`smallp`) after it, so a mark is never
+            -- covered by the focus picture (it hid the check of Transform, Item drops and Respawn shuffle).
+            if selected then
+                local focus = ({layer.small, layer.smallb, layer.smallc})[options.sub_row]
+                if focus then keyed_image(state, focus, x, y) end
+            end
             local mark = layer.smallp
             if mark then
                 local top = layer.fy or (y + (layer.dy or 8))
                 if options.item_drops ~= false then keyed_image(state, mark, layer.dx or 65, top) end
                 if options.allow_transform ~= false then keyed_image(state, mark, layer.dvx or 151, top) end
                 if cost_on and options.shuffle then keyed_image(state, mark, layer.next or 276, top) end
-            end
-            if selected then
-                local focus = ({layer.small, layer.smallb, layer.smallc})[options.sub_row]
-                if focus then keyed_image(state, focus, x, y) end
             end
         end
     end
@@ -2093,8 +2095,10 @@ local function small_menu(state, previous_menu, context)
     local layer9_j = small_layers[9] and small_layers[9].caughtact == 1
     if keys.b then
         if number == 3 then options.hide_random = not options.hide_random; sounds.direct(state, "ok")
-        -- J goes back through the values that A steps forward: difficulty, background, background mode (not the time limit or the cost pool: J does nothing there). (The random respawn that
-        -- layer 9's `caughtact: 1` gave J is still on the sub row of layer 10.)
+        -- J goes back through the values that A steps forward: difficulty, background, background mode. On the cost pool row
+        -- (layer 9) J switches the random respawn (Respawn shuffle) on or off when the layer has `caughtact: 1` (readme/mode dat.txt:
+        -- "allows J key to change random respawn on\\off"; mode4.dat has it, mode3.dat has -1) and the cost mode is on; the time
+        -- limit row does nothing. The same switch is also on the sub row of layer 10.
         elseif number == 5 then
             local unlocked = require("base/game/unlock").flags.characters
             options.difficulty = options.difficulty + 1
@@ -2104,6 +2108,7 @@ local function small_menu(state, previous_menu, context)
             sounds.direct(state, "ok")
         elseif number == 4 then small_background_step(state, -1)
         elseif number == 7 and has_modes then small_mode_step(state, -1)
+        elseif number == 9 and layer9_j and options.cost_index > 0 then options.shuffle = not options.shuffle; sounds.direct(state, "ok")
         elseif number == 10 then options.sub_row = options.sub_row % sub_count + 1; sounds.direct(state, "ok") end
     end
     -- `D` (defend) on the difficulty row: the hitlag mode 0, -1 ... -5 (readme/hitlag mode.txt).
