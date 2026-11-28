@@ -496,6 +496,7 @@ struct GameData {
     std::unique_ptr<ResourceSource> source;
     std::size_t file_count = 0;
     std::string game_list;  // Android: the resource "game/game_list" (see game_list_text), empty elsewhere
+    GameProfile profile;    // which rule set the game needs (original, modded or Darkfiren), see DirectoryArchive::detect_profile
 };
 // --installer (a file or a folder), else the data directories (an extracted folder first, then an installer),
 // offering a download into the first directory if nothing is found (not headless). Nothing when declined.
@@ -507,13 +508,14 @@ Result<std::optional<GameData>> open_game_data(const Configuration& config,
         auto opened = InstallerArchive::open(path, decompressor);
         if (!opened) return std::unexpected(opened.error());
         const auto files = (*opened)->file_count();
-        return std::optional<GameData>{GameData{std::move(*opened), files, {}}};
+        return std::optional<GameData>{GameData{std::move(*opened), files, {}, GameProfile{GameKind::original, "installer"}}};
     };
     const auto from_folder = [&](const std::filesystem::path& path) -> Result<std::optional<GameData>> {
         auto opened = DirectoryArchive::open(path);
         if (!opened) return std::unexpected(opened.error());
         const auto files = (*opened)->file_count();
-        return std::optional<GameData>{GameData{std::move(*opened), files, {}}};
+        auto profile = (*opened)->profile();
+        return std::optional<GameData>{GameData{std::move(*opened), files, {}, std::move(profile)}};
     };
     if (!config.installer.empty()) {
         std::error_code error;
@@ -641,9 +643,9 @@ Result<Configuration> configuration(std::span<const std::string> arguments,
 class GameResources final : public ResourceSource {
 public:
     GameResources(const ResourceSource& archive, Bytes executable, std::span<const PackageAsset> assets, std::string saves_path,
-                  std::string data_path, std::string control_path, std::string game_list)
+                  std::string data_path, std::string control_path, std::string game_list, GameKind kind)
         : archive_(archive), executable_(std::move(executable)), saves_path_(std::move(saves_path)),
-          data_path_(std::move(data_path)), control_path_(std::move(control_path)), game_list_(std::move(game_list)) {
+          data_path_(std::move(data_path)), control_path_(std::move(control_path)), game_list_(std::move(game_list)), kind_(kind) {
         for (const auto& asset : assets) assets_.emplace(asset.resource, asset);
         names_ = load_resource_names(archive_);
     }
@@ -671,6 +673,17 @@ public:
         // LF2 Darkfiren: decrypted text of any data file ("game/dat_text/<path>") and of mode1..mode4.dat.
         if (auto text = read_dat_text_resource(archive_, *normalized)) return std::move(*text);
         if (*normalized == "game/game_list") return Bytes(game_list_.begin(), game_list_.end());
+        if (*normalized == "game/kind") {
+            // The detected rule set for scripts: original, modded or darkfiren (see base/game/game_kind.lua).
+            const auto name = game_kind_name(kind_);
+            return Bytes(name.begin(), name.end());
+        }
+        // The next four answer only for LF2 Darkfiren; for the original and its mods they answer as without the files.
+        const bool darkfiren = kind_ == GameKind::darkfiren;
+        if (*normalized == "game/spark_block" && !darkfiren) return Bytes();
+        if (normalized->starts_with("game/bg_modes/") && !darkfiren) return Bytes();
+        if (*normalized == "game/mode_file" && !darkfiren) return Bytes();
+        if (*normalized == "game/random_pool" && !darkfiren) return Bytes();
         if (*normalized == "game/spark_block") {
             // LF2 Darkfiren: one spark block is spark_w x spark_h (system.dat) plus a one pixel separator.
             // Empty text means the original's sheet layout.
@@ -731,6 +744,7 @@ private:
     std::string data_path_;     // system.dat `data:` (default data/data.txt)
     std::string control_path_;  // system.dat `control:` (default data/control.txt)
     std::string game_list_;     // Android: the game folders of LF2_ENGINE, see game_list_text
+    GameKind kind_;             // detected rule set of the opened game
     ResourceNames names_;
     std::map<std::string, PackageAsset, std::less<>> assets_;
 };
@@ -1145,14 +1159,19 @@ Result<void> run(const Configuration& config) {
     }
     if (!constants) return std::unexpected(constants.error());
     std::string system_dat_text;  // data/system.dat as text; empty without the file
-    if (const auto system_dat = read_data_text(*archive, "data/system.dat", 1024 * 1024)) {
-        system_dat_text.assign(system_dat->begin(), system_dat->end());
+    const GameProfile game_profile = std::move((*game)->profile);
+    std::fprintf(stderr, "[game] rule set: %s (%s)\n", std::string(game_kind_name(game_profile.kind)).c_str(), game_profile.reason.c_str());
+    // data/system.dat only steers LF2 Darkfiren; a stray copy in the original or a mod is ignored.
+    if (game_profile.kind == GameKind::darkfiren) {
+        if (const auto system_dat = read_data_text(*archive, "data/system.dat", 1024 * 1024)) {
+            system_dat_text.assign(system_dat->begin(), system_dat->end());
+        }
     }
     const auto& resources = game_data.attach(std::make_unique<GameResources>(*archive, std::move(executable), scripts->assets,
                                                                               saves_path_from_system_dat(system_dat_text),
                                                                               data_path_from_system_dat(system_dat_text),
                                                                               control_path_from_system_dat(system_dat_text),
-                                                                              std::move(game_list)));
+                                                                              std::move(game_list), game_profile.kind));
     // LF2 Darkfiren: the window takes the title of system.dat's `name:` (the game keeps "OpenLF2" without one).
     if (platform) {
         if (const auto title = window_title_from_system_dat(system_dat_text)) platform->set_window_title(*title);

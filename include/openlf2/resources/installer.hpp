@@ -55,6 +55,15 @@ private:
 inline constexpr std::size_t folder_exe_size = 3'424'256;
 // Succeeds when `source` holds the supported lf2.exe (size and SHA-256) and data/data.txt.
 Result<void> identify_folder(const ResourceSource& source);
+// Which rule set a game folder needs. `original`: LF2 v2.0a as released (lf2.exe matches). `original_modded`: the
+// original engine layout with other data or another lf2.exe (NTSD, fan mods). `darkfiren`: LF2 Darkfiren, whose
+// system.dat / resource.dat / lf2_exe/ replace what the original keeps in lf2.exe and hard-coded rules.
+enum class GameKind { original, original_modded, darkfiren };
+struct GameProfile {
+    GameKind kind = GameKind::original;
+    std::string reason;  // the evidence that decided, for the log
+};
+std::string_view game_kind_name(GameKind kind);  // "original", "modded", "darkfiren"
 class DirectoryArchive final : public ResourceSource {
 public:
     DirectoryArchive() = default;
@@ -65,6 +74,12 @@ public:
     // start). At most 1 MiB; an error when the directory is unknown.
     Result<void> write(std::string_view path, std::string_view text) const override;
     [[nodiscard]] std::size_t file_count() const { return files_.size(); }
+    // The kind detected when the folder was opened (see detect_profile).
+    [[nodiscard]] const GameProfile& profile() const { return profile_; }
+    // Decides the kind from the files alone. A file `game_kind.txt` holding original, modded or darkfiren forces the
+    // answer; otherwise Darkfiren markers (data/system.dat, data/resource.dat) win,
+    // then lf2.exe: same size and SHA-256 as LF2 v2.0a is original, anything else (or none) is modded.
+    [[nodiscard]] GameProfile detect_profile() const;
     // Normalized virtual paths in lexical order.
     [[nodiscard]] std::vector<std::string> paths() const {
         std::vector<std::string> names;
@@ -74,6 +89,7 @@ public:
     }
 private:
     std::map<std::string, std::filesystem::path, std::less<>> files_;
+    GameProfile profile_;
 };
 Result<Bytes> bitmap_resource(std::span<const char> executable, std::string_view name);
 // The recording key digits and version of any LF2 executable whose layout differs from v2.0a (LF2 Darkfiren):

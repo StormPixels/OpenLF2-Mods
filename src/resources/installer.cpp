@@ -311,6 +311,49 @@ Result<void> identify_folder(const ResourceSource& source) {
     return {};
 }
 
+std::string_view game_kind_name(GameKind kind) {
+    switch (kind) {
+    case GameKind::original: return "original";
+    case GameKind::original_modded: return "modded";
+    case GameKind::darkfiren: return "darkfiren";
+    }
+    return "original";
+}
+
+GameProfile DirectoryArchive::detect_profile() const {
+    // 1. The owner's word: game_kind.txt (original | modded | darkfiren).
+    if (const auto forced = files_.find("game_kind.txt"); forced != files_.end()) {
+        if (auto text = read_file(forced->second, 256)) {
+            std::string word;
+            for (const char c : std::string_view(text->data(), text->size())) {
+                if (c >= 'A' && c <= 'Z') word += static_cast<char>(c + ('a' - 'A'));
+                else if (c >= 'a' && c <= 'z') word += c;
+            }
+            if (word == "darkfiren") return {GameKind::darkfiren, "game_kind.txt says darkfiren"};
+            if (word == "original") return {GameKind::original, "game_kind.txt says original"};
+            if (word == "modded" || word == "mod") return {GameKind::original_modded, "game_kind.txt says modded"};
+        }
+    }
+    // 2. Darkfiren markers: files the original never has.
+    std::string markers;
+    for (const std::string_view name : {"data/system.dat", "data/resource.dat"}) {
+        if (files_.contains(name)) markers += std::string(name) + " ";
+    }
+    if (!markers.empty()) return {GameKind::darkfiren, "Darkfiren files: " + markers};
+    // 3. The original engine layout: lf2.exe decides between untouched and modified.
+    const auto exe_file = files_.find("lf2.exe");
+    if (exe_file == files_.end()) return {GameKind::original_modded, "no lf2.exe and no Darkfiren files"};
+    auto exe = read_file(exe_file->second, folder_file_limit);
+    if (!exe) return {GameKind::original_modded, "lf2.exe cannot be read"};
+    if (exe->size() != folder_exe_size) {
+        return {GameKind::original_modded, "lf2.exe is " + std::to_string(exe->size()) + " bytes, LF2 v2.0a is " +
+                std::to_string(folder_exe_size)};
+    }
+    auto digest = sha256(*exe);
+    if (!digest || *digest != folder_exe_sha256) return {GameKind::original_modded, "lf2.exe SHA-256 differs from LF2 v2.0a"};
+    return {GameKind::original, "lf2.exe is LF2 v2.0a"};
+}
+
 Result<std::unique_ptr<DirectoryArchive>> DirectoryArchive::open(const std::filesystem::path& root) {
     std::error_code ec;
     if (!std::filesystem::is_directory(root, ec)) {
@@ -360,6 +403,9 @@ Result<std::unique_ptr<DirectoryArchive>> DirectoryArchive::open(const std::file
     }
     if (missing_files > 3) missing += "(+" + std::to_string(missing_files - 3) + " more) ";
     if (!missing.empty()) return fail(ErrorCode::io, "LF2 assets incomplete, missing: " + missing);
+    archive->profile_ = archive->detect_profile();
+    std::fprintf(stderr, "[folder] %s: kind %s (%s)\n", root.filename().string().c_str(),
+        std::string(game_kind_name(archive->profile_.kind)).c_str(), archive->profile_.reason.c_str());
     return archive;
 }
 
