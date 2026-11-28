@@ -37,14 +37,19 @@ local fallback = {
     f7_after_round = true, unlock_teams = true,
 }
 
+-- The game's Lua has no setmetatable (scripts/runtime/bootstrap.lua gives scripts a fixed set of functions), so the settings
+-- are not a table with __index: `settings` stays empty and `setting(key)` is asked by tipe_game.get instead.
+local function setting(key)
+    local block = config()
+    if numbers[key] and block[numbers[key]] ~= nil then return block[numbers[key]] end
+    if flags[key] and block[flags[key]] ~= nil then return block[flags[key]] == 1 end
+    return fallback[key]
+end
+
 return {
     id = 4,
     kind = "neora",
     name = "LF2 Neora",
-    settings = setmetatable({}, {__index = function(_, key)
-        local block = config()
-        if numbers[key] and block[numbers[key]] ~= nil then return block[numbers[key]] end
-        if flags[key] and block[flags[key]] ~= nil then return block[flags[key]] == 1 end
-        return fallback[key]
-    end}),
+    settings = {},
+    setting = setting,
 }

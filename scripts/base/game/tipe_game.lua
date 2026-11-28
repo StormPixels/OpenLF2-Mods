@@ -74,7 +74,10 @@ function tipe_game.name() return tipe_game.current().name end
 
 -- The value of `key` for the opened game: its tipe game's own, else the shared one, else `default`.
 function tipe_game.get(key, default)
-    local value = tipe_game.current().settings[key]
+    local current = tipe_game.current()
+    local value = current.settings[key]
+    -- A type whose values are computed (Neora reads its DLL) offers setting(key) instead of listing them.
+    if value == nil and current.setting then value = current.setting(key) end
     if value == nil then value = shared[key] end
     if value == nil then return default end
     return value
