@@ -110,6 +110,11 @@ std::optional<std::filesystem::path> find_game_exe(const std::filesystem::path& 
 // The recording key digits and version of any LF2 executable whose layout differs from v2.0a (LF2 Darkfiren):
 // the one run of 1000+ ASCII digits in the file is the key, and the version is the u32 0x764 bytes before it.
 Result<std::pair<std::string, std::int32_t>> scan_recording_constants(std::span<const char> executable);
+// LF2 Neora: the Configuration Block of neora.dll (DLL/Main.asm) as text lines "key value": game_name is not included, the keys are
+// win_width win_height shake_value slow_motion slow_power replay_switch battle_limit battle_step menu_picture_r unlock_teams f7_for_dead.
+// The block is packed right after the two strings that follow the version text "Neora Engine v...". Empty when the DLL has no such
+// text or a value is out of its sane range (another build of Neora), so the caller keeps its own defaults.
+std::string neora_config_text(std::span<const char> dll);
 // Initialized data of a PE32 executable at a virtual address (e.g. the original game's recording key).
 Result<Bytes> executable_data(std::span<const char> executable, std::uint32_t address, std::size_t size);
 }

@@ -38,6 +38,10 @@ local shared = {
     battle_defense_step = 50,
     -- F7 (heal all) also works after the round has ended (match.lua function_keys).
     f7_after_round = false,
+    -- The shake of a hit in pixels (match_screen.lua draws a hit object at +s and -s); the original uses 3.
+    shake_value = 3,
+    -- Stage mode keeps the team choice of the character menu (the original puts every player in team 1).
+    unlock_teams = false,
 }
 
 -- Every tipe game, by number.

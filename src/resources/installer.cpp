@@ -311,6 +311,33 @@ Result<void> identify_folder(const ResourceSource& source) {
     return {};
 }
 
+std::string neora_config_text(std::span<const char> dll) {
+    const std::string_view all(dll.data(), dll.size());
+    const auto at = all.find("Neora Engine v");
+    if (at == std::string_view::npos) return {};
+    // version text, NUL, game window name, NUL, then 35 packed bytes: dd width, dd height, db shake, db slow_motion, dd slow_power,
+    // db replay_switch, dd battle_limit, dd battle_step, dd Menu_Picture_R, dd Unlock_Teams, dd F7_for_dead.
+    const auto name_start = all.find('\0', at);
+    if (name_start == std::string_view::npos) return {};
+    const auto name_end = all.find('\0', name_start + 1);
+    if (name_end == std::string_view::npos || name_end - name_start > 100) return {};
+    constexpr std::size_t block = 35;
+    const std::size_t first = name_end + 1;
+    if (first + block > all.size()) return {};
+    const auto byte = [&](std::size_t offset) { return static_cast<std::uint32_t>(static_cast<unsigned char>(all[first + offset])); };
+    const auto dword = [&](std::size_t offset) { return byte(offset) | byte(offset + 1) << 8 | byte(offset + 2) << 16 | byte(offset + 3) << 24; };
+    const std::uint32_t width = dword(0), height = dword(4), shake = byte(8), slow = byte(9), power = dword(10), replay = byte(14);
+    const std::uint32_t limit = dword(15), step = dword(19), menu_r = dword(23), unlock = dword(27), f7 = dword(31);
+    if (width < 100 || width > 10000 || height < 100 || height > 10000 || shake > 100 || slow > 1 || power > 1000 || replay > 1 ||
+        limit < 100 || limit > 100000 || step < 1 || step > 100000 || menu_r > 1 || unlock > 1 || f7 > 1) return {};
+    std::string text;
+    const auto line = [&](const char* key, std::uint32_t value) { text += std::string(key) + " " + std::to_string(value) + "\n"; };
+    line("win_width", width); line("win_height", height); line("shake_value", shake); line("slow_motion", slow); line("slow_power", power);
+    line("replay_switch", replay); line("battle_limit", limit); line("battle_step", step); line("menu_picture_r", menu_r);
+    line("unlock_teams", unlock); line("f7_for_dead", f7);
+    return text;
+}
+
 std::string_view game_kind_name(GameKind kind) {
     switch (kind) {
     case GameKind::original: return "original";

@@ -706,6 +706,14 @@ public:
             const auto name = game_kind_name(kind_);
             return Bytes(name.begin(), name.end());
         }
+        if (*normalized == "game/neora_config") {
+            // LF2 Neora: the Configuration Block of neora.dll as "key value" lines; empty for every other game and when it cannot be read.
+            if (kind_ != GameKind::neora) return Bytes();
+            auto dll = archive_.read("neora.dll");
+            if (!dll) return Bytes();
+            const auto text = neora_config_text(std::span<const char>(dll->data(), dll->size()));
+            return Bytes(text.begin(), text.end());
+        }
         // The next four answer only for LF2 Darkfiren; for the original and its mods they answer as without the files.
         const bool darkfiren = kind_ == GameKind::darkfiren;
         if (*normalized == "game/spark_block" && !darkfiren) return Bytes();
@@ -748,6 +756,15 @@ public:
             auto name = normalized->substr(3);
             for (auto& character : name) {
                 if (character >= 'a' && character <= 'z') character = static_cast<char>(character - ('a' - 'A'));
+            }
+            // LF2 Neora: neora.dll draws the menu and score pictures from sprite\\UI\\<NAME>.png (DLL/external.inc) and not from
+            // the executable's bitmaps, which PDK.exe may not even keep in a readable form. Tried first; a picture the
+            // folder does not have falls through to the usual order below.
+            if (kind_ == GameKind::neora) {
+                std::string file = "sprite/ui/";
+                for (const char character : name) file += static_cast<char>(character >= 'A' && character <= 'Z' ? character + ('a' - 'A') : character);
+                file += ".png";
+                if (auto bytes = read(file)) return bytes;
             }
             // Darkfiren (resource.dat and its moved bitmaps) and lf2_exe/ first, the executable last.
             for (const auto& candidate : bitmap_candidates(name, names_)) {

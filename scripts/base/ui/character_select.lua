@@ -15,7 +15,10 @@ local music = require("base/game/music")
 local user_options = require("base/game/options")
 local unlock = require("base/game/unlock")
 local system_data = require("base/game/system_data")
+local tipe_game = require("base/game/tipe_game")
 local selection = {}
+-- Stage mode skips the team phase (everyone is in team 1) unless the tipe game unlocks it (Neora's Unlock_Teams).
+local function stage_skips_team(state) return state.mode == constants.modes.stage and not tipe_game.get("unlock_teams", false) end
 local idle_countdown = 150
 local computer_phase, computer_team_phase, computer_done = slot_phases.computer_fighter, slot_phases.computer_team, slot_phases.computer_ready
 
@@ -198,7 +201,10 @@ function selection.create(options)
     for slot = 0, 9 do   -- ten slots exist; state.slot_count (8 or 10, by the layout) says how many are used
         -- Teams persist between visits except where the mode prescribes them.
         local team = previous.slots and previous.slots[slot] and previous.slots[slot].team or 0
-        if mode == constants.modes.stage then team = constants.teams.player_one
+        if mode == constants.modes.stage and tipe_game.get("unlock_teams", false) then
+            -- Unlock_Teams: the team stays as chosen; a first visit (or independent) starts in team 1.
+            if not (previous.slots and previous.slots[slot] and previous.slots[slot].team and previous.slots[slot].team > constants.teams.independent) then team = constants.teams.player_one end
+        elseif mode == constants.modes.stage then team = constants.teams.player_one
         elseif mode == constants.modes.battle then team = math.floor(slot / 4) + 1 end
         slots[slot] = {phase = slot_phases.empty, fighter = 0, team = team, latched = true, ready = false}
     end
@@ -625,7 +631,7 @@ local function open_phase_grid(state, slot)
         skin = chosen_skin(slot)}
 end
 local function confirm_after_phase(state, slot)
-    slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
+    slot.phase = stage_skips_team(state) and slot_phases.ready or slot_phases.choosing_team
     sounds.direct(state, "join")
 end
 local function close_phase_grid(state, slot, take)
@@ -728,7 +734,7 @@ local function fighter_slot(state, slot, keys, col, row)
                 slot.phase_grid = grid
                 if not play_file(state, grid.block.sound1) then sounds.direct(state, "join") end
             else
-                slot.phase = state.mode == constants.modes.stage and slot_phases.ready or slot_phases.choosing_team
+                slot.phase = stage_skips_team(state) and slot_phases.ready or slot_phases.choosing_team
                 sounds.direct(state, "join")
             end
         end
@@ -789,7 +795,7 @@ local function ready_slot(state, slot, keys)
         slot.latched = false
     elseif state.countdown == idle_countdown then
         if trigger(slot) then
-            slot.phase = state.mode == constants.modes.stage and slot_phases.choosing_fighter or slot_phases.choosing_team
+            slot.phase = stage_skips_team(state) and slot_phases.choosing_fighter or slot_phases.choosing_team
             sounds.direct(state, "cancel")
         end
     elseif trigger(slot) then

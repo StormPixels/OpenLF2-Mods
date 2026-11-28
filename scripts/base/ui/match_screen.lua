@@ -6,6 +6,7 @@ local record_kinds = constants.record_kinds
 local match = require("base/game/match")
 local background = require("base/game/background")
 local wide_menu = require("base/ui/wide_menu")
+local tipe_game = require("base/game/tipe_game")
 local object_data = require("base/game/object_data")
 local font = require("base/ui/font")
 local i18n = require("base/i18n/i18n")
@@ -723,7 +724,8 @@ local function draw_item(context, stage, view, entry, bounds, lighting)
         context.image(shadow, entry.draw_offset + entry.x - camera - math.floor(width / 2),
             entry.z + (entry.floor_y or 0) - math.floor(height / 2), true)
     end
-    local shake = entry.hit_lag < 0 and view.shake * 6 - 3 or 0
+    local shake_value = tipe_game.get("shake_value", 3)  -- 3 gives the original's +3 and -3
+    local shake = entry.hit_lag < 0 and view.shake * 2 * shake_value - shake_value or 0
     local visible = blink % 4 < 2 and entry.blink > -25 and not entry.invisible
     local on_screen = frame.state == constants.frame_states.team_order_marker
     local resource, source = object_data.picture(entry.record.data, entry.frame, entry.pic_offset)
