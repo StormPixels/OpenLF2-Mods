@@ -221,7 +221,7 @@ end
 -- value into its text (default: translated).
 local option_rows = {
     -- The game folders of LF2_ENGINE (Android); the app restarts to open the pick. Hidden where the host lists none.
-    {key = "game", label = "Game", choices = options.game_names, display = options.game_label,
+    {key = "game", label = "Game", choices = options.game_names, display = options.game_label, grid = true,
         available = function() return #options.game_names() > 0 end},
     -- Only hosts that can draw TrueType text have another language to offer; elsewhere the page stays as it was.
     {key = "language", label = "Language", choices = options.available_languages, display = i18n.language_label,
@@ -327,6 +327,92 @@ local function checkbox(state, input, box, label, checked, blocked)
     bold(state, label, label_x, box.y + 1, pointed and constants.font_variants.blue or constants.font_variants.white)
     return pointed and input.click
 end
+-- The game picker (Android): one cell per game folder of LF2_ENGINE, 6 across and 5 down, the first game at the top left and
+-- the rest left to right, row by row. A cell is the executable's icon (resource "game/icon/<n>", n from 0) with the folder name
+-- below; OK takes the marked game into the options page, Cancel leaves the pick as it was. More than 30 games add page buttons.
+local grid_columns, grid_rows, grid_cell = 6, 5, {width = 118, height = 78, icon = 48}
+local function grid_layout(state)
+    local names = options.game_names()
+    local per_page = grid_columns * grid_rows
+    local pages = math.max(1, math.ceil(#names / per_page))
+    local page = math.max(0, math.min(state.grid.page, pages - 1))
+    local panel = {x = 24, y = 14, width = 746}
+    local left = panel.x + math.floor((panel.width - grid_columns * grid_cell.width) / 2)
+    local top = panel.y + 52
+    local cells = {}
+    for slot = 0, per_page - 1 do
+        local index = page * per_page + slot + 1
+        if index > #names then break end
+        cells[#cells + 1] = {index = index, name = names[index],
+            x = left + (slot % grid_columns) * grid_cell.width, y = top + math.floor(slot / grid_columns) * grid_cell.height}
+    end
+    local button_y = top + grid_rows * grid_cell.height + 10
+    panel.height = button_y - panel.y + 0x1a + 14
+    local middle = panel.x + math.floor(panel.width / 2)
+    return {panel = panel, cells = cells, pages = pages, page = page,
+        ok = {x = middle - 0x78 - 12, y = button_y, width = 0x78, height = 0x1a},
+        cancel = {x = middle + 12, y = button_y, width = 0x78, height = 0x1a},
+        previous = {x = panel.x + 20, y = button_y, width = 0x3c, height = 0x1a},
+        next = {x = panel.x + panel.width - 20 - 0x3c, y = button_y, width = 0x3c, height = 0x1a}}
+end
+-- The folder name cut to the width of a cell.
+local function grid_name(name)
+    local room = grid_cell.width - 8
+    if font.width(name) <= room then return name end
+    while #name > 1 and font.width(name .. "..") > room do name = name:sub(1, -2) end
+    return name .. ".."
+end
+local function open_game_picker(state)
+    local selected = 1
+    for index, name in ipairs(options.game_names()) do
+        if name == options.game_label(state.options.game) then selected = index end
+    end
+    state.grid = {selected = selected, page = math.floor((selected - 1) / (grid_columns * grid_rows))}
+    state.page = "game_grid"
+end
+local function game_grid_page(state, input, context)
+    background(state)
+    local layout = grid_layout(state)
+    local panel = layout.panel
+    add(state, {"fill", panel.x, panel.y, panel.width, panel.height, 0xa0, 0xa0, 0xc0})
+    add(state, {"fill", panel.x + 2, panel.y + 2, panel.width - 4, panel.height - 4, 0x10, 0x20, 0x50})
+    bold(state, i18n.tr("Select game"), panel.x + 20, panel.y + 18, constants.font_variants.blue)
+    if layout.pages > 1 then
+        bold(state, string.format("%d/%d", layout.page + 1, layout.pages), panel.x + panel.width - 20, panel.y + 18,
+            constants.font_variants.white, "right")
+    end
+    for _, cell in ipairs(layout.cells) do
+        local pointed = inside(input, cell.x, cell.y, cell.x + grid_cell.width - 1, cell.y + grid_cell.height - 1)
+        local marked = cell.index == state.grid.selected
+        if marked or pointed then
+            -- Only the border changes: the icon is drawn on the panel's own blue, so the cell keeps that color.
+            local r, g, b = marked and 0xff or 0x70, marked and 0xd0 or 0x80, marked and 0x40 or 0xd0
+            add(state, {"fill", cell.x + 1, cell.y + 1, grid_cell.width - 2, grid_cell.height - 2, r, g, b})
+            add(state, {"fill", cell.x + 3, cell.y + 3, grid_cell.width - 6, grid_cell.height - 6, 0x10, 0x20, 0x50})
+        end
+        add(state, {"icon", "game/icon/" .. (cell.index - 1), cell.x + math.floor((grid_cell.width - grid_cell.icon) / 2),
+            cell.y + 6, grid_cell.icon, grid_cell.icon})
+        bold(state, grid_name(cell.name), cell.x + math.floor(grid_cell.width / 2), cell.y + 6 + grid_cell.icon + 5,
+            marked and constants.font_variants.yellow or constants.font_variants.white, "center")
+        if pointed and input.click then
+            state.grid.selected = cell.index
+            sounds.direct(state, "ok")
+        end
+    end
+    if layout.pages > 1 then
+        if layout.page > 0 and button(state, input, layout.previous, "<") then state.grid.page = layout.page - 1 end
+        if layout.page < layout.pages - 1 and button(state, input, layout.next, ">") then state.grid.page = layout.page + 1 end
+    end
+    if button(state, input, layout.ok, i18n.tr("OK")) then
+        sounds.direct(state, "ok")
+        state.options.game = options.game_names()[state.grid.selected] or state.options.game
+        state.page, state.grid = "options", nil
+    elseif button(state, input, layout.cancel, i18n.tr("Cancel")) or input.nav.cancel then
+        sounds.direct(state, "cancel")
+        state.page, state.grid = "options", nil
+    end
+end
+
 local function options_page(state, input, context)
     background(state)
     logo(state, 0x37)
@@ -347,7 +433,22 @@ local function options_page(state, input, context)
     local open_focus
     for index, row in ipairs(layout.rows) do
         local option = row.option
-        if option.choices then
+        if option.grid then
+            -- The game row: a button that opens the picker (no dropdown).
+            local box = row.box
+            local pointed = not was_open and inside(input, box.x, box.y, box.x + box.width, box.y + box.height)
+            bold(state, i18n.tr(option.label), box.x - 0xd5, box.y + 1, constants.font_variants.white)
+            add(state, {"fill", box.x, box.y, box.width, box.height, 0xa0, 0xa0, 0xc0})
+            add(state, {"fill", box.x + 2, box.y + 2, box.width - 4, box.height - 4,
+                pointed and 0x32 or 0x10, pointed and 0x4d or 0x20, pointed and 0x9a or 0x50})
+            bold(state, i18n.tr("Select"), box.x + math.floor(box.width / 2), box.y + 1,
+                pointed and constants.font_variants.white or constants.font_variants.blue, "center")
+            if pointed and input.click then
+                sounds.direct(state, "ok")
+                state.options_focus = index
+                open_game_picker(state)
+            end
+        elseif option.choices then
             if was_open == option.key then open_focus = index end
             option_dropdown(state, input, values, row, index, was_open)
         elseif checkbox(state, input, row.box, i18n.tr(option.label), values[option.key], was_open) then
@@ -671,6 +772,22 @@ local function navigation_page(state)
     elseif page == "recorded" then
         return {page = page, targets = {target(0x13e, 0x17e, 0x1d8, 0x196),
             target(0x60, 0x15c, 0x27f, 0x174)}, autofocus = true}
+    elseif page == "game_grid" then
+        local layout = grid_layout(state)
+        local list, default = {}, nil
+        for _, cell in ipairs(layout.cells) do
+            list[#list + 1] = target(cell.x, cell.y, cell.x + grid_cell.width - 1, cell.y + grid_cell.height - 1)
+            if cell.index == state.grid.selected then default = #list end
+        end
+        for _, area in ipairs({layout.ok, layout.cancel}) do
+            list[#list + 1] = target(area.x, area.y, area.x + area.width, area.y + area.height)
+        end
+        if layout.pages > 1 then
+            for _, area in ipairs({layout.previous, layout.next}) do
+                list[#list + 1] = target(area.x, area.y, area.x + area.width, area.y + area.height)
+            end
+        end
+        return {page = page, targets = list, default = default}
     elseif page == "options" then
         local layout = options_layout(state.features, state.options)
         local list, dropdown = {}
@@ -732,6 +849,8 @@ function screen.update(state, flow_input, context)
         recorded_page(state, input, context)
     elseif state.page == "options" then
         options_page(state, input, context)
+    elseif state.page == "game_grid" then
+        game_grid_page(state, input, context)
     else
         menu(state, input, context)
         options_entry(state, input)
@@ -765,6 +884,7 @@ function screen.draw(state, context)
         if kind == "sprite" then
             context.sprite(command[2], command[3], command[4], command[5], command[6], command[7], command[8])
         elseif kind == "image" then context.image(command[2], command[3], command[4], command[5])
+        elseif kind == "icon" then context.icon(command[2], command[3], command[4], command[5], command[6])
         elseif kind == "backdrop" then sd_menu_back.draw_command(context, command)
         elseif kind == "fill" then context.fill(command[2], command[3], command[4], command[5], command[6], command[7], command[8])
         -- Entries with a variant are the original's bitmap-font fields; the rest is GDI text.

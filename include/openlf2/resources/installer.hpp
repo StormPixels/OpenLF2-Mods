@@ -8,6 +8,7 @@
 #include <array>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -76,8 +77,12 @@ public:
     [[nodiscard]] std::size_t file_count() const { return files_.size(); }
     // The kind detected when the folder was opened (see detect_profile).
     [[nodiscard]] const GameProfile& profile() const { return profile_; }
+    // The virtual name of the game's executable as found at open ("lf2.exe" itself, or the root .exe the folder holds
+    // under another name: NTSD 2.4 P4tch3d.exe, DragonBallSuper.exe, ...); empty when the folder has none. It is also
+    // readable as "lf2.exe", so everything that asks for that name gets the real executable.
+    [[nodiscard]] const std::string& main_exe() const { return main_exe_; }
     // Decides the kind from the files alone. A file `game_kind.txt` holding original, modded or darkfiren forces the
-    // answer; otherwise Darkfiren markers (data/system.dat, data/resource.dat) win,
+    // answer; otherwise Darkfiren (both data/system.dat and data/resource.dat present, whatever the executable is called) wins,
     // then lf2.exe: same size and SHA-256 as LF2 v2.0a is original, anything else (or none) is modded.
     [[nodiscard]] GameProfile detect_profile() const;
     // Normalized virtual paths in lexical order.
@@ -90,8 +95,17 @@ public:
 private:
     std::map<std::string, std::filesystem::path, std::less<>> files_;
     GameProfile profile_;
+    std::string main_exe_;
+    void alias_main_exe();
 };
 Result<Bytes> bitmap_resource(std::span<const char> executable, std::string_view name);
+// The icon of a PE32 executable as a 24-bit BMP, drawn over `background` (0xRRGGBB) so no alpha is needed. A PNG-compressed
+// or missing icon is an error; placeholder_icon is the picture to show instead (a 32x32 outline).
+Result<Bytes> executable_icon(std::span<const char> executable, std::uint32_t background);
+Bytes placeholder_icon(std::uint32_t background);
+// The executable of a game folder that is not open: lf2.exe, else game_exe.txt's pick, else the largest root .exe that is
+// no helper (the same choice DirectoryArchive makes); nothing when the folder has no .exe.
+std::optional<std::filesystem::path> find_game_exe(const std::filesystem::path& folder);
 // The recording key digits and version of any LF2 executable whose layout differs from v2.0a (LF2 Darkfiren):
 // the one run of 1000+ ASCII digits in the file is the key, and the version is the u32 0x764 bytes before it.
 Result<std::pair<std::string, std::int32_t>> scan_recording_constants(std::span<const char> executable);

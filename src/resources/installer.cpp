@@ -320,6 +320,89 @@ std::string_view game_kind_name(GameKind kind) {
     return "original";
 }
 
+// Finds the game's executable when the folder has no lf2.exe and makes it readable as "lf2.exe". In order: a file
+// game_exe.txt naming a root .exe; else the largest root .exe that is not a helper (unins*, *lobby*, *setup*, ...).
+void DirectoryArchive::alias_main_exe() {
+    if (files_.contains("lf2.exe")) { main_exe_ = "lf2.exe"; return; }
+    if (const auto named = files_.find("game_exe.txt"); named != files_.end()) {
+        if (auto text = read_file(named->second, 256)) {
+            std::string wanted(text->data(), text->size());
+            while (!wanted.empty() && static_cast<unsigned char>(wanted.back()) <= 32) wanted.pop_back();
+            std::size_t first = 0;
+            while (first < wanted.size() && static_cast<unsigned char>(wanted[first]) <= 32) ++first;
+            if (const auto virt = virtual_path(std::string_view(wanted).substr(first))) {
+                const auto exe = files_.find(*virt);
+                if (exe != files_.end() && virt->ends_with(".exe")) {
+                    main_exe_ = *virt;
+                    files_.emplace("lf2.exe", exe->second);
+                    return;
+                }
+            }
+        }
+    }
+    const auto is_helper = [](std::string_view file) {
+        for (const std::string_view word : {"unins", "lobby", "setup", "redist", "update", "launcher", "config", "crash"}) {
+            if (file.find(word) != std::string_view::npos) return true;
+        }
+        return false;
+    };
+    std::string best;
+    std::filesystem::path best_path;
+    std::uintmax_t best_size = 0;
+    for (const auto& [file, location] : files_) {
+        if (file.find('/') != std::string::npos || !file.ends_with(".exe") || is_helper(file)) continue;
+        std::error_code size_error;
+        const auto size = std::filesystem::file_size(location, size_error);
+        if (size_error) continue;
+        if (best.empty() || size > best_size) { best = file; best_path = location; best_size = size; }
+    }
+    if (best.empty()) return;
+    main_exe_ = best;
+    files_.emplace("lf2.exe", best_path);
+}
+
+std::optional<std::filesystem::path> find_game_exe(const std::filesystem::path& folder) {
+    std::error_code error;
+    std::filesystem::directory_iterator entries(folder, error);
+    if (error) return std::nullopt;
+    std::map<std::string, std::filesystem::path> exes;  // lower-case name -> path
+    std::optional<std::filesystem::path> named;          // game_exe.txt
+    for (const auto& entry : entries) {
+        std::error_code entry_error;
+        if (!entry.is_regular_file(entry_error) || entry_error) continue;
+        auto name = entry.path().filename().string();
+        for (auto& c : name) { if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + ('a' - 'A')); }
+        if (name == "game_exe.txt") named = entry.path();
+        if (name.ends_with(".exe")) exes.emplace(name, entry.path());
+    }
+    if (const auto lf2 = exes.find("lf2.exe"); lf2 != exes.end()) return lf2->second;
+    if (named) {
+        if (auto text = read_file(*named, 256)) {
+            std::string wanted(text->data(), text->size());
+            while (!wanted.empty() && static_cast<unsigned char>(wanted.back()) <= 32) wanted.pop_back();
+            std::size_t first = 0;
+            while (first < wanted.size() && static_cast<unsigned char>(wanted[first]) <= 32) ++first;
+            wanted.erase(0, first);
+            for (auto& c : wanted) { if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + ('a' - 'A')); }
+            if (const auto exe = exes.find(wanted); exe != exes.end()) return exe->second;
+        }
+    }
+    std::optional<std::filesystem::path> best;
+    std::uintmax_t best_size = 0;
+    for (const auto& [file, location] : exes) {
+        bool helper = false;
+        for (const std::string_view word : {"unins", "lobby", "setup", "redist", "update", "launcher", "config", "crash"}) {
+            if (file.find(word) != std::string::npos) helper = true;
+        }
+        if (helper) continue;
+        std::error_code size_error;
+        const auto size = std::filesystem::file_size(location, size_error);
+        if (size_error) continue;
+        if (!best || size > best_size) { best = location; best_size = size; }
+    }
+    return best;
+}
+
 GameProfile DirectoryArchive::detect_profile() const {
     // 1. The owner's word: game_kind.txt (original | modded | darkfiren).
     if (const auto forced = files_.find("game_kind.txt"); forced != files_.end()) {
@@ -334,19 +417,18 @@ GameProfile DirectoryArchive::detect_profile() const {
             if (word == "modded" || word == "mod") return {GameKind::original_modded, "game_kind.txt says modded"};
         }
     }
-    // 2. Darkfiren markers: files the original never has.
-    std::string markers;
-    for (const std::string_view name : {"data/system.dat", "data/resource.dat"}) {
-        if (files_.contains(name)) markers += std::string(name) + " ";
+    // 2. LF2 Darkfiren: data/system.dat AND data/resource.dat, files the original never has. The name of the
+    // executable plays no part here.
+    if (files_.contains("data/system.dat") && files_.contains("data/resource.dat")) {
+        return {GameKind::darkfiren, "data/system.dat and data/resource.dat present"};
     }
-    if (!markers.empty()) return {GameKind::darkfiren, "Darkfiren files: " + markers};
     // 3. The original engine layout: lf2.exe decides between untouched and modified.
     const auto exe_file = files_.find("lf2.exe");
     if (exe_file == files_.end()) return {GameKind::original_modded, "no lf2.exe and no Darkfiren files"};
     auto exe = read_file(exe_file->second, folder_file_limit);
     if (!exe) return {GameKind::original_modded, "lf2.exe cannot be read"};
     if (exe->size() != folder_exe_size) {
-        return {GameKind::original_modded, "lf2.exe is " + std::to_string(exe->size()) + " bytes, LF2 v2.0a is " +
+        return {GameKind::original_modded, "game exe is " + std::to_string(exe->size()) + " bytes, LF2 v2.0a lf2.exe is " +
                 std::to_string(folder_exe_size)};
     }
     auto digest = sha256(*exe);
@@ -371,6 +453,7 @@ Result<std::unique_ptr<DirectoryArchive>> DirectoryArchive::open(const std::file
         archive->files_.emplace(*path, it->path());  // first file wins if names differ only by case
     }
     if (ec) return fail(ErrorCode::io, "cannot list LF2 folder: " + ec.message());
+    archive->alias_main_exe();
     auto identified = identify_folder(*archive);
     if (!identified) return std::unexpected(identified.error());
     // A folder is not proof of complete assets: data/ and sprite/ must hold files, and every file that
@@ -404,8 +487,9 @@ Result<std::unique_ptr<DirectoryArchive>> DirectoryArchive::open(const std::file
     if (missing_files > 3) missing += "(+" + std::to_string(missing_files - 3) + " more) ";
     if (!missing.empty()) return fail(ErrorCode::io, "LF2 assets incomplete, missing: " + missing);
     archive->profile_ = archive->detect_profile();
-    std::fprintf(stderr, "[folder] %s: kind %s (%s)\n", root.filename().string().c_str(),
-        std::string(game_kind_name(archive->profile_.kind)).c_str(), archive->profile_.reason.c_str());
+    std::fprintf(stderr, "[folder] %s: kind %s (%s), exe %s\n", root.filename().string().c_str(),
+        std::string(game_kind_name(archive->profile_.kind)).c_str(), archive->profile_.reason.c_str(),
+        archive->main_exe_.empty() ? "none" : archive->main_exe_.c_str());
     return archive;
 }
 

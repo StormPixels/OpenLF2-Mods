@@ -5,6 +5,7 @@
 #include "openlf2/core/binary.hpp"
 #include "openlf2/resources/bitmap.hpp"
 #include <optional>
+#include <vector>
 
 namespace openlf2 {
 namespace {
@@ -33,6 +34,16 @@ public:
         const BinaryView entry(resource_view(language, 16));
         const std::size_t size = entry.u32(4);
         return file_.slice(file_offset(entry.u32(0), size), size);
+    }
+    // The data of the first resource of `type` (RT_GROUP_ICON is 14), whatever its name and language.
+    std::span<const char> first_resource(std::uint32_t type) const {
+        const auto language = first_target(child(0, type, {}));
+        return entry_data(first_target(language));
+    }
+    // The data of the RT_ICON resource with this id.
+    std::span<const char> icon_resource(std::uint32_t id) const {
+        const auto language = child(child(0, 3, {}), id, {});
+        return entry_data(first_target(language));
     }
     // The virtual address of a file offset inside a section, if any.
     std::optional<std::uint32_t> address_of(std::size_t offset) const {
@@ -97,6 +108,16 @@ private:
         }
         throw FormatError("named bitmap resource not found: " + std::string(name));
     }
+    std::size_t first_target(std::size_t directory) const {
+        const BinaryView header(resource_view(directory, 16));
+        if (header.u16(12) + header.u16(14) == 0) throw FormatError("empty resource directory");
+        return BinaryView(resource_view(directory + 16, 8)).u32(4) & 0x7fffffffU;
+    }
+    std::span<const char> entry_data(std::size_t offset) const {
+        const BinaryView entry(resource_view(offset, 16));
+        const std::size_t size = entry.u32(4);
+        return file_.slice(file_offset(entry.u32(0), size), size);
+    }
     std::size_t first_language(std::size_t directory) const {
         const BinaryView header(resource_view(directory, 16));
         // The pinned binary uses one language per bitmap. Reject ambiguous variants.
@@ -112,6 +133,112 @@ private:
     std::size_t root_ = 0;
     std::size_t resource_size_ = 0;
 };
+// A top-down tight 24-bit pixel buffer (B, G, R per pixel, bottom row first) as a BMP file.
+Bytes bmp_file(std::size_t width, std::size_t height, const std::vector<std::uint8_t>& pixels) {
+    const std::size_t stride = (width * 3 + 3) & ~std::size_t{3};
+    const std::size_t image = stride * height;
+    Bytes out(54 + image, 0);
+    const auto put32 = [&](std::size_t at, std::uint32_t value) {
+        for (std::size_t i = 0; i < 4; ++i) out[at + i] = static_cast<char>((value >> (8 * i)) & 0xff);
+    };
+    out[0] = 'B'; out[1] = 'M';
+    put32(2, static_cast<std::uint32_t>(out.size())); put32(10, 54); put32(14, 40);
+    put32(18, static_cast<std::uint32_t>(width)); put32(22, static_cast<std::uint32_t>(height));
+    out[26] = 1; out[28] = 24; put32(34, static_cast<std::uint32_t>(image));
+    for (std::size_t row = 0; row < height; ++row) {
+        for (std::size_t i = 0; i < width * 3; ++i) out[54 + row * stride + i] = static_cast<char>(pixels[row * width * 3 + i]);
+    }
+    return out;
+}
+// The DIB of an icon image (BITMAPINFOHEADER, palette, XOR pixels, AND mask) drawn over `background` (0xRRGGBB).
+Bytes icon_dib_to_bmp(std::span<const char> dib, std::uint32_t background) {
+    const BinaryView view(dib);
+    const std::size_t header = view.u32(0);
+    const std::size_t width = view.u32(4), height = std::size_t{view.u32(8)} / 2;
+    const std::size_t bits = view.u16(14);
+    if (header < 40 || view.u32(16) != 0 || width < 1 || width > 256 || height < 1 || height > 256 ||
+        (bits != 1 && bits != 4 && bits != 8 && bits != 24 && bits != 32)) throw FormatError("unsupported icon image");
+    std::size_t palette = view.u32(32);
+    if (palette == 0 && bits <= 8) palette = std::size_t{1} << bits;
+    if (palette > 256) throw FormatError("icon palette too large");
+    const std::size_t pixels_at = header + palette * 4;
+    const std::size_t stride = ((width * bits + 31) / 32) * 4;
+    const std::size_t mask_at = pixels_at + stride * height, mask_stride = ((width + 31) / 32) * 4;
+    view.slice(pixels_at, stride * height);
+    const bool has_mask = dib.size() >= mask_at + mask_stride * height;
+    bool any_alpha = false;
+    if (bits == 32) {
+        for (std::size_t i = 0; i < width * height && !any_alpha; ++i) any_alpha = view.u8(pixels_at + (i / width) * stride + (i % width) * 4 + 3) != 0;
+    }
+    const int back[3] = {static_cast<int>((background >> 16) & 0xff), static_cast<int>((background >> 8) & 0xff), static_cast<int>(background & 0xff)};
+    std::vector<std::uint8_t> out(width * height * 3);
+    for (std::size_t row = 0; row < height; ++row) {
+        for (std::size_t x = 0; x < width; ++x) {
+            int blue = 0, green = 0, red = 0, alpha = 255;
+            const std::size_t line = pixels_at + row * stride;
+            if (bits == 32) {
+                blue = view.u8(line + x * 4); green = view.u8(line + x * 4 + 1); red = view.u8(line + x * 4 + 2);
+                if (any_alpha) alpha = view.u8(line + x * 4 + 3);
+            } else if (bits == 24) {
+                blue = view.u8(line + x * 3); green = view.u8(line + x * 3 + 1); red = view.u8(line + x * 3 + 2);
+            } else {
+                std::size_t index = 0;
+                if (bits == 8) index = view.u8(line + x);
+                else if (bits == 4) index = (view.u8(line + x / 2) >> ((x % 2) ? 0 : 4)) & 0xf;
+                else index = (view.u8(line + x / 8) >> (7 - x % 8)) & 1;
+                if (index >= palette) index = 0;
+                blue = view.u8(header + index * 4); green = view.u8(header + index * 4 + 1); red = view.u8(header + index * 4 + 2);
+            }
+            if (has_mask && !(bits == 32 && any_alpha) && ((view.u8(mask_at + row * mask_stride + x / 8) >> (7 - x % 8)) & 1)) alpha = 0;
+            const std::size_t at = (row * width + x) * 3;
+            out[at] = static_cast<std::uint8_t>((blue * alpha + back[2] * (255 - alpha)) / 255);
+            out[at + 1] = static_cast<std::uint8_t>((green * alpha + back[1] * (255 - alpha)) / 255);
+            out[at + 2] = static_cast<std::uint8_t>((red * alpha + back[0] * (255 - alpha)) / 255);
+        }
+    }
+    return bmp_file(width, height, out);
+}
+}
+Bytes placeholder_icon(std::uint32_t background) {
+    constexpr std::size_t size = 32;
+    std::vector<std::uint8_t> pixels(size * size * 3);
+    for (std::size_t y = 0; y < size; ++y) {
+        for (std::size_t x = 0; x < size; ++x) {
+            const bool border = x >= 4 && x < size - 4 && y >= 4 && y < size - 4 && (x < 6 || x >= size - 6 || y < 6 || y >= size - 6);
+            const std::uint32_t color = border ? 0xa0a0c0u : background;
+            const std::size_t at = (y * size + x) * 3;
+            pixels[at] = static_cast<std::uint8_t>(color & 0xff);
+            pixels[at + 1] = static_cast<std::uint8_t>((color >> 8) & 0xff);
+            pixels[at + 2] = static_cast<std::uint8_t>((color >> 16) & 0xff);
+        }
+    }
+    return bmp_file(size, size, pixels);
+}
+Result<Bytes> executable_icon(std::span<const char> executable, std::uint32_t background) {
+    if (executable.size() > 64 * 1024 * 1024) return fail(ErrorCode::limit, "PE file exceeds limit");
+    try {
+        const PeResources pe(executable);
+        const BinaryView group(pe.first_resource(14));
+        const std::size_t count = group.u16(4);
+        int best_score = -1;
+        std::span<const char> best;
+        for (std::size_t i = 0; i < count && i < 64; ++i) {
+            const std::size_t entry = 6 + i * 14;
+            const int width = group.u8(entry) == 0 ? 256 : group.u8(entry);
+            const int bits = group.u16(entry + 6);
+            std::span<const char> image;
+            try { image = pe.icon_resource(group.u16(entry + 12)); } catch (const FormatError&) { continue; }
+            if (image.size() < 8 || static_cast<unsigned char>(image[0]) == 0x89) continue;  // PNG-compressed: not decoded
+            // 32 to 64 pixels suit the picker best, then smaller ones, then larger ones.
+            const int rank = width >= 32 && width <= 64 ? 1000 + width : width < 32 ? width : 500 - width;
+            const int score = rank * 64 + bits;
+            if (score > best_score) { best_score = score; best = image; }
+        }
+        if (best_score < 0) return fail(ErrorCode::format, "no usable icon in the executable");
+        return icon_dib_to_bmp(best, background);
+    } catch (const FormatError& error) {
+        return fail(ErrorCode::format, error.what());
+    }
 }
 Result<Bytes> executable_data(std::span<const char> executable, std::uint32_t address, std::size_t size) {
     if (executable.size() > 64 * 1024 * 1024) return fail(ErrorCode::limit, "PE file exceeds limit");
