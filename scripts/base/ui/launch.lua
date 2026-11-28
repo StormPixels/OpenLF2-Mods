@@ -26,10 +26,10 @@ local menu_clip6 = {[0] = {0, 0, 704, 312}, {0, 360, 439, 23}, {0, 385, 439, 23}
     {0, 673, 543, 24}, {548, 363, 19, 19}, {572, 363, 19, 19}, {443, 388, 343, 22}}
 
 -- Recording page on the compact MENU_CLIP6 sheet of the mod (794 x 264, as in u17): no e-mail field, no "recorded" notice page, no help
--- links; dialog 704 x 236, tick sprites at y 244, hover of "open folder" at x 44, y 244. Everything below the info box sits 76 px higher
+-- links; dialog 704 x 236, tick sprites at y 244, hover of "open folder" at x 51, y 244. Everything below the info box sits 76 px higher
 -- than on the vanilla sheet (704 x 312). Set to true for the mod sheet. [MEASURED on the sheet, not read from the exe]
-local compact_sheet = false
-local compact_clip6 = {[0] = {0, 0, 704, 236}, [5] = {0, 244, 19, 19}, [6] = {24, 244, 19, 19}, [7] = {44, 244, 343, 19}}
+local compact_sheet = true
+local compact_clip6 = {[0] = {0, 0, 704, 236}, [5] = {0, 244, 19, 19}, [6] = {24, 244, 19, 19}, [7] = {51, 244, 343, 19}}
 
 local function note(message) return message and i18n.clip(message, 96) or nil end
 
@@ -576,7 +576,7 @@ local function recording_page(state, input, context)
     end
     -- "Open the recording folder" asks the host to open it in the system file manager.
     local folder_x, folder_y = 0x185, 0x184 - lift
-    if compact_sheet then folder_x, folder_y = 0x17e, 0x13a end
+    if compact_sheet then folder_y = 0x13a end -- same x as the vanilla sheet, sprite 3 px shorter
     if inside(input, folder_x, folder_y, folder_x + 0x157, folder_y + 0x16) then
         sprite(state, "pe/menu_clip6", sheet[7], folder_x, folder_y, true)
         if input.click then
