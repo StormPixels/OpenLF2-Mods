@@ -132,8 +132,15 @@ function frame_rules.revive_in_place(state, value, part)
     value.dark_hp = part >= 1 and value.max_hp or math.max(1, math.floor(value.max_hp * part))
     value.hp = value.dark_hp
     value.blink = constants.blink.spawn_frames
-    value.frame = constants.character_frames.standing
-    value.wait_counter = 0
+    -- The fighter gets up the way the dat says: it stays in its lying frame and that frame's wait is used up, so the next tick goes on to the
+    -- frame's own `next` (a normal dat: 230 lying, next 219, the crouch, next 999, standing). Before, it was put on its feet at once.
+    local lying_frame = value.record.frame(value.frame)
+    if state_of(value) == constants.frame_states.lying and lying_frame then
+        value.wait_counter = lying_frame.wait
+    else
+        value.frame = constants.character_frames.standing
+        value.wait_counter = 0
+    end
     value.vx, value.vy, value.vz = 0.0, 0.0, 0.0
 end
 

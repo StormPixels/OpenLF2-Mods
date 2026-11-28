@@ -25,6 +25,12 @@ local devices = {[constants.input_devices.keyboard] = "pe/cs6",
 local menu_clip6 = {[0] = {0, 0, 704, 312}, {0, 360, 439, 23}, {0, 385, 439, 23}, {0, 411, 704, 258},
     {0, 673, 543, 24}, {548, 363, 19, 19}, {572, 363, 19, 19}, {443, 388, 343, 22}}
 
+-- Recording page on the compact MENU_CLIP6 sheet of the mod (794 x 264, as in u17): no e-mail field, no "recorded" notice page, no help
+-- links; dialog 704 x 236, tick sprites at y 244, hover of "open folder" at x 44, y 244. Everything below the info box sits 76 px higher
+-- than on the vanilla sheet (704 x 312). Set to true for the mod sheet. [MEASURED on the sheet, not read from the exe]
+local compact_sheet = false
+local compact_clip6 = {[0] = {0, 0, 704, 236}, [5] = {0, 244, 19, 19}, [6] = {24, 244, 19, 19}, [7] = {44, 244, 343, 19}}
+
 local function note(message) return message and i18n.clip(message, 96) or nil end
 
 -- options: menu_seed (background choice, like the title), problem (why config was ignored).
@@ -527,7 +533,9 @@ end
 local function recording_page(state, input, context)
     background(state)
     logo(state, 0x37)
-    sprite(state, "pe/menu_clip6", menu_clip6[0], 0x2c, 0x93, true)
+    local sheet = compact_sheet and compact_clip6 or menu_clip6
+    local lift = compact_sheet and 76 or 0
+    sprite(state, "pe/menu_clip6", sheet[0], 0x2c, 0x93, true)
     local values = state.record
     -- Escape, Tab or B (and Enter or A, except in the multi-line info) end the editing.
     if state.field and leaves_field(state, input, state.field == "info") then state.field = nil end
@@ -537,7 +545,7 @@ local function recording_page(state, input, context)
         if x >= 0xd2 and x < 0x2db then
             if y >= 0xcf and y < 0xe2 then state.field = "author"
             elseif y >= 0xe8 and y < 0x12f then state.field = "info"
-            elseif y >= 0x135 and y < 0x148 then state.field = "email" end
+            elseif not compact_sheet and y >= 0x135 and y < 0x148 then state.field = "email" end
         end
     end
     if state.field then
@@ -558,40 +566,48 @@ local function recording_page(state, input, context)
     end
     field_text(state, values.author, 0xd5, 0xd1, 1, state.field == "author")
     field_text(state, values.info, 0xd5, 0xea, 4, state.field == "info")
-    field_text(state, values.email, 0xd5, 0x137, 1, state.field == "email")
-    if values.record ~= 0 then sprite(state, "pe/menu_clip6", menu_clip6[6], 0x11f, 0x185, true) end
-    if inside(input, 0x11f, 0x186, 0x132, 0x199) then
-        sprite(state, "pe/menu_clip6", menu_clip6[5], 0x11f, 0x185, true)
+    if not compact_sheet then field_text(state, values.email, 0xd5, 0x137, 1, state.field == "email") end
+    -- Checkbox: sprite 19 x 19 at (0x11f, 0x185 - lift).
+    local box_y = 0x185 - lift
+    if values.record ~= 0 then sprite(state, "pe/menu_clip6", sheet[6], 0x11f, box_y, true) end
+    if inside(input, 0x11f, box_y + 1, 0x132, box_y + 0x14) then
+        sprite(state, "pe/menu_clip6", sheet[5], 0x11f, box_y, true)
         if input.click then values.record = 1 - values.record end
     end
     -- "Open the recording folder" asks the host to open it in the system file manager.
-    if inside(input, 0x185, 0x184, 0x2dc, 0x19a) then
-        sprite(state, "pe/menu_clip6", menu_clip6[7], 0x185, 0x184, true)
+    local folder_x, folder_y = 0x185, 0x184 - lift
+    if compact_sheet then folder_x, folder_y = 0x17e, 0x13a end
+    if inside(input, folder_x, folder_y, folder_x + 0x157, folder_y + 0x16) then
+        sprite(state, "pe/menu_clip6", sheet[7], folder_x, folder_y, true)
         if input.click then
             sounds.direct(state, "ok")
             context.action("open_recordings")
         end
     end
-    local link = inside(input, 0x2c, 0x1cd, 0x1e3, 0x1e4) and 2 or 1
-    sprite(state, "pe/menu_clip6", menu_clip6[link], 0x2c, 0x1cd, true)
-    if link == 2 and input.click then
-        sounds.direct(state, "ok")
-        context.action("open_recording_help")
+    if not compact_sheet then
+        local link = inside(input, 0x2c, 0x1cd, 0x1e3, 0x1e4) and 2 or 1
+        sprite(state, "pe/menu_clip6", menu_clip6[link], 0x2c, 0x1cd, true)
+        if link == 2 and input.click then
+            sounds.direct(state, "ok")
+            context.action("open_recording_help")
+        end
     end
-    if input.pointer_y >= 0x1a0 and input.pointer_y <= 0x1b8 then
+    local button_y = 0x1a0 - lift
+    if input.pointer_y >= button_y and input.pointer_y <= button_y + 0x18 then
         if input.pointer_x >= 0x193 and input.pointer_x <= 0x22e then
-            sprite(state, "pe/menu_clip", menu_clip[12], 0x193, 0x1a0, true)
+            sprite(state, "pe/menu_clip", menu_clip[12], 0x193, button_y, true)
             if input.click then
                 sounds.direct(state, "cancel")
                 state.page, state.record = "menu", nil
             end
         elseif input.pointer_x >= 0xe7 and input.pointer_x <= 0x182 then
-            sprite(state, "pe/menu_clip", menu_clip[13], 0xe7, 0x1a0, true)
+            sprite(state, "pe/menu_clip", menu_clip[13], 0xe7, button_y, true)
             if input.click then
                 sounds.direct(state, "ok")
                 local saved, problem = controls.save_recording(values.record, values.author, values.email, values.info)
                 state.message = not saved and note(i18n.tr("Settings not saved: %s", tostring(problem))) or nil
-                state.page, state.record = "recorded", nil
+                -- The compact sheet has no "recorded" notice picture: straight back to the menu.
+                state.page, state.record = compact_sheet and "menu" or "recorded", nil
             end
         end
     end
