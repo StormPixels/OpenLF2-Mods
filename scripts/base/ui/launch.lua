@@ -11,6 +11,7 @@ local ui_hud = require("base/game/ui_hud")
 local navigation = require("base/ui/navigation")
 local constants = require("base/game/constants")
 local sd_menu_back = require("base/game/sd_menu_back")  -- HOOK(AI5): system.dat <menu_back_N>
+local game_profile = require("base/game/game_profile")
 local menu_data = require("base/game/menu_data")  -- HOOK(AI5): data\\menu.dat
 local virtual_keys = constants.virtual_keys
 local screen = {}
@@ -27,8 +28,8 @@ local menu_clip6 = {[0] = {0, 0, 704, 312}, {0, 360, 439, 23}, {0, 385, 439, 23}
 
 -- Recording page on the compact MENU_CLIP6 sheet of the mod (794 x 264, as in u17): no e-mail field, no "recorded" notice page, no help
 -- links; dialog 704 x 236, tick sprites at y 244, hover of "open folder" at x 51, y 244. Everything below the info box sits 76 px higher
--- than on the vanilla sheet (704 x 312). Set to true for the mod sheet. [MEASURED on the sheet, not read from the exe]
-local compact_sheet = true
+-- than on the vanilla sheet (704 x 312). The kind of game decides (game_profile): true for Darkfiren. [MEASURED on the sheet, not read from the exe]
+local compact_sheet = game_profile.get("compact_sheet", false)  -- per game kind, see base/game/game_profile.lua
 local compact_clip6 = {[0] = {0, 0, 704, 236}, [5] = {0, 244, 19, 19}, [6] = {24, 244, 19, 19}, [7] = {51, 244, 343, 19}}
 
 local function note(message) return message and i18n.clip(message, 96) or nil end
