@@ -352,11 +352,11 @@ local min_view_height, max_view_height = 550, 1000
 -- Match height by the second number of the background's zboundary (Naruto: The Setting Dawn uses 730): a background
 -- whose far zboundary is at most `classic_far` (or has none) is classic and uses `classic_view_height`; one with a far
 -- zboundary above it uses `tall_view_height`. Set tall_view_height to nil for the automatic height below.
-local game_profile = require("base/game/game_profile")
--- Per game kind (base/game/game_profile.lua): the original keeps every background at 550, mods and Darkfiren use 730 for tall ones.
-local classic_far = game_profile.get("classic_far", 550)
-local classic_view_height = game_profile.get("classic_view_height", 550)
-local tall_view_height = game_profile.get("tall_view_height", 730)
+local tipe_game = require("base/game/tipe_game")
+-- Per game kind (base/game/tipe_game.lua): the original keeps every background at 550, mods and Darkfiren use 730 for tall ones.
+local classic_far = tipe_game.get("classic_far", 550)
+local classic_view_height = tipe_game.get("classic_view_height", 550)
+local tall_view_height = tipe_game.get("tall_view_height", 730)
 local view_heights = {}
 local view_height_count = 0
 function background.view_height(data)

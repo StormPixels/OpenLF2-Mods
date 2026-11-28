@@ -58,13 +58,14 @@ inline constexpr std::size_t folder_exe_size = 3'424'256;
 Result<void> identify_folder(const ResourceSource& source);
 // Which rule set a game folder needs. `original`: LF2 v2.0a as released (lf2.exe matches). `original_modded`: the
 // original engine layout with other data or another lf2.exe (NTSD, fan mods). `darkfiren`: LF2 Darkfiren, whose
-// system.dat / resource.dat / lf2_exe/ replace what the original keeps in lf2.exe and hard-coded rules.
-enum class GameKind { original, original_modded, darkfiren };
+// system.dat / resource.dat / lf2_exe/ replace what the original keeps in lf2.exe and hard-coded rules. `neora`: LF2 Neora
+// (an engine modification: neora.dll next to its own executable, PDK.exe).
+enum class GameKind { original, original_modded, darkfiren, neora };
 struct GameProfile {
     GameKind kind = GameKind::original;
     std::string reason;  // the evidence that decided, for the log
 };
-std::string_view game_kind_name(GameKind kind);  // "original", "modded", "darkfiren"
+std::string_view game_kind_name(GameKind kind);  // "original", "modded", "darkfiren", "neora"
 class DirectoryArchive final : public ResourceSource {
 public:
     DirectoryArchive() = default;
@@ -83,7 +84,7 @@ public:
     [[nodiscard]] const std::string& main_exe() const { return main_exe_; }
     // Decides the kind from the files alone. A file `game_kind.txt` holding original, modded or darkfiren forces the
     // answer; otherwise Darkfiren (both data/system.dat and data/resource.dat present, whatever the executable is called) wins,
-    // then lf2.exe: same size and SHA-256 as LF2 v2.0a is original, anything else (or none) is modded.
+    // then neora.dll in the folder's root (Neora), then lf2.exe: same size and SHA-256 as LF2 v2.0a is original, anything else (or none) is modded.
     [[nodiscard]] GameProfile detect_profile() const;
     // Normalized virtual paths in lexical order.
     [[nodiscard]] std::vector<std::string> paths() const {

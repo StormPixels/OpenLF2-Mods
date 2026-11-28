@@ -42,6 +42,7 @@ local frame_rules = require("base/game/frame_rules")
 local sounds = require("base/game/sounds")
 local stage = require("base/game/stage")
 local speed = require("base/game/speed")
+local tipe_game = require("base/game/tipe_game")
 local music = require("base/game/music")
 local note_function_keys, function_keys
 local battle = require("base/game/battle")
@@ -775,7 +776,8 @@ function_keys = function(state)
         state.function_counts[6] = state.function_counts[6] + 1
         state.cheat_lock = 1
     end
-    if pending[7] and cheats_allowed and state.round_counter == 0 then
+    -- F7 after the round has ended only where the tipe game allows it (Neora's F7_for_dead).
+    if pending[7] and cheats_allowed and (state.round_counter == 0 or tipe_game.get("f7_after_round", false)) then
         state.heal_all = not state.heal_all
         state.function_counts[7] = state.function_counts[7] + 1
         state.cheat_lock = 1

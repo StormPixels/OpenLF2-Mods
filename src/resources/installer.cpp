@@ -316,6 +316,7 @@ std::string_view game_kind_name(GameKind kind) {
     case GameKind::original: return "original";
     case GameKind::original_modded: return "modded";
     case GameKind::darkfiren: return "darkfiren";
+    case GameKind::neora: return "neora";
     }
     return "original";
 }
@@ -413,6 +414,7 @@ GameProfile DirectoryArchive::detect_profile() const {
                 else if (c >= 'a' && c <= 'z') word += c;
             }
             if (word == "darkfiren") return {GameKind::darkfiren, "game_kind.txt says darkfiren"};
+            if (word == "neora") return {GameKind::neora, "game_kind.txt says neora"};
             if (word == "original") return {GameKind::original, "game_kind.txt says original"};
             if (word == "modded" || word == "mod") return {GameKind::original_modded, "game_kind.txt says modded"};
         }
@@ -422,7 +424,9 @@ GameProfile DirectoryArchive::detect_profile() const {
     if (files_.contains("data/system.dat") && files_.contains("data/resource.dat")) {
         return {GameKind::darkfiren, "data/system.dat and data/resource.dat present"};
     }
-    // 3. The original engine layout: lf2.exe decides between untouched and modified.
+    // 3. LF2 Neora: its engine modification, neora.dll, next to the executable.
+    if (files_.contains("neora.dll")) return {GameKind::neora, "neora.dll present"};
+    // 4. The original engine layout: lf2.exe decides between untouched and modified.
     const auto exe_file = files_.find("lf2.exe");
     if (exe_file == files_.end()) return {GameKind::original_modded, "no lf2.exe and no Darkfiren files"};
     auto exe = read_file(exe_file->second, folder_file_limit);

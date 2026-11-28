@@ -2,6 +2,7 @@
 -- Copyright (c) 2026 OpenLF2 contributors
 
 local system_data = require("base/game/system_data")
+local tipe_game = require("base/game/tipe_game")
 local speed = {fast = false, slow = 0}
 
 local round_end_jingle = 80  -- match.lua: at this round_counter the end jingle plays and normal speed returns
@@ -9,10 +10,11 @@ local slow_power_limit = 200
 
 -- LF2 Darkfiren: the milliseconds added to each frame while a round ends (system.dat `slow_motion:` 0/1 and
 -- `slow_power:` "add 65 to default fps value"); 0 when slow motion is off. Without a system.dat tag slow motion
--- stays off, as it was before. The result is clamped to 0..200.
+-- stays off, as it was before, unless the game's tipe game turns it on (Neora: slow_motion 1, slow_power 65 of its DLL
+-- config block; base/game/tipe_game.lua). The result is clamped to 0..200.
 function speed.slow_extra()
-    if system_data.number("slow_motion", 0) ~= 1 then return 0 end
-    local power = system_data.number("slow_power", 65)
+    if system_data.number("slow_motion", tipe_game.get("slow_motion", 0)) ~= 1 then return 0 end
+    local power = system_data.number("slow_power", tipe_game.get("slow_power", 65))
     if power < 0 then return 0 end
     return math.min(power, slow_power_limit)
 end

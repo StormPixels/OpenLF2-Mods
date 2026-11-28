@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Changed
+- Tipe game 4 (LF2 Neora) takes the Configuration Block of neora.dll where OpenLF2 has a counterpart: slow motion at the end of a round (`slow_motion` 1, `slow_power` 65; a system.dat tag still wins), the Battle mode defense limit 1000 and step 100 instead of 300 and 50 (`battle_defense_max`, `battle_defense_step`) and F7 after the round has ended (`f7_after_round`, Neora's F7_for_dead). The other tipe games keep their old behaviour (shared defaults in `base/game/tipe_game.lua`). Not done yet: Unlock_Teams (team choice in Stage mode), replay_switch, Neora's extra dat attributes, itr kinds, effects and states [NOT RUN: no way to run the game here; read from DLL/Main.asm and the .inc files]
 - The 10 player options panel (`<menu_small>`), background, background mode and Stage rows: with the grid shut, A steps to the next value, J to the previous one and D opens the grid; J no longer steps back on the time limit and cost pool rows; A used to open it. In a grid the arrows move the blinking cell, A confirms, J closes it and D does nothing (the one-column background list reads left/right too) [BELUM DIUJI: written without a way to run the game]
 
 ### Fixed

@@ -14,6 +14,7 @@ local navigation = require("base/ui/input")
 local font = require("base/ui/font")
 local sounds = require("base/game/sounds")
 local i18n = require("base/i18n/i18n")
+local tipe_game = require("base/game/tipe_game")
 local screen = {}
 
 local function cdiv(a, b)
@@ -216,13 +217,16 @@ local function panel_keys(state, key, context)
         config.row = panel_rows.defense
         blinking_outline(state, config.side * 347 + 80 + origin_x, y0 + 150, 208, 25)
         if key == "l" or key == "r" then config.side = 1 - config.side end
+        -- The step and the limit follow the tipe game (Neora: battle_step 100, battle_limit 1000; the others 50 and 300).
+        local step = tipe_game.get("battle_defense_step", 50)
+        local limit = tipe_game.get("battle_defense_max", constants.defense.maximum)
         if key == "c" then
-            config.defense[config.side] = config.defense[config.side] + 50
-            if config.defense[config.side] > constants.defense.maximum then config.defense[config.side] = constants.defense.normal end
+            config.defense[config.side] = config.defense[config.side] + step
+            if config.defense[config.side] > limit then config.defense[config.side] = constants.defense.normal end
         end
         if key == "b" then
-            config.defense[config.side] = config.defense[config.side] - 50
-            if config.defense[config.side] < constants.defense.normal then config.defense[config.side] = constants.defense.maximum end
+            config.defense[config.side] = config.defense[config.side] - step
+            if config.defense[config.side] < constants.defense.normal then config.defense[config.side] = limit end
         end
     elseif row < 0 then
         config.row = panel_rows.continue
